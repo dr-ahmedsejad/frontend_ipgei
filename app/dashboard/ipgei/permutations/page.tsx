@@ -1,0 +1,442 @@
+'use client';
+
+import { useState } from 'react';
+import {
+  ArrowRight, CheckCircle2, PlayCircle, Plus, Repeat, ThumbsUp, X, XCircle,
+} from 'lucide-react';
+
+import { Pagination } from '@/components/Pagination';
+import {
+  BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
+  Erreur, INPUT, SELECT, Toast, Vide, tonStatutPermutation,
+} from '../_ui';
+import { useAnneeIPGEI } from '../_annee';
+import {
+  useClassesSelect, useInscriptions, usePermutationEtudiantMutations,
+  usePermutationProfMutations, usePermutationsEtudiant, usePermutationsProf,
+  useSousGroupes,
+} from '@/lib/api/ipgei-hooks';
+import type { PermutationEtudiant, PermutationProf, StatutPermutation } from '@/types/ipgei';
+
+type Onglet = 'prof' | 'etudiant';
+
+const STATUTS: { value: StatutPermutation | ''; label: string }[] = [
+  { value: '',          label: 'Tous les statuts' },
+  { value: 'demandee',  label: 'Demandée' },
+  { value: 'accordee',  label: 'Accord obtenu' },
+  { value: 'validee',   label: 'Validée — à appliquer' },
+  { value: 'appliquee', label: 'Appliquée' },
+  { value: 'refusee',   label: 'Refusée' },
+];
+
+export default function PermutationsPage() {
+  const [onglet, setOnglet] = useState<Onglet>('prof');
+  const [statut, setStatut] = useState('');
+  const [page, setPage]     = useState(1);
+  const [toast, setToast]   = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
+  const signaler = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
+
+  return (
+    <div className="space-y-5 max-w-6xl">
+      <EnTetePage
+        icone={<Repeat size={14} className="text-white" />}
+        titre="Permutations"
+        sousTitre="Circuit demande → accord → validation du directeur, ou décision directe."
+      />
+
+      <div className="flex gap-2 flex-wrap items-center">
+        <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+          {([['prof', 'Enseignants'], ['etudiant', 'Étudiants']] as const).map(([cle, label]) => (
+            <button key={cle} onClick={() => { setOnglet(cle); setPage(1); }}
+                    className={`px-4 py-2.5 text-sm font-semibold transition-all ${
+                      onglet === cle ? 'bg-[#006633] text-white' : 'bg-white text-iss-gray hover:bg-gray-50'
+                    }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
+                className={SELECT} style={{ width: 200 }}>
+          {STATUTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+
+      {erreur && <Erreur erreur={new Error(erreur)} />}
+
+      {onglet === 'prof'
+        ? <ListeProf statut={statut} page={page} setPage={setPage} onNotifier={notifier} onErreur={signaler} />
+        : <ListeEtudiant statut={statut} page={page} setPage={setPage} onNotifier={notifier} onErreur={signaler} />}
+
+      <Toast message={toast} />
+    </div>
+  );
+}
+
+// ── Actions du circuit ───────────────────────────────────────────────────────
+function ActionsCircuit({
+  statut, mutations, id, onNotifier, onErreur,
+}: {
+  statut: StatutPermutation;
+  mutations: {
+    accorder: { mutate: (v: number, o?: object) => void; isPending: boolean };
+    valider:  { mutate: (v: number, o?: object) => void; isPending: boolean };
+    appliquer:{ mutate: (v: number, o?: object) => void; isPending: boolean };
+    refuser:  { mutate: (v: { id: number; motif: string }, o?: object) => void; isPending: boolean };
+  };
+  id: number;
+  onNotifier: (m: string) => void;
+  onErreur: (e: unknown) => void;
+}) {
+  const options = { onError: onErreur };
+
+  if (statut === 'appliquee' || statut === 'refusee') return null;
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap justify-end">
+      {statut === 'demandee' && (
+        <button onClick={() => mutations.accorder.mutate(id, { ...options, onSuccess: () => onNotifier('Accord enregistré') })}
+                title="Accord de la contrepartie"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-iss-gray hover:border-blue-400 hover:text-blue-700 transition-all">
+          <ThumbsUp size={12} /> Accorder
+        </button>
+      )}
+      {(statut === 'demandee' || statut === 'accordee') && (
+        <button onClick={() => mutations.valider.mutate(id, { ...options, onSuccess: () => onNotifier('Validée par le directeur') })}
+                title="Validation du directeur"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-iss-gray hover:border-violet-400 hover:text-violet-700 transition-all">
+          <CheckCircle2 size={12} /> Valider
+        </button>
+      )}
+      {statut === 'validee' && (
+        <button onClick={() => mutations.appliquer.mutate(id, { ...options, onSuccess: () => onNotifier('Permutation appliquée') })}
+                title="Appliquer sur l'emploi du temps"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90"
+                style={{ background: DEGRADE }}>
+          <PlayCircle size={12} /> Appliquer
+        </button>
+      )}
+      <button onClick={() => {
+                const motif = window.prompt('Motif du refus :') ?? '';
+                mutations.refuser.mutate({ id, motif }, { ...options, onSuccess: () => onNotifier('Permutation refusée') });
+              }}
+              title="Refuser"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-iss-gray hover:border-red-400 hover:text-red-600 transition-all">
+        <XCircle size={12} /> Refuser
+      </button>
+    </div>
+  );
+}
+
+// ── Permutations d'enseignants ───────────────────────────────────────────────
+function ListeProf({
+  statut, page, setPage, onNotifier, onErreur,
+}: {
+  statut: string; page: number; setPage: (p: number) => void;
+  onNotifier: (m: string) => void; onErreur: (e: unknown) => void;
+}) {
+  const { data, isLoading, error } = usePermutationsProf({ page, statut: statut || undefined });
+  const mutations = usePermutationProfMutations();
+
+  const items = data?.results ?? [];
+
+  return (
+    <>
+      <Erreur erreur={error} />
+      <div className={CARTE}>
+        {isLoading && !data ? <Chargement /> : items.length === 0 ? (
+          <Vide texte="Aucune permutation d'enseignants. Elles se créent depuis l'écran « Emploi du temps »." />
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {items.map(p => <LigneProf key={p.id} permutation={p} mutations={mutations}
+                                       onNotifier={onNotifier} onErreur={onErreur} />)}
+          </div>
+        )}
+        {(data?.pages ?? 1) > 1 && (
+          <div className="px-5 pb-4">
+            <Pagination page={page} pages={data?.pages ?? 1} count={data?.count ?? 0} onPage={setPage} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LigneProf({
+  permutation: p, mutations, onNotifier, onErreur,
+}: {
+  permutation: PermutationProf;
+  mutations: ReturnType<typeof usePermutationProfMutations>;
+  onNotifier: (m: string) => void; onErreur: (e: unknown) => void;
+}) {
+  const a = p.seance_a_detail;
+  const b = p.seance_b_detail;
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="flex-1 min-w-[260px]">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
+            {p.action_directe && <Badge ton="violet">Action directe</Badge>}
+            <span className="text-xs text-iss-gray">
+              {a?.classe_nom} · {a?.jour_libelle} {a?.creneau_libelle}
+              {' · '}portée {p.nb_semaines} semaine{p.nb_semaines > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+              <span className="font-bold text-iss-dark">{a?.matiere_code}</span>
+              <span className="text-iss-gray"> · {a?.prof_nom || '—'} · {a?.salle_nom || '—'}</span>
+            </div>
+            <ArrowRight size={14} className="text-iss-gray" />
+            <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+              <span className="font-bold text-iss-dark">{b?.matiere_code}</span>
+              <span className="text-iss-gray"> · {b?.prof_nom || '—'} · {b?.salle_nom || '—'}</span>
+            </div>
+          </div>
+
+          {p.motif && <p className="text-xs text-iss-gray mt-2 italic">Motif : {p.motif}</p>}
+          {p.motif_refus && <p className="text-xs text-red-600 mt-1">Refus : {p.motif_refus}</p>}
+          {p.statut === 'appliquee' && (
+            <p className="text-xs text-emerald-700 mt-1">
+              {p.seances_impactees} séance(s) permutée(s) — la charge suit l&apos;enseignant effectif.
+            </p>
+          )}
+        </div>
+
+        <ActionsCircuit statut={p.statut} mutations={mutations} id={p.id}
+                        onNotifier={onNotifier} onErreur={onErreur} />
+      </div>
+    </div>
+  );
+}
+
+// ── Permutations d'étudiants ─────────────────────────────────────────────────
+function ListeEtudiant({
+  statut, page, setPage, onNotifier, onErreur,
+}: {
+  statut: string; page: number; setPage: (p: number) => void;
+  onNotifier: (m: string) => void; onErreur: (e: unknown) => void;
+}) {
+  const { data, isLoading, error } = usePermutationsEtudiant({ page, statut: statut || undefined });
+  const mutations = usePermutationEtudiantMutations();
+  const [formOuvert, setFormOuvert] = useState(false);
+
+  const items = data?.results ?? [];
+
+  return (
+    <>
+      <Erreur erreur={error} />
+
+      <div className="flex justify-end">
+        <button onClick={() => setFormOuvert(true)} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+          <Plus size={14} /> Changement de classe
+        </button>
+      </div>
+
+      {formOuvert && (
+        <FormulaireChangementClasse
+          onFerme={() => setFormOuvert(false)}
+          onCree={(m) => { setFormOuvert(false); onNotifier(m); }}
+          create={mutations.create}
+        />
+      )}
+
+      <div className={CARTE}>
+        {isLoading && !data ? <Chargement /> : items.length === 0 ? (
+          <Vide texte="Aucun changement de classe demandé." />
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {items.map(p => <LigneEtudiant key={p.id} permutation={p} mutations={mutations}
+                                           onNotifier={onNotifier} onErreur={onErreur} />)}
+          </div>
+        )}
+        {(data?.pages ?? 1) > 1 && (
+          <div className="px-5 pb-4">
+            <Pagination page={page} pages={data?.pages ?? 1} count={data?.count ?? 0} onPage={setPage} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LigneEtudiant({
+  permutation: p, mutations, onNotifier, onErreur,
+}: {
+  permutation: PermutationEtudiant;
+  mutations: ReturnType<typeof usePermutationEtudiantMutations>;
+  onNotifier: (m: string) => void; onErreur: (e: unknown) => void;
+}) {
+  return (
+    <div className="px-5 py-4 flex items-start gap-3 flex-wrap">
+      <div className="flex-1 min-w-[260px]">
+        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+          <span className="text-sm font-bold text-iss-dark">{p.etudiant_nom}</span>
+          <span className="text-xs text-iss-gray">{p.etudiant_matricule}</span>
+          <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
+          {p.action_directe && <Badge ton="violet">Action directe</Badge>}
+        </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
+            {p.classe_source_nom}
+          </span>
+          <ArrowRight size={14} className="text-iss-gray" />
+          <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
+            {p.classe_cible_nom}
+          </span>
+        </div>
+
+        {p.motif && <p className="text-xs text-iss-gray mt-2 italic">Motif : {p.motif}</p>}
+        {p.motif_refus && <p className="text-xs text-red-600 mt-1">Refus : {p.motif_refus}</p>}
+        {p.statut === 'appliquee' && (
+          <p className="text-xs text-emerald-700 mt-1">
+            Re-rattachement effectué — notes et absences conservées.
+          </p>
+        )}
+      </div>
+
+      <ActionsCircuit statut={p.statut} mutations={mutations} id={p.id}
+                      onNotifier={onNotifier} onErreur={onErreur} />
+    </div>
+  );
+}
+
+function FormulaireChangementClasse({
+  onFerme, onCree, create,
+}: {
+  onFerme: () => void; onCree: (m: string) => void;
+  create: { mutate: (v: never, o?: object) => void; isPending: boolean };
+}) {
+  const { annee } = useAnneeIPGEI();
+  const [recherche, setRecherche] = useState('');
+  const [inscriptionId, setInscriptionId] = useState<number | null>(null);
+  const [classeCible, setClasseCible]     = useState<number | null>(null);
+  const [sousGroupeCible, setSousGroupeCible] = useState<number | null>(null);
+  const [motif, setMotif]     = useState('');
+  const [directe, setDirecte] = useState(false);
+  const [erreur, setErreur]   = useState<string | null>(null);
+
+  const { data: inscriptionsPage } = useInscriptions({
+    page: 1, annee_universitaire: annee || '__aucune__',
+    search: recherche || undefined, actif: true,
+  });
+  const inscriptions = inscriptionsPage?.results ?? [];
+  const inscription  = inscriptions.find(i => i.id === inscriptionId);
+
+  const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
+  // On reste au même niveau et à la même année : le backend le refuserait sinon.
+  const cibles = classes.filter(
+    c => inscription && c.niveau === inscription.niveau && c.id !== inscription.classe,
+  );
+  const { data: sousGroupes = [] } = useSousGroupes(classeCible);
+
+  const enregistrer = () => {
+    if (!inscriptionId) { setErreur('Choisissez un étudiant.'); return; }
+    if (!classeCible)   { setErreur('Choisissez la classe d\'accueil.'); return; }
+    setErreur(null);
+    create.mutate(
+      {
+        inscription: inscriptionId, classe_cible: classeCible,
+        sous_groupe_cible: sousGroupeCible, motif, action_directe: directe,
+      } as never,
+      {
+        onSuccess: () => onCree(directe
+          ? 'Changement validé — à appliquer depuis la liste'
+          : 'Demande enregistrée'),
+        onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+  };
+
+  return (
+    <div className={`${CARTE} p-6`} style={{ borderLeft: '3px solid #006633' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-iss-dark">Changement de classe</h3>
+          <p className="text-xs text-iss-gray">
+            L&apos;inscription est déplacée : notes, absences et historique suivent l&apos;étudiant.
+          </p>
+        </div>
+        <button onClick={onFerme} className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-iss-dark mb-1.5">Étudiant</label>
+        <input value={recherche} onChange={e => setRecherche(e.target.value)}
+               placeholder="Nom ou matricule…" className={`${INPUT} mb-2`} autoFocus />
+        <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100">
+          {inscriptions.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-iss-gray">Aucune inscription trouvée.</p>
+          ) : inscriptions.map(i => (
+            <button key={i.id} type="button"
+                    onClick={() => { setInscriptionId(i.id); setClasseCible(null); setSousGroupeCible(null); }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      inscriptionId === i.id ? 'bg-[#006633]/10 font-semibold text-[#006633]' : 'hover:bg-gray-50'
+                    }`}>
+              {i.etudiant_nom} <span className="text-iss-gray">· {i.etudiant_matricule} · {i.classe_nom}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe d&apos;accueil</label>
+          <select value={classeCible ?? ''} className={SELECT} disabled={!inscription}
+                  onChange={e => { setClasseCible(e.target.value ? Number(e.target.value) : null); setSousGroupeCible(null); }}>
+            <option value="">{inscription ? 'Choisir…' : 'Choisissez d\'abord un étudiant'}</option>
+            {cibles.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+          {inscription && cibles.length === 0 && (
+            <p className="text-xs text-amber-700 mt-1">
+              Aucune autre classe en {inscription.niveau} pour cette année.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Sous-groupe de TP</label>
+          <select value={sousGroupeCible ?? ''} className={SELECT}
+                  disabled={!classeCible || sousGroupes.length === 0}
+                  onChange={e => setSousGroupeCible(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">{sousGroupes.length === 0 ? 'Aucun sous-groupe' : 'Aucun'}</option>
+            {sousGroupes.map(sg => <option key={sg.id} value={sg.id}>{sg.libelle}</option>)}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Motif</label>
+          <input value={motif} className={INPUT} placeholder="Rééquilibrage d'effectifs, demande familiale…"
+                 onChange={e => setMotif(e.target.value)} />
+        </div>
+      </div>
+
+      <label className="flex items-start gap-2 text-sm text-iss-dark cursor-pointer mt-3">
+        <input type="checkbox" checked={directe} onChange={e => setDirecte(e.target.checked)}
+               className="w-4 h-4 mt-0.5 accent-[#006633]" />
+        <span>
+          Action directe du directeur
+          <span className="block text-xs text-iss-gray">
+            Sinon, la demande passe par l&apos;accord des deux classes puis la validation du directeur.
+          </span>
+        </span>
+      </label>
+
+      {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
+
+      <div className="flex gap-2 mt-5">
+        <button onClick={enregistrer} disabled={create.isPending}
+                className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+          {directe ? 'Changer de classe' : 'Demander le changement'}
+        </button>
+        <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
+      </div>
+    </div>
+  );
+}
