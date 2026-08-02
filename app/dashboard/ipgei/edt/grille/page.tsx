@@ -418,15 +418,21 @@ export default function GrilleTypePage() {
       />
 
       <div className={`${CARTE} p-4`}>
-        {/* Centrée : les quatre sélecteurs forment un bloc, et l'alignement à
-            gauche laissait un vide qui les faisait paraître décrochés. */}
-        <div className="flex items-end justify-center gap-3 flex-wrap">
+        {/* Alignée à gauche : la lecture commence par la classe, et les champs
+            gardent la même origine que ceux du reste de l'application. */}
+        <div className="flex items-end gap-3 flex-wrap">
           <div style={{ minWidth: 220 }}>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe</label>
             <select value={classeId ?? ''} className={SELECT}
                     onChange={e => {
                       setClasseId(e.target.value ? Number(e.target.value) : null);
                       setVue('');           // la vue d'une classe n'a pas de sens sur une autre
+                      // La semaine non plus : chaque niveau a ses propres
+                      // semaines. Garder l'identifiant de l'ancienne faisait
+                      // interroger la nouvelle classe sur une semaine qui ne
+                      // lui appartient pas — grille vide, et bandeau décrivant
+                      // une semaine qu'on ne regarde pas.
+                      setPeriodeId(null);
                     }}>
               <option value="">— Classe —</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
