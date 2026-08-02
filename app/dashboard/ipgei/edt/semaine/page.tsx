@@ -189,7 +189,7 @@ export default function EdtSemainePage() {
                                   {contenu.map(s => (
                                     <CarteSeance
                                       key={s.id}
-                                      type={s.type_seance}
+                                      type={s.type_seance_libelle}
                                       matiere={s.matiere_code}
                                       intitule={s.matiere_intitule}
                                       prof={s.prof_nom}

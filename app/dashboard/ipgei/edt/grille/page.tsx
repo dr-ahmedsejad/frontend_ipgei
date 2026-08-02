@@ -24,9 +24,7 @@ import {
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
-import {
-  TYPES_SEANCE, type SeanceReelle, type TypeSeance, type TypeSemestre,
-} from '@/types/ipgei';
+import { type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
 import {
   ModaleAppel, ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
@@ -42,7 +40,8 @@ interface Emplacement {
   profId:     string;
   salleId:    string;
   /** `''` tant que le type n'a pas été choisi : aucun n'est présumé. */
-  typeSeance: TypeSeance | '';
+  /** Identifiant du type dans « Paramètres → Séances », '' si non choisi. */
+  typeSeance: string;
   idOrigine:  number | null;
   /** Séance réelle annulée — sans objet sur la grille type. */
   annulee?:   boolean;
@@ -84,7 +83,7 @@ export default function GrilleTypePage() {
   const grilleId = grille?.id ?? null;
   const mutations = useGrilleMutations();
 
-  const { jours, creneaux, salles, profs, isLoading: chargeRef } = useReferentielsEDT();
+  const { jours, creneaux, salles, profs, typesSeance, isLoading: chargeRef } = useReferentielsEDT();
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
 
   // Semaines de la période : c'est ce qui peuple le sélecteur.
@@ -168,7 +167,7 @@ export default function GrilleTypePage() {
         matiereId:  String(s.matiere),
         profId:     s.prof  ? String(s.prof)  : '',
         salleId:    s.salle ? String(s.salle) : '',
-        typeSeance: s.type_seance,
+        typeSeance: String(s.type_seance),
         idOrigine:  s.id,
         annulee:    s.annulee,
       };
@@ -256,7 +255,7 @@ export default function GrilleTypePage() {
                 prof:        courant.profId  ? Number(courant.profId)  : null,
                 salle:       courant.salleId ? Number(courant.salleId) : null,
                 sous_groupe: sousGroupe ? Number(sousGroupe) : null,
-                type_seance: courant.typeSeance as TypeSeance,
+                type_seance: Number(courant.typeSeance),
                 date:        dateDeLaCase(Number(jour)),
               } as Partial<SeanceReelle>);
               crees++;
@@ -271,7 +270,7 @@ export default function GrilleTypePage() {
                   matiere:     Number(courant.matiereId),
                   prof:        courant.profId  ? Number(courant.profId)  : null,
                   salle:       courant.salleId ? Number(courant.salleId) : null,
-                  type_seance: courant.typeSeance as TypeSeance,
+                  type_seance: Number(courant.typeSeance),
                 } as Partial<SeanceReelle>);
                 modifies++;
               }
@@ -306,7 +305,7 @@ export default function GrilleTypePage() {
           sous_groupe: sousGroupe ? Number(sousGroupe) : null,
           // Non vide : les cases sans type ont été refusées plus haut. Sur une
           // suppression, `courant` peut manquer — la valeur n'est alors pas lue.
-          type_seance: (courant?.typeSeance || undefined) as TypeSeance | undefined,
+          type_seance: courant?.typeSeance ? Number(courant.typeSeance) : undefined,
         };
 
         try {
@@ -353,7 +352,10 @@ export default function GrilleTypePage() {
   const optProfs:    OptionAC[] = profs.map(p => ({ id: String(p.id), label: `${p.nom} (${p.type})` }));
   const optSalles:   OptionAC[] = salles.map(s => ({ id: String(s.id), label: s.nom }));
   const optMatieres: OptionAC[] = matieres.map(m => ({ id: String(m.id), label: `${m.code} — ${m.intitule}` }));
-  const optTypes:    OptionAC[] = TYPES_SEANCE.map(t => ({ id: t.value, label: t.label }));
+  // Options prises du référentiel du socle, plus d'une liste figée.
+  const optTypes:    OptionAC[] = typesSeance.map(t => ({ id: String(t.id), label: t.type_seance }));
+  /** Un type spécial (sport, instruction militaire) n'a ni enseignant ni salle. */
+  const estSpecial = (id: string) => !!typesSeance.find(t => String(t.id) === id)?.is_special;
 
   /**
    * Un enseignant ou une salle déjà pris sur ce créneau n'est plus proposé
@@ -622,7 +624,10 @@ export default function GrilleTypePage() {
                         // cours, vert pour un TD, orange pour un TP, violet
                         // pour un DS. C'est ce qui remplace la pastille : la
                         // grille se lit d'un coup d'oeil, sans rien répéter.
-                        const coul = couleurType(cellule.typeSeance);
+                        const libelleType = typesSeance.find(
+                          t => String(t.id) === cellule.typeSeance)?.type_seance;
+                        const coul = couleurType(libelleType);
+                        const speciale = estSpecial(cellule.typeSeance);
                         const occupee = !!cellule.matiereId;
 
                         return (
@@ -684,20 +689,30 @@ export default function GrilleTypePage() {
                                   refuse désormais. Les valeurs restent
                                   affichées : on doit voir ce que le groupe fait
                                   à cette heure-là. */}
-                              <AC value={cellule.profId} placeholder="Professeur"
-                                  disabled={estHerite}
-                                  options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
-                                  onChange={v => majCase(k, 'profId', v)} />
+                              {/* Une séance spéciale — sport, instruction
+                                  militaire — n'a ni enseignant ni salle : le
+                                  créneau est bloqué pour la classe, mais
+                                  personne du référentiel ne l'assure. Proposer
+                                  ces champs inviterait à compter des heures,
+                                  donc une vacation, pour un cours non donné. */}
+                              {!speciale && (
+                                <AC value={cellule.profId} placeholder="Professeur"
+                                    disabled={estHerite}
+                                    options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
+                                    onChange={v => majCase(k, 'profId', v)} />
+                              )}
                               <AC value={cellule.matiereId} options={optMatieres} placeholder="Matière"
                                   disabled={estHerite}
                                   onChange={v => majCase(k, 'matiereId', v)} />
                               <AC value={cellule.typeSeance} options={optTypes} placeholder="Type séance"
                                   disabled={estHerite}
                                   onChange={v => majCase(k, 'typeSeance', v)} />
-                              <AC value={cellule.salleId} placeholder="Salle"
-                                  disabled={estHerite}
-                                  options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
-                                  onChange={v => majCase(k, 'salleId', v)} />
+                              {!speciale && (
+                                <AC value={cellule.salleId} placeholder="Salle"
+                                    disabled={estHerite}
+                                    options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
+                                    onChange={v => majCase(k, 'salleId', v)} />
+                              )}
 
                               {/* Gestes propres à une séance datée. Ils n'ont
                                   pas d'objet sur le patron : on n'annule ni ne

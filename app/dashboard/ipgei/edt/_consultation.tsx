@@ -25,9 +25,7 @@ import {
   STYLE_ENTETE_JOUR, STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from './_cellule';
 import { useReferentielsEDT } from './_referentiels';
-import {
-  TYPES_SEANCE, type SeanceReelle, type SemaineIPGEI, type TypeSeance,
-} from '@/types/ipgei';
+import { type SeanceReelle, type SemaineIPGEI } from '@/types/ipgei';
 
 /** Axe de lecture : détermine ce que la carte met en avant. */
 export type AxeEDT = 'classe' | 'prof' | 'salle';
@@ -202,7 +200,7 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
   };
 
   const blocs = new Map<string, {
-    cle: string; type: TypeSeance; intitule: string; lignes: LigneSeance[];
+    cle: string; type: string; intitule: string; lignes: LigneSeance[];
   }>();
 
   for (const s of seances) {
@@ -210,7 +208,7 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
     if (!blocs.has(cle)) {
       blocs.set(cle, {
         cle,
-        type:     s.type_seance,
+        type:     s.type_seance_libelle,
         intitule: s.matiere_intitule || s.matiere_code,
         lignes:   [],
       });
@@ -307,15 +305,18 @@ export function GrilleConsultation({
 
       <div className="px-4 py-2.5 border-t border-gray-100 flex items-center gap-3 flex-wrap print:hidden">
         <span className="text-xs font-semibold text-iss-gray uppercase tracking-wide">Légende</span>
-        {TYPES_SEANCE.map(t => {
-          const coul = couleurType(t.value);
+        {/* Construite à partir des types réellement présents, et non d'une
+            liste figée : le référentiel est administrable, une légende écrite
+            en dur y deviendrait fausse au premier type ajouté. */}
+        {[...new Set(seances.map(s => s.type_seance_libelle).filter(Boolean))].map(libelle => {
+          const coul = couleurType(libelle);
           return (
-            <span key={t.value} className="inline-flex items-center gap-1.5 text-xs text-iss-gray">
+            <span key={libelle} className="inline-flex items-center gap-1.5 text-xs text-iss-gray">
               <span style={{
                 width: 12, height: 12, borderRadius: 3,
                 background: coul.bg, border: `1px solid ${coul.border}`, display: 'inline-block',
               }} />
-              {t.label}
+              {coul.label === '—' ? libelle : coul.label}
             </span>
           );
         })}

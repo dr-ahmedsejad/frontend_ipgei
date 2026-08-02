@@ -397,7 +397,11 @@ export interface SeanceType {
   salle_nom:           string;
   sous_groupe:         number | null;
   sous_groupe_libelle: string;
-  type_seance:         TypeSeance;
+  /** Identifiant dans « Paramètres → Séances » — référentiel commun au socle. */
+  type_seance:         number;
+  type_seance_libelle: string;
+  /** Sport, instruction militaire… : ni enseignant ni salle. */
+  type_seance_special: boolean;
 }
 
 export interface GrilleType {
@@ -436,7 +440,11 @@ export interface SeanceReelle {
   salle_nom:           string;
   sous_groupe:         number | null;
   sous_groupe_libelle: string;
-  type_seance:         TypeSeance;
+  /** Identifiant dans « Paramètres → Séances » — référentiel commun au socle. */
+  type_seance:         number;
+  type_seance_libelle: string;
+  /** Sport, instruction militaire… : ni enseignant ni salle. */
+  type_seance_special: boolean;
   date:                string | null;
   origine:             OrigineSeance;
   annulee:             boolean;

@@ -10,25 +10,36 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 
-import type { TypeSeance } from '@/types/ipgei';
 
 // Palette alignée sur celle de SIGA : cours = bleu (CM), TD = vert, TP = orange,
 // DS = violet (PR). Un préparationnaire retrouve donc les mêmes repères.
-const COULEURS: Record<TypeSeance, { bg: string; border: string; color: string; label: string }> = {
-  cours: { bg: 'rgba(63,81,181,0.08)',  border: '#3f51b5', color: '#3f51b5', label: 'Cours' },
-  td:    { bg: 'rgba(76,175,80,0.10)',  border: '#4CAF50', color: '#2E7D32', label: 'TD' },
-  tp:    { bg: 'rgba(255,152,0,0.10)',  border: '#FF9800', color: '#EF6C00', label: 'TP' },
+// Clés = libellés du référentiel du socle (« Paramètres → Séances »), et non
+// plus des codes IPGEI figés. Un type inconnu de cette table — « Encadrement »,
+// « Mission »… — tombe sur le style neutre, ce qui reste lisible.
+const COULEURS: Record<string, { bg: string; border: string; color: string; label: string }> = {
+  CM:    { bg: 'rgba(63,81,181,0.08)',  border: '#3f51b5', color: '#3f51b5', label: 'Cours' },
+  TD:    { bg: 'rgba(76,175,80,0.10)',  border: '#4CAF50', color: '#2E7D32', label: 'TD' },
+  TP:    { bg: 'rgba(255,152,0,0.10)',  border: '#FF9800', color: '#EF6C00', label: 'TP' },
   // Rouge, et non violet comme dans le socle : une evaluation n'est pas un
   // cours parmi d'autres. Elle doit sauter aux yeux sur une grille imprimee
   // comme a l'ecran — c'est le seul creneau qu'on ne peut ni deplacer ni
   // manquer sans consequence pour les etudiants.
-  ds:    { bg: 'rgba(200,32,32,0.12)',  border: '#C82020', color: '#B71C1C', label: 'DS' },
+  DS:    { bg: 'rgba(200,32,32,0.12)',  border: '#C82020', color: '#B71C1C', label: 'DS' },
+  // Les examens rejoignent le devoir : ce sont les seuls creneaux qu'on ne peut
+  // ni deplacer ni manquer sans consequence.
+  EF:    { bg: 'rgba(200,32,32,0.12)',  border: '#C82020', color: '#B71C1C', label: 'Examen' },
+  ER:    { bg: 'rgba(200,32,32,0.12)',  border: '#C82020', color: '#B71C1C', label: 'Rattrapage' },
 };
 const DEFAUT = { bg: 'rgba(96,125,139,0.08)', border: '#607D8B', color: '#37474F', label: '—' };
 
-/** `''` = type pas encore choisi : on retombe sur le style neutre. */
-export function couleurType(type: TypeSeance | '') {
-  return COULEURS[type as TypeSeance] ?? DEFAUT;
+/**
+ * Style d'un type de séance, à partir de son LIBELLÉ de référentiel.
+ *
+ * `''` ou un libellé absent de la palette retombent sur le style neutre : le
+ * référentiel étant administrable, on ne peut pas présumer de son contenu.
+ */
+export function couleurType(libelle: string | undefined) {
+  return COULEURS[libelle ?? ''] ?? DEFAUT;
 }
 
 // ── En-tête et cadres de la grille, communs aux deux écrans EDT ──────────────
@@ -87,7 +98,8 @@ export function CarteSeance({
   type, matiere, intitule, prof, salle, sousGroupe, annulee, permutee,
   profInitial, onClick, actions, compact,
 }: {
-  type:         TypeSeance;
+  /** Libellé du référentiel : « CM », « TP », « Sport »… */
+  type:         string;
   matiere:      string;
   intitule?:    string;
   prof?:        string;
@@ -180,7 +192,8 @@ export interface LigneSeance {
  * temps consulté à l'écran et le même imprimé se lisent à l'identique.
  */
 export function CarteMatiere({ type, intitule, lignes }: {
-  type:     TypeSeance;
+  /** Libellé du référentiel. */
+  type:     string;
   intitule: string;
   lignes:   LigneSeance[];
 }) {
