@@ -11,7 +11,43 @@ import { creneauxApi } from '@/lib/api/creneaux';
 import { joursApi } from '@/lib/api/jours';
 import { profsApi } from '@/lib/api/profs';
 import { sallesApi } from '@/lib/api/salles';
-import { seancesApi } from '@/lib/api/seances';
+import { seancesApi, type Seance } from '@/lib/api/seances';
+
+/**
+ * Types de séance de la prépa, dans l'ordre où on les rencontre : les
+ * enseignements, puis les créneaux bloqués sans enseignant, puis les
+ * évaluations.
+ */
+const ORDRE_TYPES = [
+  'CM', 'TD', 'TP', 'PR',
+  'Sport', 'Instruction militaire',
+  'DS', 'EF', 'ER',
+];
+
+/**
+ * Types du référentiel qui ne se planifient pas dans un emploi du temps de
+ * classe : ils concernent le service d'un enseignant, pas les étudiants.
+ */
+const TYPES_ECARTES = ['Surveillance', 'Mission', 'Encadrement'];
+
+/**
+ * Écarte ce qui n'a pas sa place dans une grille de classe, puis applique
+ * l'ordre ci-dessus. Un type absent de la liste — ajouté plus tard dans
+ * « Paramètres → Séances » — passe à la fin plutôt que de disparaître
+ * silencieusement.
+ */
+function ordonnerTypes(types: Seance[]): Seance[] {
+  return types
+    .filter(t => !TYPES_ECARTES.includes(t.type_seance))
+    .sort((a, b) => {
+      const ia = ORDRE_TYPES.indexOf(a.type_seance);
+      const ib = ORDRE_TYPES.indexOf(b.type_seance);
+      if (ia === -1 && ib === -1) return a.type_seance.localeCompare(b.type_seance);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+}
 
 const CINQ_MINUTES = 5 * 60 * 1000;
 
@@ -58,7 +94,8 @@ export function useReferentielsEDT() {
   return {
     // Garde de forme : un cache d'une version antérieure, ou une réponse
     // enveloppée, ne doit pas casser l'écran entier.
-    typesSeance: Array.isArray(typesSeance.data) ? typesSeance.data : [],
+    typesSeance: ordonnerTypes(
+      Array.isArray(typesSeance.data) ? typesSeance.data : []),
     // Les créneaux pilotent les lignes de la grille : on respecte leur ordre
     // d'affichage et on écarte ceux désactivés.
     jours:    jours.data?.results ?? [],
