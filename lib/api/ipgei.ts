@@ -8,7 +8,7 @@ import { apiFetch, apiFetchBlob, apiFetchBlobPost, apiFetchPaginated } from '@/l
 import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
-  InscriptionComplete,
+  InscriptionComplete, InscriptionCreee,
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, Note, OccupationCreneau,
   SeanceArchivee, VersionArchive,
   ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
@@ -117,7 +117,8 @@ export const inscriptionsApi = {
 
   /** Inscription complète : crée l'étudiant au besoin, puis le rattache. */
   nouvelle: (input: InscriptionComplete) =>
-    apiFetch<Inscription>(`${BASE}/inscriptions/nouvelle/`, { method: 'POST', body: input }),
+    apiFetch<InscriptionCreee>(`${BASE}/inscriptions/nouvelle/`,
+      { method: 'POST', body: input }),
 
   initialiserNotes: (id: number, semestre: number) =>
     apiFetch<{ notes_creees: number }>(

@@ -204,6 +204,18 @@ export interface NouvelEtudiant {
  * Inscription en une passe : soit `etudiant` (déjà au référentiel), soit
  * `nouvel_etudiant` (créé et rattaché dans la même transaction) — jamais les deux.
  */
+/**
+ * Réponse d'une inscription : la fiche créée, plus le nombre de matières
+ * auxquelles l'étudiant vient d'être rattaché.
+ *
+ * L'inscription pédagogique étant automatique — ni dette ni crédit, donc
+ * aucun choix à faire — ce compte est la seule preuve visible qu'elle a bien
+ * eu lieu. Sans lui, l'utilisateur ne saurait pas si les matières suivent.
+ */
+export interface InscriptionCreee extends Inscription {
+  matieres_inscrites: number;
+}
+
 export interface InscriptionComplete {
   etudiant?:        number | null;
   nouvel_etudiant?: NouvelEtudiant;

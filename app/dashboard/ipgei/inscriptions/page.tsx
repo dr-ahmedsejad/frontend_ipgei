@@ -30,6 +30,20 @@ const STATUTS: { value: StatutInscription | ''; label: string }[] = [
   { value: 'abandon',       label: 'Abandon' },
 ];
 
+/**
+ * Message de confirmation, matières comprises.
+ *
+ * À l'IPGEI on ne s'inscrit pas matière par matière : entrer dans une classe,
+ * c'est suivre toute la maquette de son niveau, sur les deux semestres. Le
+ * dire évite d'aller vérifier ailleurs que l'étudiant apparaît bien dans les
+ * grilles de notes.
+ */
+function messageInscription(base: string, creee: unknown): string {
+  const n = (creee as { matieres_inscrites?: number } | undefined)?.matieres_inscrites;
+  if (!n) return base;
+  return `${base} · ${n} matière${n > 1 ? 's' : ''} rattachée${n > 1 ? 's' : ''}`;
+}
+
 function tonStatut(statut: StatutInscription) {
   if (statut === 'admis' || statut === 'autorise_cnim') return 'vert' as const;
   if (statut === 'reoriente' || statut === 'abandon')   return 'rouge' as const;
@@ -289,7 +303,9 @@ function FormulaireInscription({
     if (mode === 'existant') {
       if (!etudiantId) { setErreur('Choisissez un étudiant.'); return; }
       nouvelle.mutate({ ...commun, etudiant: etudiantId } as never, {
-        onSuccess: () => onEnregistre('Étudiant inscrit'), onError: echec,
+        onSuccess: (creee: unknown) =>
+          onEnregistre(messageInscription('Étudiant inscrit', creee)),
+        onError: echec,
       });
       return;
     }
@@ -315,10 +331,15 @@ function FormulaireInscription({
         serie_bac:         identite.serie_bac.trim(),
         moyenne_bac:       identite.moyenne_bac || null,
       },
-    } as never, { onSuccess: () => onEnregistre('Étudiant créé et inscrit'), onError: echec });
+    } as never, {
+      onSuccess: (creee: unknown) =>
+        onEnregistre(messageInscription('Étudiant créé et inscrit', creee)),
+      onError: echec,
+    });
   };
 
   const enCours = nouvelle.isPending || update.isPending;
+
 
   return (
     <div className={`${CARTE} p-6`} style={{ borderLeft: '3px solid #006633' }}>
