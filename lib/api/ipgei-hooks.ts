@@ -501,7 +501,12 @@ export function useGrille(id: number | null | undefined) {
 
 export function useGrilleMutations() {
   const qc = useQueryClient();
-  const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.grilles.all });
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: ipgeiKeys.grilles.all });
+    // Dupliquer une grille écrit des séances réelles : les semaines touchées
+    // changent d'état, leur verdict de cohérence aussi.
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'semaines'] });
+  };
 
   return {
     create: useMutation({
@@ -515,8 +520,12 @@ export function useGrilleMutations() {
         id: number;
         input: { semestre: number; semaine_debut?: number | null; nb_semaines?: number; ecraser?: boolean };
       }) => grillesApi.dupliquer(id, input),
-      // La duplication crée des séances réelles : c'est l'EDT hebdo qui bouge.
-      onSuccess:  () => qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] }),
+      // La duplication crée des séances réelles : c'est l'EDT hebdo qui bouge,
+      // et avec lui le verdict de cohérence de chaque semaine touchée.
+      onSuccess:  () => {
+        qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+        qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'semaines'] });
+      },
     }),
     createSeance: useMutation({
       mutationFn: (input: Partial<SeanceType>) => seancesTypeApi.create(input),
@@ -585,7 +594,15 @@ export function useEdtParSalle(salle: number | null, semaine: number | null) {
 
 export function useSeanceMutations() {
   const qc = useQueryClient();
-  const invalider = () => qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+  // L'état de cohérence d'une semaine — « à jour » ou « divergent » — se calcule
+  // au serveur à partir du contenu de l'emploi du temps. Toucher une séance le
+  // périme donc, et il vit dans la liste des semaines, pas sous la clé « edt » :
+  // sans cette seconde invalidation, le bandeau continuait d'afficher le verdict
+  // d'avant la modification.
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'semaines'] });
+  };
 
   return {
     create: useMutation({

@@ -355,6 +355,11 @@ export default function GrilleTypePage() {
       // « à créer », le bouton restait actif, et chaque nouveau clic créait un
       // doublon — trois enregistrements donnaient trois séances identiques.
       qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+      // ET le verdict de cohérence : il est calculé au serveur et porté par la
+      // liste des semaines. Sans cela le bandeau annonçait « suivi à jour »
+      // avec l'état d'avant l'enregistrement — au moment précis où il venait de
+      // cesser d'être vrai.
+      qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'semaines'] });
     },
     onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
   });
