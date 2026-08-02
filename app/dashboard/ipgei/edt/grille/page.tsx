@@ -15,7 +15,7 @@ import { anneeParDefaut, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import {
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU, STYLE_ENTETE_JOUR,
-  STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
+  STYLE_ENTETE_LIGNE, STYLE_TABLE,
 } from '../_cellule';
 import { AC, type OptionAC } from '../_autocomplete';
 import {
@@ -617,7 +617,6 @@ export default function GrilleTypePage() {
                         });
 
                         const { pro, sal } = occupes(j.id, c.id, k);
-                        const coul = couleurType(cellule.typeSeance);
 
                         return (
                           <td key={c.id} style={STYLE_CELLULE}>
@@ -648,14 +647,10 @@ export default function GrilleTypePage() {
                               display: groupesOccupant.length > 0 && !cellule.matiereId
                                 ? 'none' : undefined,
                             }}>
-                              {cellule.matiereId && (
-                                <span style={{
-                                  position: 'absolute', top: -2, right: 0, zIndex: 1,
-                                  fontSize: 9, fontWeight: 700, color: coul.color,
-                                  background: coul.bg, border: `1px solid ${coul.border}`,
-                                  borderRadius: 8, padding: '0 5px',
-                                }}>{coul.label}</span>
-                              )}
+                              {/* Pas de pastille de type ici : le champ « Type
+                                  séance » est juste en dessous et dit la même
+                                  chose. Elle reste sur les écrans de
+                                  consultation, où aucun champ ne l'affiche. */}
 
                               {estHerite && (
                                 <div title={'Créneau réservé par la classe entière. Ce groupe y '
