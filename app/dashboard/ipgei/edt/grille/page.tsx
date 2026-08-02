@@ -208,7 +208,12 @@ export default function GrilleTypePage() {
         delete copie[k];
         return copie;
       }
-      return { ...prev, [k]: { ...courant, matiereId: '', profId: '', salleId: '' } };
+      // Le type fait partie de la case : l'oublier laissait « TP » affiché sur
+      // une case qu'on venait de vider, comme un résidu de la séance retirée.
+      return {
+        ...prev,
+        [k]: { ...courant, matiereId: '', profId: '', salleId: '', typeSeance: '' },
+      };
     });
 
   /** Date réelle d'une case : lundi de la semaine + rang du jour. */
@@ -611,12 +616,49 @@ export default function GrilleTypePage() {
                           ? { ...herite, idOrigine: null }
                           : VIDE);
 
+                        // Depuis le plan « Classe entière », les séances des
+                        // sous-groupes étaient invisibles : on pouvait poser un
+                        // cours sur un créneau déjà occupé par un TP dédoublé
+                        // sans rien voir, ce qui produit une case impossible —
+                        // toute la classe en cours pendant qu'un groupe est
+                        // ailleurs.
+                        const groupesOccupant = vue ? [] : sousGroupes.filter(sg => {
+                          const bloc = cases[cle(j.id, c.id, String(sg.id))];
+                          return !!bloc?.matiereId;
+                        });
+
                         const { pro, sal } = occupes(j.id, c.id, k);
                         const coul = couleurType(cellule.typeSeance);
 
                         return (
                           <td key={c.id} style={STYLE_CELLULE}>
-                            <div style={{ position: 'relative', opacity: estHerite ? 0.62 : 1 }}>
+                            {groupesOccupant.length > 0 && (
+                              <div title={'Ce créneau est occupé par des enseignements en '
+                                        + 'sous-groupe. La classe entière ne peut pas y avoir cours.'}
+                                   style={{
+                                     marginBottom: 5, padding: '3px 5px', borderRadius: 6,
+                                     background: 'rgba(255,152,0,0.10)',
+                                     border: '1px solid #FF9800',
+                                     fontSize: 9, lineHeight: 1.35, color: '#EF6C00',
+                                   }}>
+                                <div className="flex items-center gap-1">
+                                  <Lock size={8} style={{ flexShrink: 0 }} />
+                                  <span style={{ fontWeight: 700 }}>
+                                    Occupé par {groupesOccupant.map(sg => sg.libelle).join(', ')}
+                                  </span>
+                                </div>
+                                <span>Créneau dédoublé — pas de cours en classe entière.</span>
+                              </div>
+                            )}
+
+                            <div style={{
+                              position: 'relative',
+                              opacity: estHerite ? 0.62 : 1,
+                              // La case reste consultable, mais on décourage la
+                              // saisie là où elle produirait une incohérence.
+                              display: groupesOccupant.length > 0 && !cellule.matiereId
+                                ? 'none' : undefined,
+                            }}>
                               {cellule.matiereId && (
                                 <span style={{
                                   position: 'absolute', top: -2, right: 0, zIndex: 1,
