@@ -12,7 +12,7 @@ import {
   BandeauCoherence, BoutonPDF, GrilleConsultation, SelecteurSemaine,
 } from '../_consultation';
 import {
-  useClassesSelect, useEdtSemaine, useGrillePourClasse, useSemaines, useSemestresAll,
+  useClassesSelect, useEdtPublie, useGrillePourClasse, useSemaines, useSemestresAll,
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
@@ -51,7 +51,12 @@ export default function EdtParClassePage() {
   );
   const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
 
-  const { data: toutesSeances = [], isLoading, error } = useEdtSemaine(classeId, semaineId);
+  // Source : l'emploi du temps PUBLIÉ, c'est-à-dire celui qui a servi à
+  // générer le suivi. La grille en cours de préparation se travaille dans
+  // « Gérer les emplois » ; l'afficher ici reviendrait à distribuer aux
+  // étudiants une version que personne n'a encore arrêtée.
+  const { data: toutesSeances = [], isLoading, error } =
+    useEdtPublie(semaineId, { classe: classeId });
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
   const semaine = semaines.find(s => s.id === semaineId);
@@ -85,6 +90,16 @@ export default function EdtParClassePage() {
   // été lancée. C'est le cas le plus fréquent, et le moins deviné.
   const grilleRemplie = (grille?.nb_seances ?? 0) > 0;
 
+  /**
+   * Une semaine n'est visible ici qu'une fois publiée.
+   *
+   * `suivi_genere_le` est ce qui en fait foi : c'est l'horodatage posé par la
+   * génération, celle-là même qui prend l'archive. Une semaine sans lui n'a
+   * rien à montrer — et le dire vaut mieux qu'une grille vide, qui se lirait
+   * comme « aucun cours cette semaine ».
+   */
+  const publie = !!semaine?.suivi_genere_le;
+
   return (
     <div className="space-y-4">
       <EnTetePage
@@ -93,15 +108,14 @@ export default function EdtParClassePage() {
         sousTitre={`${annee} · ${libelleSemestreSession()}`}
         actions={classeId ? (
           <BoutonPDF
-              chemin="/api/v1/ipgei/seances/pdf-classe/"
+              chemin="/api/v1/ipgei/archives-edt/pdf/"
               params={{
                 classe:  String(classeId),
                 semaine: String(semaineId ?? ''),
-                ...(plan ? { sous_groupe: plan } : {}),
               }}
             nomDefaut={`Emploi_${classe?.nom ?? 'classe'}`
               + `${nomPlan ? `_${nomPlan}` : ''}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId}
+            actif={!!semaineId && publie}
           />
         ) : undefined}
       />
@@ -167,6 +181,20 @@ export default function EdtParClassePage() {
       {!classeId ? (
         <div className={CARTE}>
           <Vide texte="Choisissez une classe pour afficher son emploi du temps." />
+        </div>
+      ) : semaineId && !publie ? (
+        <div className={CARTE}>
+          <Vide
+            texte={`L'emploi du temps de la semaine ${semaine?.numero ?? ''} n'est pas `
+                 + `encore publié : son suivi n'a pas été généré. Il le sera `
+                 + `depuis « Suivi → Ajouter », ce qui le rendra visible ici.`}
+            action={
+              <Link href="/dashboard/suivi/ajouter" className={BTN_PRIMAIRE}
+                    style={{ background: DEGRADE }}>
+                <CopyPlus size={14} /> Générer le suivi de la semaine
+              </Link>
+            }
+          />
         </div>
       ) : !isLoading && seances.length === 0 && grilleRemplie ? (
         <div className={CARTE}>

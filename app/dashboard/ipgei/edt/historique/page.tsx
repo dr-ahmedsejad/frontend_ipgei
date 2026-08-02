@@ -10,7 +10,7 @@ import {
   useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
-import { NIVEAUX, type SeanceReelle } from '@/types/ipgei';
+import { NIVEAUX } from '@/types/ipgei';
 
 /**
  * Emplois du temps tels qu'ils étaient au moment où le suivi en a été tiré.
@@ -97,13 +97,6 @@ export default function HistoriqueEdtPage() {
 
   const { data: archivees = [], isLoading } =
     useGrilleArchive(semaineId, classeId, choisie?.version ?? null);
-
-  /**
-   * Le composant de consultation attend des séances vivantes. L'archive en a
-   * délibérément la forme — seul le type diffère, puisqu'elle ne pointe plus
-   * vers le référentiel.
-   */
-  const seances = archivees as unknown as SeanceReelle[];
 
   const dateDeVue = (v?: { genere_le: string }) =>
     v ? formatDate(v.genere_le) : '';
@@ -228,7 +221,7 @@ export default function HistoriqueEdtPage() {
         </div>
       ) : (
         <GrilleConsultation
-          seances={seances}
+          seances={archivees}
           axe="classe"
           isLoading={isLoading || chargeVersions}
           titreImpression={`EMPLOI DU TEMPS ARCHIVÉ — ${classe?.nom ?? ''}`}

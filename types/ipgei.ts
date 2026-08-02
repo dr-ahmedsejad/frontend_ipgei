@@ -418,6 +418,35 @@ export interface GrilleType {
 
 export type OrigineSeance = 'grille' | 'manuelle' | 'permutation';
 
+/**
+ * Ce dont une grille a besoin pour s'afficher — rien de plus.
+ *
+ * `SeanceReelle` (la séance en préparation) et `SeanceArchivee` (la séance
+ * publiée) s'y conforment toutes deux. Les écrans de consultation parlent donc
+ * ce langage-là, et non l'un des deux modèles : c'est ce qui permet à la même
+ * grille de montrer l'un ou l'autre sans être écrite en double, et donc sans
+ * qu'elles divergent.
+ */
+export interface SeanceAffichable {
+  id:                  number;
+  jour:                number | null;
+  creneau:             number | null;
+  matiere:             number | null;
+  sous_groupe:         number | null;
+  type_seance:         number | null;
+  matiere_code:        string;
+  matiere_intitule:    string;
+  type_seance_libelle: string;
+  type_seance_special: boolean;
+  prof_nom:            string;
+  prof_initial_nom:    string;
+  salle_nom:           string;
+  classe_nom:          string;
+  sous_groupe_libelle: string;
+  annulee:             boolean;
+  origine:             string;
+}
+
 export interface SeanceReelle {
   id:                  number;
   classe:              number;

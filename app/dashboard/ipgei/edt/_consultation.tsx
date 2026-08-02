@@ -25,7 +25,7 @@ import {
   STYLE_ENTETE_JOUR, STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from './_cellule';
 import { useReferentielsEDT } from './_referentiels';
-import { type SeanceReelle, type SemaineIPGEI } from '@/types/ipgei';
+import { type SeanceAffichable, type SemaineIPGEI } from '@/types/ipgei';
 
 /** Axe de lecture : détermine ce que la carte met en avant. */
 export type AxeEDT = 'classe' | 'prof' | 'salle';
@@ -197,10 +197,10 @@ export function BandeauCoherence({ semaine }: { semaine?: SemaineIPGEI }) {
  * découpage que le PDF, pour qu'une grille lue à l'écran et la même imprimée
  * se ressemblent.
  */
-function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
+function grouperParMatiere(seances: SeanceAffichable[], axe: AxeEDT) {
   // Ce que la ligne nomme dépend de l'axe : sur l'emploi du temps d'un
   // enseignant, répéter son nom n'apprend rien, c'est la classe qui manque.
-  const texteLigne = (s: SeanceReelle) => {
+  const texteLigne = (s: SeanceAffichable) => {
     const [principal, complement] =
       axe === 'prof'  ? [s.classe_nom, s.salle_nom]  :
       axe === 'salle' ? [s.prof_nom,   s.classe_nom] :
@@ -248,7 +248,7 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
 export function GrilleConsultation({
   seances, axe, isLoading, titreImpression, sousTitresImpression = [], vide,
 }: {
-  seances: SeanceReelle[];
+  seances: SeanceAffichable[];
   axe: AxeEDT;
   isLoading?: boolean;
   titreImpression?: string;

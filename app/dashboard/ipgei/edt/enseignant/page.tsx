@@ -7,7 +7,7 @@ import { CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import { BoutonPDF, GrilleConsultation, SelecteurSemaine } from '../_consultation';
-import { useEdtParProf, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
+import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
 
 /**
@@ -41,7 +41,11 @@ export default function EdtParEnseignantPage() {
     [semainesA, semainesB],
   );
 
-  const { data: seances = [], isLoading, error } = useEdtParProf(profId, semaineId);
+  // Source : l'emploi du temps publié — celui sur lequel l'enseignant est
+  // pointé, et donc payé. Afficher la grille en préparation lui montrerait des
+  // heures qui ne comptent pas encore.
+  const { data: seances = [], isLoading, error } =
+    useEdtPublie(semaineId, { prof: profId });
   const prof = profs.find(p => p.id === profId);
   const semaine = semaines.find(s => s.id === semaineId);
 
@@ -53,7 +57,7 @@ export default function EdtParEnseignantPage() {
         sousTitre={`${annee} · ${libelleSemestreSession()}`}
         actions={profId ? (
           <BoutonPDF
-            chemin="/api/v1/ipgei/seances/pdf-prof/"
+            chemin="/api/v1/ipgei/archives-edt/pdf/"
             params={{ prof: String(profId), semaine: String(semaineId ?? '') }}
             nomDefaut={`Emploi_${prof?.nom ?? 'enseignant'}_S${semaine?.numero ?? ''}.pdf`}
             actif={!!semaineId}

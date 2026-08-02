@@ -569,16 +569,38 @@ export function useVersionsArchive(classe: number | null, semestre?: number | nu
   });
 }
 
-/** Séances d'une prise de vue. Sans `version`, la plus récente. */
+/**
+ * Emploi du temps **publié** d'une semaine.
+ *
+ * C'est la source des écrans de consultation : ce que voient les étudiants et
+ * les enseignants est la version qui a servi à générer le suivi, pas la grille
+ * en cours de préparation. Générer le suivi est l'acte qui publie — un seul
+ * geste pour les étudiants et pour la paie, au lieu de deux qu'on pouvait
+ * oublier d'accorder.
+ *
+ * `cible` désigne l'axe : classe, enseignant ou salle.
+ */
+export function useEdtPublie(
+  semaine: number | null,
+  cible: { classe?: number | null; prof?: number | null; salle?: number | null },
+  version?: number | null,
+) {
+  const { classe = null, prof = null, salle = null } = cible;
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'archives', 'grille', semaine ?? 0,
+               classe ?? 0, prof ?? 0, salle ?? 0, version ?? 0] as const,
+    queryFn:  () => archivesEdtApi.grille({
+      semaine: semaine as number, classe, prof, salle, version,
+    }),
+    enabled:  semaine != null && (classe != null || prof != null || salle != null),
+  });
+}
+
+/** Séances d'une prise de vue précise — écran d'historique. */
 export function useGrilleArchive(
   semaine: number | null, classe: number | null, version: number | null,
 ) {
-  return useQuery({
-    queryKey: [...ipgeiKeys.all, 'archives', 'grille',
-               semaine ?? 0, classe ?? 0, version ?? 0] as const,
-    queryFn:  () => archivesEdtApi.grille(semaine as number, classe as number, version),
-    enabled:  semaine != null && classe != null,
-  });
+  return useEdtPublie(semaine, { classe }, version);
 }
 
 export function useEdtSemaine(classe: number | null, semaine: number | null) {
@@ -586,30 +608,6 @@ export function useEdtSemaine(classe: number | null, semaine: number | null) {
     queryKey: ipgeiKeys.edtSemaine(classe ?? 0, semaine ?? 0),
     queryFn:  () => seancesApi.parSemaine(classe as number, semaine as number),
     enabled:  classe != null && semaine != null,
-  });
-}
-
-/**
- * EDT d'un enseignant sur une semaine — toutes classes confondues.
- *
- * Après une permutation, `prof` porte l'enseignant EFFECTIF de la semaine :
- * cette vue montre donc ce que l'intéressé assure réellement, pas ce qui était
- * initialement prévu.
- */
-export function useEdtParProf(prof: number | null, semaine: number | null) {
-  return useQuery({
-    queryKey: [...ipgeiKeys.all, 'edt', 'prof', prof ?? 0, semaine ?? 0],
-    queryFn:  () => seancesApi.list({ prof: prof as number, semaine: semaine as number }),
-    enabled:  prof != null && semaine != null,
-  });
-}
-
-/** EDT d'une salle sur une semaine — sert à repérer les créneaux libres. */
-export function useEdtParSalle(salle: number | null, semaine: number | null) {
-  return useQuery({
-    queryKey: [...ipgeiKeys.all, 'edt', 'salle', salle ?? 0, semaine ?? 0],
-    queryFn:  () => seancesApi.list({ salle: salle as number, semaine: semaine as number }),
-    enabled:  salle != null && semaine != null,
   });
 }
 

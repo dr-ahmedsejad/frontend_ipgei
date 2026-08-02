@@ -241,10 +241,15 @@ export const archivesEdtApi = {
   versions: (classe: number, semestre?: number | null) =>
     apiFetch<VersionArchive[]>(`${BASE}/archives-edt/versions/`,
       { params: nettoyer({ classe, semestre }) }),
-  /** Sans `version`, la plus récente est servie. */
-  grille: (semaine: number, classe: number, version?: number | null) =>
-    apiFetch<SeanceArchivee[]>(`${BASE}/archives-edt/grille/`,
-      { params: nettoyer({ semaine, classe, version }) }),
+  /**
+   * Emploi du temps publié d'une semaine, par classe, par enseignant ou par
+   * salle. Sans `version`, la dernière publication de chaque classe.
+   */
+  grille: (f: {
+    semaine: number; classe?: number | null; prof?: number | null;
+    salle?: number | null; version?: number | null;
+  }) => apiFetch<SeanceArchivee[]>(`${BASE}/archives-edt/grille/`,
+    { params: nettoyer(f) }),
 };
 
 export const seancesApi = {

@@ -7,7 +7,7 @@ import { CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import { BoutonPDF, GrilleConsultation, SelecteurSemaine } from '../_consultation';
-import { useEdtParSalle, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
+import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
 
 /**
@@ -38,7 +38,11 @@ export default function EdtParSallePage() {
     [semainesA, semainesB],
   );
 
-  const { data: seances = [], isLoading, error } = useEdtParSalle(salleId, semaineId);
+  // Source : l'emploi du temps publié. Une salle réservée sur une grille en
+  // préparation ne l'est pas encore : l'afficher ferait croire à une
+  // occupation qui n'engage personne.
+  const { data: seances = [], isLoading, error } =
+    useEdtPublie(semaineId, { salle: salleId });
   const salle = salles.find(s => s.id === salleId);
   const semaine = semaines.find(s => s.id === semaineId);
 
@@ -50,7 +54,7 @@ export default function EdtParSallePage() {
         sousTitre={`${annee} · ${libelleSemestreSession()}`}
         actions={salleId ? (
           <BoutonPDF
-            chemin="/api/v1/ipgei/seances/pdf-salle/"
+            chemin="/api/v1/ipgei/archives-edt/pdf/"
             params={{ salle: String(salleId), semaine: String(semaineId ?? '') }}
             nomDefaut={`Occupation_${salle?.nom ?? 'salle'}_S${semaine?.numero ?? ''}.pdf`}
             actif={!!semaineId}
