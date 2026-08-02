@@ -177,19 +177,8 @@ export default function GrilleTypePage() {
     originaux.current = JSON.parse(JSON.stringify(etat));
   }, [grille, enModeSemaine, seancesSemaine]);
 
-  /**
-   * `base` sert à matérialiser une case héritée : dans le plan d'un sous-groupe,
-   * les cases reprennent l'emploi du temps de la classe tant qu'on n'y touche
-   * pas. À la première modification, la séance devient propre au groupe — d'où
-   * la recopie des valeurs affichées, `idOrigine` remis à zéro pour que
-   * l'enregistrement crée une nouvelle ligne au lieu d'écraser celle de la
-   * classe.
-   */
-  const majCase = (k: string, champ: keyof Emplacement, valeur: string, base?: Emplacement) =>
-    setCases(prev => {
-      const depart = prev[k] ?? (base ? { ...base, idOrigine: null } : VIDE);
-      return { ...prev, [k]: { ...depart, [champ]: valeur } };
-    });
+  const majCase = (k: string, champ: keyof Emplacement, valeur: string) =>
+    setCases(prev => ({ ...prev, [k]: { ...(prev[k] ?? VIDE), [champ]: valeur } }));
 
   /**
    * Vider la matière retire la séance : c'est elle qui matérialise la case.
@@ -669,28 +658,37 @@ export default function GrilleTypePage() {
                               )}
 
                               {estHerite && (
-                                <div title={'Repris de la classe entière. Modifiez un champ '
-                                          + 'pour en faire une séance propre à ce sous-groupe.'}
+                                <div title={'Créneau réservé par la classe entière. Ce groupe y '
+                                          + 'suit le cours commun : la case se modifie dans le '
+                                          + 'plan « Classe entière ».'}
                                      className="flex items-center gap-1"
                                      style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>
                                   <Lock size={8} style={{ flexShrink: 0 }} />
-                                  Repris de la classe
+                                  Réservé par la classe — lecture seule
                                 </div>
                               )}
 
-                              {/* `base` n'est transmis que sur une case héritée :
-                                  la première saisie recopie alors les valeurs de
-                                  la classe avant d'appliquer la modification. */}
+                              {/* Case reprise de la classe : lecture seule.
+                                  Le groupe suit sa classe, il ne peut pas avoir
+                                  autre chose au même moment — la modifier
+                                  créerait la case impossible que le serveur
+                                  refuse désormais. Les valeurs restent
+                                  affichées : on doit voir ce que le groupe fait
+                                  à cette heure-là. */}
                               <AC value={cellule.profId} placeholder="Professeur"
+                                  disabled={estHerite}
                                   options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
-                                  onChange={v => majCase(k, 'profId', v, estHerite ? cellule : undefined)} />
+                                  onChange={v => majCase(k, 'profId', v)} />
                               <AC value={cellule.matiereId} options={optMatieres} placeholder="Matière"
-                                  onChange={v => majCase(k, 'matiereId', v, estHerite ? cellule : undefined)} />
+                                  disabled={estHerite}
+                                  onChange={v => majCase(k, 'matiereId', v)} />
                               <AC value={cellule.typeSeance} options={optTypes} placeholder="Type séance"
-                                  onChange={v => majCase(k, 'typeSeance', v, estHerite ? cellule : undefined)} />
+                                  disabled={estHerite}
+                                  onChange={v => majCase(k, 'typeSeance', v)} />
                               <AC value={cellule.salleId} placeholder="Salle"
+                                  disabled={estHerite}
                                   options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
-                                  onChange={v => majCase(k, 'salleId', v, estHerite ? cellule : undefined)} />
+                                  onChange={v => majCase(k, 'salleId', v)} />
 
                               {/* Gestes propres à une séance datée. Ils n'ont
                                   pas d'objet sur le patron : on n'annule ni ne
@@ -749,21 +747,11 @@ export default function GrilleTypePage() {
               </table>
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-semibold text-iss-gray uppercase tracking-wide">Légende</span>
-              {TYPES_SEANCE.map(t => {
-                const coul = couleurType(t.value);
-                return (
-                  <span key={t.value} className="inline-flex items-center gap-1.5 text-xs text-iss-gray">
-                    <span style={{
-                      width: 12, height: 12, borderRadius: 3,
-                      background: coul.bg, border: `1px solid ${coul.border}`, display: 'inline-block',
-                    }} />
-                    {t.label}
-                  </span>
-                );
-              })}
-              <div className="ml-auto">{boutonEnregistrer}</div>
+            {/* Pas de légende des types : chaque case porte déjà sa pastille
+                nommée (Cours, TD, TP, DS). La rappeler en bas de grille
+                n'apprenait rien et repoussait le bouton d'enregistrement. */}
+            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end">
+              {boutonEnregistrer}
             </div>
           </div>
         </>
