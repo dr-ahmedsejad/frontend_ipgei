@@ -13,6 +13,15 @@ export const seancesApi = {
     if (filters.search) params.search = filters.search;
     return apiFetchPaginated<Seance>(`${BASE}/`, params);
   },
+  /**
+   * Référentiel complet, sans pagination.
+   *
+   * `list()` s'arrête à la première page — dix lignes — et le référentiel en
+   * compte douze : TD et TP, les plus utilisés, tombaient hors de la liste et
+   * devenaient impossibles à choisir dans la grille.
+   */
+  all: () => apiFetch<Seance[]>(`${BASE}/all/`),
+
   retrieve: (id: number) => apiFetch<Seance>(`${BASE}/${id}/`),
   create:   (input: SeanceInput) => apiFetch<Seance>(`${BASE}/`, { method: 'POST', body: input }),
   update:   (id: number, input: Partial<SeanceInput>) =>

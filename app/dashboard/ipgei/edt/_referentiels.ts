@@ -48,12 +48,12 @@ export function useReferentielsEDT() {
   // disponible dans la grille sans toucher au frontend.
   const typesSeance = useQuery({
     queryKey: ['ipgei', 'ref', 'types-seance'],
-    queryFn:  () => seancesApi.list({ page: 1 }),
+    queryFn:  () => seancesApi.all(),
     staleTime: CINQ_MINUTES,
   });
 
   return {
-    typesSeance: typesSeance.data?.results ?? [],
+    typesSeance: typesSeance.data ?? [],
     // Les créneaux pilotent les lignes de la grille : on respecte leur ordre
     // d'affichage et on écarte ceux désactivés.
     jours:    jours.data?.results ?? [],
