@@ -418,7 +418,9 @@ export default function GrilleTypePage() {
       />
 
       <div className={`${CARTE} p-4`}>
-        <div className="flex items-end gap-3 flex-wrap">
+        {/* Centrée : les quatre sélecteurs forment un bloc, et l'alignement à
+            gauche laissait un vide qui les faisait paraître décrochés. */}
+        <div className="flex items-end justify-center gap-3 flex-wrap">
           <div style={{ minWidth: 220 }}>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe</label>
             <select value={classeId ?? ''} className={SELECT}
@@ -500,19 +502,24 @@ export default function GrilleTypePage() {
 
           {/* Contexte de session : le semestre concret (S1…S4) suffit. L'année
               est déjà affichée en haut de l'application, et « Semestres impairs »
-              disait deux fois la même chose que le code qui le suivait. */}
-          <div className="flex items-center gap-2 text-sm text-iss-gray pb-2.5">
-            {classe && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200">
+              disait deux fois la même chose que le code qui le suivait.
+
+              Présenté comme les autres champs — étiquette au-dessus, même
+              hauteur — plutôt qu'en pastille flottante : il appartient à la
+              même barre, il doit s'y aligner. */}
+          {classe && (
+            <div>
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semestre</label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50">
                 <span className="w-2 h-2 rounded-full" style={{ background: VERT }} />
-                <span className="font-semibold text-iss-dark">
+                <span className="text-sm font-semibold text-iss-dark">
                   {classe.niveau === 'MP'
                     ? (typeSemestre === 'I' ? 'S3' : 'S4')
                     : (typeSemestre === 'I' ? 'S1' : 'S2')}
                 </span>
-              </span>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
