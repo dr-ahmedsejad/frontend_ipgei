@@ -438,7 +438,12 @@ export default function AjouterSuiviPage() {
 
           {!isGenerated(selected) && (
             <p className="mt-3 text-xs text-iss-gray">
-              L&apos;EDT actuel sera archivé, puis vidé pour permettre la saisie d&apos;une nouvelle version.
+              {/* « puis vidé pour permettre la saisie d'une nouvelle version »
+                  décrivait le fonctionnement du socle, où l'emploi du temps se
+                  ressaisit chaque période. À l'IPGEI il est permanent : la
+                  génération le lit, elle ne le consomme pas. */}
+              L&apos;emploi du temps de la semaine est archivé avant la génération : le suivi
+              garde ainsi une trace de la version exacte qui a servi.
             </p>
           )}
         </div>
