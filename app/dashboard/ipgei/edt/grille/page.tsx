@@ -15,7 +15,7 @@ import { anneeParDefaut, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import {
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU, STYLE_ENTETE_JOUR,
-  STYLE_ENTETE_LIGNE, STYLE_TABLE,
+  STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from '../_cellule';
 import { AC, type OptionAC } from '../_autocomplete';
 import {
@@ -618,8 +618,22 @@ export default function GrilleTypePage() {
 
                         const { pro, sal } = occupes(j.id, c.id, k);
 
+                        // La case prend la couleur de son type — bleu pour un
+                        // cours, vert pour un TD, orange pour un TP, violet
+                        // pour un DS. C'est ce qui remplace la pastille : la
+                        // grille se lit d'un coup d'oeil, sans rien répéter.
+                        const coul = couleurType(cellule.typeSeance);
+                        const occupee = !!cellule.matiereId;
+
                         return (
-                          <td key={c.id} style={STYLE_CELLULE}>
+                          <td key={c.id} style={{
+                            ...STYLE_CELLULE,
+                            background: occupee ? coul.bg : undefined,
+                            // Un liseré plus franc sur le bord gauche donne au
+                            // type une lisibilité que le fond, très pâle pour
+                            // rester derrière les champs, ne suffit pas à porter.
+                            borderLeft: occupee ? `3px solid ${coul.border}` : STYLE_CELLULE.border,
+                          }}>
                             {groupesOccupant.length > 0 && (
                               <div title={'Ce créneau est occupé par des enseignements en '
                                         + 'sous-groupe. La classe entière ne peut pas y avoir cours.'}
