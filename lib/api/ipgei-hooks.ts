@@ -531,6 +531,26 @@ export function useGrilleMutations() {
   };
 }
 
+/**
+ * Créneaux déjà mobilisés par les autres classes.
+ *
+ * C'est ce qui permet à la grille de ne proposer qu'un enseignant réellement
+ * libre : sa liste locale ne connaît que la classe affichée, et deux classes
+ * saisies l'une après l'autre pouvaient retenir la même personne.
+ */
+export function useOccupationCreneaux(
+  classe: number | null, semaine: number | null, typeSemestre: string,
+) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'edt', 'occupation',
+               classe ?? 0, semaine ?? 0, typeSemestre] as const,
+    queryFn:  () => seancesApi.occupation({
+      classe: classe as number, semaine, type_semestre: typeSemestre,
+    }),
+    enabled:  classe != null,
+  });
+}
+
 export function useEdtSemaine(classe: number | null, semaine: number | null) {
   return useQuery({
     queryKey: ipgeiKeys.edtSemaine(classe ?? 0, semaine ?? 0),

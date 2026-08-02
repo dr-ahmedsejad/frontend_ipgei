@@ -9,7 +9,7 @@ import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete,
-  LigneDeliberation, Matiere, MatiereInput, MatiereSelect, Note,
+  LigneDeliberation, Matiere, MatiereInput, MatiereSelect, Note, OccupationCreneau,
   ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
   ReleveSemestre, ResultatDuplication, ResumeIPGEI, SaisieCollective,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SousGroupeTP,
@@ -235,6 +235,15 @@ export const seancesApi = {
   parSemaine: (classe: number, semaine: number) =>
     apiFetch<SeanceReelle[]>(`${BASE}/seances/semaine/`, { params: { classe, semaine } }),
   list:   (f: Params = {}) => apiFetch<SeanceReelle[]>(`${BASE}/seances/`, { params: nettoyer(f) }),
+
+  /**
+   * Enseignants et salles pris par les AUTRES classes sur chaque créneau.
+   *
+   * Sans `semaine`, la réponse porte sur les grilles types de la même année et
+   * du même type de semestre.
+   */
+  occupation: (f: { classe: number; semaine?: number | null; type_semestre?: string }) =>
+    apiFetch<OccupationCreneau[]>(`${BASE}/seances/occupation/`, { params: nettoyer(f) }),
   create: (input: Partial<SeanceReelle>) =>
     apiFetch<SeanceReelle>(`${BASE}/seances/`, { method: 'POST', body: input }),
   update: (id: number, input: Partial<SeanceReelle>) =>

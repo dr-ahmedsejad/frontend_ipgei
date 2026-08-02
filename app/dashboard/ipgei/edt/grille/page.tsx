@@ -20,6 +20,7 @@ import {
 import { AC, type OptionAC } from '../_autocomplete';
 import {
   ipgeiKeys, useClassesSelect, useEdtSemaine, useGrilleMutations,
+  useOccupationCreneaux,
   useGrillePourClasse, useMatieresSelect, useSemaines, useSemestresAll,
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
@@ -105,6 +106,12 @@ export default function GrilleTypePage() {
 
   const { data: donneesSemaine, isLoading: chargeSemaine } =
     useEdtSemaine(enModeSemaine ? classeId : null, periodeId);
+
+  // Ce que les autres classes retiennent déjà sur chaque créneau. La liste
+  // locale ne voit que la classe affichée ; sans cet appel, un enseignant placé
+  // en MPSI A restait proposé en MPSI B au même moment.
+  const { data: occupation = [] } =
+    useOccupationCreneaux(classeId, periodeId, typeSemestre);
   // Le repli `?? []` doit être mémoïsé : écrit en valeur par défaut de
   // déstructuration, il fabriquait un tableau neuf à chaque rendu, relançant
   // l'effet de chargement, qui reposait `cases`, qui provoquait un rendu…
@@ -362,11 +369,24 @@ export default function GrilleTypePage() {
   const estSpecial = (id: string) => !!typesSeance.find(t => String(t.id) === id)?.is_special;
 
   /**
-   * Un enseignant ou une salle déjà pris sur ce créneau n'est plus proposé
-   * ailleurs — même garde-fou contre le double-booking que la grille SIGA.
+   * Un enseignant ou une salle déjà pris sur ce créneau n'est plus proposé.
+   *
+   * Deux sources : la grille en cours d'édition, et les autres classes de la
+   * même période. La seconde manquait, et c'est par là qu'un professeur se
+   * retrouvait sur deux classes à la même heure — jusque dans le suivi, où ses
+   * heures étaient comptées deux fois.
    */
   const occupes = (jour: number, creneau: number, kCourant: string) => {
     const pro = new Set<string>(), sal = new Set<string>();
+    /** Où le nom masqué est retenu — sinon sa disparition est inexplicable. */
+    const ou = new Map<string, string>();
+
+    for (const o of occupation) {
+      if (o.jour !== jour || o.creneau !== creneau) continue;
+      if (o.prof)  { pro.add(String(o.prof));  ou.set(`p${o.prof}`,  o.classe); }
+      if (o.salle) { sal.add(String(o.salle)); ou.set(`s${o.salle}`, o.classe); }
+    }
+
     for (const [k, v] of Object.entries(cases)) {
       if (k === kCourant || !v.matiereId) continue;
       // Le conflit se juge sur la case horaire complète, jour compris : un
@@ -378,7 +398,7 @@ export default function GrilleTypePage() {
       if (v.profId)  pro.add(v.profId);
       if (v.salleId) sal.add(v.salleId);
     }
-    return { pro, sal };
+    return { pro, sal, ou };
   };
 
   const modifie   = JSON.stringify(cases) !== JSON.stringify(originaux.current);
@@ -635,7 +655,23 @@ export default function GrilleTypePage() {
                           return !!bloc?.matiereId;
                         });
 
-                        const { pro, sal } = occupes(j.id, c.id, k);
+                        const { pro, sal, ou } = occupes(j.id, c.id, k);
+
+                        // Un nom qui disparaît sans explication laisse croire à
+                        // un bug. Il ne reste pas dans la liste — ce serait
+                        // proposer l'impossible — mais l'infobulle du champ dit
+                        // qui est pris et où.
+                        const masques = (
+                          options: OptionAC[], pris: Set<string>,
+                          choisi: string, prefixe: 'p' | 's',
+                        ) => {
+                          const noms = options
+                            .filter(o => pris.has(o.id) && o.id !== choisi)
+                            .map(o => `${o.label} — ${ou.get(prefixe + o.id) ?? 'cette grille'}`);
+                          return noms.length
+                            ? `Déjà pris sur ce créneau : ${noms.join(' · ')}`
+                            : undefined;
+                        };
 
                         // La case prend la couleur de son type — bleu pour un
                         // cours, vert pour un TD, orange pour un TP, violet
@@ -713,10 +749,12 @@ export default function GrilleTypePage() {
                                   ces champs inviterait à compter des heures,
                                   donc une vacation, pour un cours non donné. */}
                               {!speciale && (
-                                <AC value={cellule.profId} placeholder="Professeur"
-                                    disabled={estHerite}
-                                    options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
-                                    onChange={v => majCase(k, 'profId', v)} />
+                                <div title={masques(optProfs, pro, cellule.profId, 'p')}>
+                                  <AC value={cellule.profId} placeholder="Professeur"
+                                      disabled={estHerite}
+                                      options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
+                                      onChange={v => majCase(k, 'profId', v)} />
+                                </div>
                               )}
                               {!speciale && (
                                 <AC value={cellule.matiereId} options={optMatieres} placeholder="Matière"
@@ -727,10 +765,12 @@ export default function GrilleTypePage() {
                                   disabled={estHerite}
                                   onChange={v => majCase(k, 'typeSeance', v)} />
                               {!speciale && (
-                                <AC value={cellule.salleId} placeholder="Salle"
-                                    disabled={estHerite}
-                                    options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
-                                    onChange={v => majCase(k, 'salleId', v)} />
+                                <div title={masques(optSalles, sal, cellule.salleId, 's')}>
+                                  <AC value={cellule.salleId} placeholder="Salle"
+                                      disabled={estHerite}
+                                      options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
+                                      onChange={v => majCase(k, 'salleId', v)} />
+                                </div>
                               )}
 
                               {/* Gestes propres à une séance datée. Ils n'ont

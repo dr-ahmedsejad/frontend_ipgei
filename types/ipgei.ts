@@ -609,3 +609,16 @@ export interface ResumeIPGEI {
   deliberations: number;
   permutations_en_attente: number;
 }
+
+/**
+ * Une case déjà prise ailleurs : de quoi retirer un enseignant ou une salle des
+ * listes de choix, et dire où ils sont retenus.
+ */
+export interface OccupationCreneau {
+  jour:    number;
+  creneau: number;
+  prof:    number | null;
+  salle:   number | null;
+  /** Classe (et sous-groupe) qui les mobilise. */
+  classe:  string;
+}
