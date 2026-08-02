@@ -193,6 +193,9 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
       axe === 'prof'  ? [s.classe_nom, s.salle_nom]  :
       axe === 'salle' ? [s.prof_nom,   s.classe_nom] :
                         [s.prof_nom,   s.salle_nom];
+    // Une séance spéciale — sport, instruction militaire — n'a ni enseignant
+    // ni salle : la ligne serait vide, autant ne pas l'écrire.
+    if (!principal && !complement && !s.sous_groupe_libelle) return '';
     let texte = principal || '—';
     if (s.sous_groupe_libelle) texte += ` (${s.sous_groupe_libelle})`;
     if (complement)            texte += ` — ${complement}`;
@@ -209,13 +212,16 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
       blocs.set(cle, {
         cle,
         type:     s.type_seance_libelle,
-        intitule: s.matiere_intitule || s.matiere_code,
+        // Sans matière, le type nomme seul la séance.
+        intitule: s.matiere_intitule || s.matiere_code || s.type_seance_libelle,
         lignes:   [],
       });
     }
+    const texte = texteLigne(s);
+    if (!texte) continue;
     blocs.get(cle)!.lignes.push({
       cle:         String(s.id),
-      texte:       texteLigne(s),
+      texte,
       annulee:     s.annulee,
       permutee:    s.origine === 'permutation',
       profInitial: s.prof_initial_nom,

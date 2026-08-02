@@ -224,6 +224,8 @@ export default function GrilleTypePage() {
       // Le type de séance n'a plus de valeur présumée : une case renseignée
       // sans type serait enregistrée en « Cours » à l'insu de l'utilisateur, et
       // fausserait aussi bien l'avancement que le taux de vacation appliqué.
+      /** Une case spéciale n'a pas de matière : c'est son type qui la matérialise. */
+      const remplieCase = (c: Emplacement) => !!c.matiereId || estSpecial(c.typeSeance);
       const sansType = Object.values(cases).filter(c => c.matiereId && !c.typeSeance).length;
       if (sansType) {
         throw new Error(
@@ -242,7 +244,7 @@ export default function GrilleTypePage() {
           const origine = originaux.current[k];
           const [jour, creneau, sousGroupe] = k.split('__');
 
-          const remplie  = !!courant?.matiereId;
+          const remplie  = !!courant && remplieCase(courant);
           const existait = !!origine?.idOrigine;
           if (!remplie && !existait) continue;
 
@@ -253,7 +255,7 @@ export default function GrilleTypePage() {
                 semaine:     periodeId as number,
                 jour:        Number(jour),
                 creneau:     Number(creneau),
-                matiere:     Number(courant.matiereId),
+                matiere:     courant.matiereId ? Number(courant.matiereId) : null,
                 prof:        courant.profId  ? Number(courant.profId)  : null,
                 salle:       courant.salleId ? Number(courant.salleId) : null,
                 sous_groupe: sousGroupe ? Number(sousGroupe) : null,
@@ -269,7 +271,7 @@ export default function GrilleTypePage() {
                 courant.typeSeance !== origine.typeSeance;
               if (change) {
                 await seancesApi.update(origine.idOrigine as number, {
-                  matiere:     Number(courant.matiereId),
+                  matiere:     courant.matiereId ? Number(courant.matiereId) : null,
                   prof:        courant.profId  ? Number(courant.profId)  : null,
                   salle:       courant.salleId ? Number(courant.salleId) : null,
                   type_seance: Number(courant.typeSeance),
@@ -291,7 +293,7 @@ export default function GrilleTypePage() {
         const origine = originaux.current[k];
         const [jour, creneau, sousGroupe] = k.split('__');
 
-        const remplie  = !!courant?.matiereId;
+        const remplie  = !!courant && remplieCase(courant);
         const existait = !!origine?.idOrigine;
         if (!remplie && !existait) continue;
 
@@ -643,7 +645,7 @@ export default function GrilleTypePage() {
                           t => String(t.id) === cellule.typeSeance)?.type_seance;
                         const coul = couleurType(libelleType);
                         const speciale = estSpecial(cellule.typeSeance);
-                        const occupee = !!cellule.matiereId;
+                        const occupee = !!cellule.matiereId || speciale;
 
                         return (
                           <td key={c.id} style={{
@@ -716,9 +718,11 @@ export default function GrilleTypePage() {
                                     options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
                                     onChange={v => majCase(k, 'profId', v)} />
                               )}
-                              <AC value={cellule.matiereId} options={optMatieres} placeholder="Matière"
-                                  disabled={estHerite}
-                                  onChange={v => majCase(k, 'matiereId', v)} />
+                              {!speciale && (
+                                <AC value={cellule.matiereId} options={optMatieres} placeholder="Matière"
+                                    disabled={estHerite}
+                                    onChange={v => majCase(k, 'matiereId', v)} />
+                              )}
                               <AC value={cellule.typeSeance} options={optTypes} placeholder="Type séance"
                                   disabled={estHerite}
                                   onChange={v => majCase(k, 'typeSeance', v)} />
@@ -766,7 +770,7 @@ export default function GrilleTypePage() {
                                 </div>
                               )}
 
-                              {cellule.matiereId && !estHerite && (
+                              {(cellule.matiereId || speciale) && !estHerite && (
                                 <button onClick={() => viderCase(k)}
                                         title={vue
                                           ? "Retirer cette séance : le sous-groupe reprendra celle de la classe"

@@ -226,12 +226,16 @@ export function CarteMatiere({ type, intitule, lignes }: {
         display: 'inline-block', minWidth: 46, textAlign: 'center',
       }}>{c.label}</span>
 
-      <div style={{
-        fontWeight: 700, fontSize: 13, color: '#000',
-        textDecoration: toutAnnule ? 'line-through' : 'none',
-      }}>
-        {intitule}
-      </div>
+      {/* Le badge nomme déjà la séance spéciale : ne pas écrire « Sport »
+          deux fois dans la même case. */}
+      {intitule !== c.label && (
+        <div style={{
+          fontWeight: 700, fontSize: 13, color: '#000',
+          textDecoration: toutAnnule ? 'line-through' : 'none',
+        }}>
+          {intitule}
+        </div>
+      )}
 
       {lignes.map(ligne => (
         <div key={ligne.cle}>
