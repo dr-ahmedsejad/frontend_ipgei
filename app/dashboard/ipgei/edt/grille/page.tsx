@@ -93,7 +93,9 @@ export default function GrilleTypePage() {
                               && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );
-  const { data: semaines = [] } = useSemaines(semestre?.id ?? null);
+  // La classe est passée : l'état affiché doit être le sien, pas celui de
+  // son niveau — MPSI B sans emploi du temps n'hérite pas du verdict de MPSI A.
+  const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
   const semainesCours = useMemo(
     () => semaines.filter(s => s.type_semaine === 'cours'),
     [semaines],

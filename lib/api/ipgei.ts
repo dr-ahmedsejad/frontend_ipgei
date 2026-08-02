@@ -59,7 +59,10 @@ export const semestresApi = {
       `${BASE}/semestres/${id}/generer-semaines/`,
       { method: 'POST', body: { remplacer, ...(nb ? { nb_semaines: nb } : {}) } },
     ),
-  semaines:  (id: number) => apiFetch<SemaineIPGEI[]>(`${BASE}/semestres/${id}/semaines/`),
+  /** `classe` restreint l'état de cohérence à cette classe plutôt qu'au niveau. */
+  semaines:  (id: number, classe?: number | null) =>
+    apiFetch<SemaineIPGEI[]>(`${BASE}/semestres/${id}/semaines/`,
+      { params: nettoyer({ classe }) }),
   cloturer:  (id: number) => apiFetch<SemestreIPGEI>(`${BASE}/semestres/${id}/cloturer/`, { method: 'POST' }),
 };
 

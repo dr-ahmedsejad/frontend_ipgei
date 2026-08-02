@@ -49,7 +49,7 @@ export default function EdtParClassePage() {
     () => semestres.find(s => classe && s.niveau === classe.niveau && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );
-  const { data: semaines = [] } = useSemaines(semestre?.id ?? null);
+  const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
 
   const { data: toutesSeances = [], isLoading, error } = useEdtSemaine(classeId, semaineId);
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);

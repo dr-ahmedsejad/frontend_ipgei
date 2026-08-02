@@ -121,10 +121,13 @@ export function useSemestresAll(filters: SemestreFilters = {}) {
   });
 }
 
-export function useSemaines(semestre: number | null | undefined) {
+export function useSemaines(semestre: number | null | undefined,
+                            classe?: number | null) {
   return useQuery({
-    queryKey: ipgeiKeys.semaines(semestre ?? 0),
-    queryFn:  () => semestresApi.semaines(semestre as number),
+    // La classe entre dans la clé : l'état de cohérence en dépend, deux classes
+    // d'un même niveau n'ont pas le même verdict sur une semaine donnée.
+    queryKey: [...ipgeiKeys.semaines(semestre ?? 0), classe ?? 0],
+    queryFn:  () => semestresApi.semaines(semestre as number, classe),
     enabled:  !!semestre,
   });
 }
