@@ -87,6 +87,7 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/edt/classe',     label: 'Emploi par classe',     module: 'ipgei_edt' },
       { href: '/dashboard/ipgei/edt/enseignant', label: 'Emploi par enseignant', module: 'ipgei_edt' },
       { href: '/dashboard/ipgei/edt/salle',      label: 'Occupation des salles', module: 'ipgei_edt' },
+      { href: '/dashboard/ipgei/edt/historique', label: 'Historique',            module: 'ipgei_edt' },
     ],
   },
   {

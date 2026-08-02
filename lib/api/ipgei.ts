@@ -10,6 +10,7 @@ import type {
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete,
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, Note, OccupationCreneau,
+  SeanceArchivee, VersionArchive,
   ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
   ReleveSemestre, ResultatDuplication, ResumeIPGEI, SaisieCollective,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SousGroupeTP,
@@ -229,6 +230,21 @@ export const seancesTypeApi = {
   update: (id: number, input: Partial<SeanceType>) =>
     apiFetch<SeanceType>(`${BASE}/seances-type/${id}/`, { method: 'PATCH', body: input }),
   remove: (id: number) => apiFetch<void>(`${BASE}/seances-type/${id}/`, { method: 'DELETE' }),
+};
+
+/**
+ * Emplois du temps figés à la génération du suivi. Lecture seule : la seule
+ * écriture possible est la prise de vue, faite par le serveur au moment où le
+ * suivi est généré.
+ */
+export const archivesEdtApi = {
+  versions: (classe: number, semestre?: number | null) =>
+    apiFetch<VersionArchive[]>(`${BASE}/archives-edt/versions/`,
+      { params: nettoyer({ classe, semestre }) }),
+  /** Sans `version`, la plus récente est servie. */
+  grille: (semaine: number, classe: number, version?: number | null) =>
+    apiFetch<SeanceArchivee[]>(`${BASE}/archives-edt/grille/`,
+      { params: nettoyer({ semaine, classe, version }) }),
 };
 
 export const seancesApi = {

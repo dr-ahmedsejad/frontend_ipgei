@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-query';
 
 import {
-  absencesApi, classesApi, deliberationsApi, documentsApi, grillesApi,
+  archivesEdtApi, absencesApi, classesApi, deliberationsApi, documentsApi, grillesApi,
   inscriptionsApi, lignesDeliberationApi, matieresApi, notesApi, parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
   semainesApi, semestresApi, sousGroupesApi, tableauBordApi,
@@ -557,6 +557,27 @@ export function useOccupationCreneaux(
       classe: classe as number, semaine, type_semestre: typeSemestre,
     }),
     enabled:  classe != null,
+  });
+}
+
+/** Prises de vue archivées d'une classe, de la plus récente à la plus ancienne. */
+export function useVersionsArchive(classe: number | null, semestre?: number | null) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'archives', 'versions', classe ?? 0, semestre ?? 0] as const,
+    queryFn:  () => archivesEdtApi.versions(classe as number, semestre),
+    enabled:  classe != null,
+  });
+}
+
+/** Séances d'une prise de vue. Sans `version`, la plus récente. */
+export function useGrilleArchive(
+  semaine: number | null, classe: number | null, version: number | null,
+) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'archives', 'grille',
+               semaine ?? 0, classe ?? 0, version ?? 0] as const,
+    queryFn:  () => archivesEdtApi.grille(semaine as number, classe as number, version),
+    enabled:  semaine != null && classe != null,
   });
 }
 

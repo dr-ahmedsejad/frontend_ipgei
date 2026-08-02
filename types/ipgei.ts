@@ -622,3 +622,44 @@ export interface OccupationCreneau {
   /** Classe (et sous-groupe) qui les mobilise. */
   classe:  string;
 }
+
+/**
+ * Une séance figée. Volontairement au format d'une séance vivante : l'écran
+ * d'historique réutilise le composant de consultation de l'emploi du temps,
+ * sans quoi l'archive s'afficherait autrement que l'original — et ne
+ * permettrait plus la comparaison qui est sa seule raison d'être.
+ */
+export interface SeanceArchivee {
+  id:                  number;
+  jour:                number | null;
+  creneau:             number | null;
+  matiere:             number | null;
+  type_seance:         number | null;
+  sous_groupe:         number | null;
+  matiere_code:        string;
+  matiere_intitule:    string;
+  type_seance_libelle: string;
+  type_seance_special: boolean;
+  prof_nom:            string;
+  prof_initial_nom:    string;
+  salle_nom:           string;
+  classe_nom:          string;
+  sous_groupe_libelle: string;
+  annulee:             boolean;
+  origine:             string;
+  date_seance:         string | null;
+  version:             number;
+  genere_le:           string;
+}
+
+/** Une prise de vue disponible : quelle semaine, quelle version, quand. */
+export interface VersionArchive {
+  semaine:    number;
+  numero:     number;
+  date_debut: string | null;
+  date_fin:   string | null;
+  semestre:   string;
+  version:    number;
+  genere_le:  string;
+  nb_seances: number;
+}
