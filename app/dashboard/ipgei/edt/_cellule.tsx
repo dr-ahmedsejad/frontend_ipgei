@@ -18,7 +18,11 @@ const COULEURS: Record<TypeSeance, { bg: string; border: string; color: string; 
   cours: { bg: 'rgba(63,81,181,0.08)',  border: '#3f51b5', color: '#3f51b5', label: 'Cours' },
   td:    { bg: 'rgba(76,175,80,0.10)',  border: '#4CAF50', color: '#2E7D32', label: 'TD' },
   tp:    { bg: 'rgba(255,152,0,0.10)',  border: '#FF9800', color: '#EF6C00', label: 'TP' },
-  ds:    { bg: 'rgba(156,39,176,0.10)', border: '#9C27B0', color: '#6A1B9A', label: 'DS' },
+  // Rouge, et non violet comme dans le socle : une evaluation n'est pas un
+  // cours parmi d'autres. Elle doit sauter aux yeux sur une grille imprimee
+  // comme a l'ecran — c'est le seul creneau qu'on ne peut ni deplacer ni
+  // manquer sans consequence pour les etudiants.
+  ds:    { bg: 'rgba(200,32,32,0.12)',  border: '#C82020', color: '#B71C1C', label: 'DS' },
 };
 const DEFAUT = { bg: 'rgba(96,125,139,0.08)', border: '#607D8B', color: '#37474F', label: '—' };
 
