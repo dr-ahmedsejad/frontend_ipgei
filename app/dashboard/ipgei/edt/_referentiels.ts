@@ -47,13 +47,18 @@ export function useReferentielsEDT() {
   // non plus une liste figée dans le code. Un type ajouté là devient
   // disponible dans la grille sans toucher au frontend.
   const typesSeance = useQuery({
-    queryKey: ['ipgei', 'ref', 'types-seance'],
+    // La clé porte « all » : elle a changé en même temps que la forme de la
+    // réponse. Sans cela, le cache resservait l'ancienne page paginée — un
+    // objet là où le code attend un tableau, d'où « map is not a function ».
+    queryKey: ['ipgei', 'ref', 'types-seance', 'all'],
     queryFn:  () => seancesApi.all(),
     staleTime: CINQ_MINUTES,
   });
 
   return {
-    typesSeance: typesSeance.data ?? [],
+    // Garde de forme : un cache d'une version antérieure, ou une réponse
+    // enveloppée, ne doit pas casser l'écran entier.
+    typesSeance: Array.isArray(typesSeance.data) ? typesSeance.data : [],
     // Les créneaux pilotent les lignes de la grille : on respecte leur ordre
     // d'affichage et on écarte ceux désactivés.
     jours:    jours.data?.results ?? [],
