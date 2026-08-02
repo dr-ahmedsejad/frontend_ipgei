@@ -31,6 +31,18 @@ import { type SeanceReelle, type SemaineIPGEI } from '@/types/ipgei';
 export type AxeEDT = 'classe' | 'prof' | 'salle';
 
 // ── Navigation par semaine, commune aux trois vues ───────────────────────────
+/**
+ * Style des flèches de défilement.
+ *
+ * Exporté pour que l'écran d'historique, qui fait défiler des semaines
+ * archivées et non des semaines du calendrier, ait exactement les mêmes
+ * boutons : deux sélecteurs qui se ressemblent à 90 % se lisent comme un
+ * défaut d'alignement.
+ */
+export const BTN_FLECHE =
+  'p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 '
+  + 'disabled:opacity-40 transition-colors';
+
 export function SelecteurSemaine({
   semaines, semaineId, onChange,
 }: {
@@ -58,7 +70,7 @@ export function SelecteurSemaine({
     <div className="flex items-center gap-1">
       <button onClick={() => cours[index - 1] && onChange(cours[index - 1].id)}
               disabled={index <= 0} title="Semaine précédente"
-              className="p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              className={BTN_FLECHE}>
         <ChevronLeft size={14} />
       </button>
       <select value={semaineId ?? ''} className={SELECT} style={{ minWidth: 180 }}
@@ -72,7 +84,7 @@ export function SelecteurSemaine({
       </select>
       <button onClick={() => cours[index + 1] && onChange(cours[index + 1].id)}
               disabled={index < 0 || index >= cours.length - 1} title="Semaine suivante"
-              className="p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              className={BTN_FLECHE}>
         <ChevronRight size={14} />
       </button>
     </div>

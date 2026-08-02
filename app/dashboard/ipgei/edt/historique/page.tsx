@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 
 import { Badge, CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
-import { BoutonPDF, GrilleConsultation } from '../_consultation';
+import { BTN_FLECHE, BoutonPDF, GrilleConsultation } from '../_consultation';
 import {
   useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive,
 } from '@/lib/api/ipgei-hooks';
@@ -31,8 +31,9 @@ export default function HistoriqueEdtPage() {
 
   const [niveau, setNiveau]     = useState('');
   const [classeId, setClasseId] = useState<number | null>(null);
-  /** Prise de vue affichée, sous la forme `semaine__version`. */
-  const [prise, setPrise]       = useState<string>('');
+  const [semaineId, setSemaineId] = useState<number | null>(null);
+  /** `null` = la dernière version de la semaine affichée. */
+  const [version, setVersion]     = useState<number | null>(null);
 
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
   const classesFiltrees = useMemo(
@@ -51,23 +52,51 @@ export default function HistoriqueEdtPage() {
   const { data: versions = [], isLoading: chargeVersions, error } =
     useVersionsArchive(classeId, semestre?.id ?? null);
 
-  // La plus récente d'office : c'est celle qu'on vient chercher neuf fois sur
-  // dix, et un écran qui s'ouvre vide oblige à un clic pour rien.
-  useEffect(() => {
-    if (!versions.length) { setPrise(''); return; }
-    setPrise(p => (versions.some(v => `${v.semaine}__${v.version}` === p)
-      ? p
-      : `${versions[0].semaine}__${versions[0].version}`));
+  /**
+   * Semaines archivées, dans l'ordre du calendrier.
+   *
+   * Les flèches défilent là-dessus : plusieurs versions d'une même semaine ne
+   * doivent pas obliger à appuyer deux fois pour passer à la suivante. Choisir
+   * une version reste un geste à part, et ne se pose que là où il y en a
+   * plusieurs.
+   */
+  const semainesArchivees = useMemo(() => {
+    const vues = new Map<number, { id: number; numero: number; debut: string | null }>();
+    for (const v of versions) {
+      if (!vues.has(v.semaine)) {
+        vues.set(v.semaine, { id: v.semaine, numero: v.numero, debut: v.date_debut });
+      }
+    }
+    return [...vues.values()].sort((a, b) => a.numero - b.numero);
   }, [versions]);
 
-  const [semaineId, version] = prise
-    ? prise.split('__').map(Number)
-    : [null, null];
-  const choisie = versions.find(
-    v => v.semaine === semaineId && v.version === version);
+  /** Prises de vue de la semaine affichée, de la plus récente à la plus ancienne. */
+  const versionsSemaine = useMemo(
+    () => versions.filter(v => v.semaine === semaineId),
+    [versions, semaineId],
+  );
+
+  // S'ouvre sur la dernière semaine archivée : c'est celle qu'on vient
+  // vérifier, et un écran qui s'ouvre vide coûte un clic pour rien.
+  useEffect(() => {
+    if (!semainesArchivees.length) { setSemaineId(null); return; }
+    setSemaineId(id => (semainesArchivees.some(s => s.id === id)
+      ? id
+      : semainesArchivees[semainesArchivees.length - 1].id));
+  }, [semainesArchivees]);
+
+  // Changer de semaine ramène sur sa version la plus récente : conserver
+  // « v2 » en passant à une semaine qui n'en a qu'une n'affichait rien.
+  useEffect(() => {
+    setVersion(v => (versionsSemaine.some(x => x.version === v) ? v : null));
+  }, [versionsSemaine]);
+
+  const index   = semainesArchivees.findIndex(s => s.id === semaineId);
+  const choisie = versionsSemaine.find(v => v.version === version)
+    ?? versionsSemaine[0];
 
   const { data: archivees = [], isLoading } =
-    useGrilleArchive(semaineId, classeId, version);
+    useGrilleArchive(semaineId, classeId, choisie?.version ?? null);
 
   /**
    * Le composant de consultation attend des séances vivantes. L'archive en a
@@ -91,10 +120,10 @@ export default function HistoriqueEdtPage() {
             params={{
               semaine: String(semaineId),
               classe:  String(classeId ?? ''),
-              version: String(version ?? ''),
+              version: String(choisie?.version ?? ''),
             }}
             nomDefaut={`Archive_${classe?.nom ?? 'classe'}`
-              + `_S${choisie?.numero ?? ''}_v${version ?? ''}.pdf`}
+              + `_S${choisie?.numero ?? ''}_v${choisie?.version ?? ''}.pdf`}
           />
         ) : undefined}
       />
@@ -118,28 +147,53 @@ export default function HistoriqueEdtPage() {
             </select>
           </div>
 
-          {/* Une seule liste pour la semaine ET la version : ce sont deux
-              facettes d'une même chose — la prise de vue — et les séparer
-              obligeait à deviner lesquelles se combinent réellement. */}
-          <div style={{ minWidth: 320 }}>
-            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
-              Version archivée
-            </label>
-            <select value={prise} className={SELECT} disabled={!versions.length}
-                    onChange={e => setPrise(e.target.value)}>
-              {!versions.length && <option value="">— Aucune archive —</option>}
-              {versions.map(v => (
-                <option key={`${v.semaine}__${v.version}`}
-                        value={`${v.semaine}__${v.version}`}>
-                  Semaine {v.numero}
-                  {versions.filter(x => x.semaine === v.semaine).length > 1
-                    ? ` — version ${v.version}` : ''}
-                  {' · généré le '}{dateDeVue(v)}
-                  {' · '}{v.nb_seances} séance{v.nb_seances > 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
+          <div>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semaine</label>
+            <div className="flex items-center gap-1">
+              <button onClick={() => semainesArchivees[index - 1]
+                        && setSemaineId(semainesArchivees[index - 1].id)}
+                      disabled={index <= 0} title="Semaine précédente"
+                      className={BTN_FLECHE}>
+                <ChevronLeft size={14} />
+              </button>
+              <select value={semaineId ?? ''} className={SELECT} style={{ minWidth: 180 }}
+                      disabled={!semainesArchivees.length}
+                      onChange={e => setSemaineId(e.target.value ? Number(e.target.value) : null)}>
+                {!semainesArchivees.length && <option value="">— Aucune archive —</option>}
+                {semainesArchivees.map(s => (
+                  <option key={s.id} value={s.id}>
+                    S{s.numero}{s.debut ? ` · ${formatDate(s.debut)}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => semainesArchivees[index + 1]
+                        && setSemaineId(semainesArchivees[index + 1].id)}
+                      disabled={index < 0 || index >= semainesArchivees.length - 1}
+                      title="Semaine suivante"
+                      className={BTN_FLECHE}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
+
+          {/* Le choix de version ne se pose que là où il y en a plusieurs :
+              une liste à un seul élément fait croire à un réglage à faire. */}
+          {versionsSemaine.length > 1 && (
+            <div style={{ minWidth: 230 }}>
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+                Version
+              </label>
+              <select value={version ?? versionsSemaine[0]?.version ?? ''} className={SELECT}
+                      onChange={e => setVersion(Number(e.target.value))}>
+                {versionsSemaine.map(v => (
+                  <option key={v.version} value={v.version}>
+                    Version {v.version} · {dateDeVue(v)} · {v.nb_seances} séance
+                    {v.nb_seances > 1 ? 's' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {semestre && (
             <div className="pb-2.5"><Badge ton="bleu">Semestre {semestre.code}</Badge></div>
@@ -183,7 +237,7 @@ export default function HistoriqueEdtPage() {
              choisie?.numero && `Semaine ${choisie.numero}`,
              choisie && `du ${formatDate(choisie.date_debut)} au ${formatDate(choisie.date_fin)}`,
             ].filter(Boolean).join('  ·  '),
-            `Version ${version ?? ''} · générée le ${dateDeVue(choisie)}`,
+            `Version ${choisie?.version ?? ''} · générée le ${dateDeVue(choisie)}`,
             `Année universitaire ${annee}`,
           ]}
           vide="Cette prise de vue ne contient aucune séance."
