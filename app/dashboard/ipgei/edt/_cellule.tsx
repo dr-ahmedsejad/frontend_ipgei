@@ -191,11 +191,13 @@ export interface LigneSeance {
  * d'une ligne par groupe — même présentation que le PDF, pour qu'un emploi du
  * temps consulté à l'écran et le même imprimé se lisent à l'identique.
  */
-export function CarteMatiere({ type, intitule, lignes }: {
+export function CarteMatiere({ type, intitule, speciale, lignes }: {
   /** Libellé du référentiel. */
-  type:     string;
-  intitule: string;
-  lignes:   LigneSeance[];
+  type:      string;
+  intitule:  string;
+  /** Sport, instruction militaire : la case ne porte que son nom. */
+  speciale?: boolean;
+  lignes:    LigneSeance[];
 }) {
   const c = couleurType(type);
   // Une séance permutée garde sa couleur de type mais prend un liseré violet :
@@ -211,13 +213,20 @@ export function CarteMatiere({ type, intitule, lignes }: {
       background:   toutAnnule ? 'rgba(0,0,0,0.03)' : c.bg,
       border:       `1px solid ${permutee ? '#7c3aed' : c.border}`,
       borderRadius: 8,
-      padding:      '22px 6px 6px 6px',
+      padding:      speciale ? '6px' : '22px 6px 6px 6px',
+      display:      speciale ? 'flex' : undefined,
+      alignItems:   speciale ? 'center'  : undefined,
+      justifyContent: speciale ? 'center' : undefined,
+      textAlign:    speciale ? 'center'  : undefined,
       flex:         '1 1 0',
       minHeight:    0,
       opacity:      toutAnnule ? 0.55 : 1,
     }}>
-      {/* Largeur imposée : « Cours » est trois fois plus long que « TP », et
-          les pastilles prenaient des tailles différentes d'une case à l'autre. */}
+      {/* Une séance spéciale n'a ni matière, ni enseignant, ni salle : son nom
+          est tout ce que la case a à dire. La pastille le répéterait dans un
+          coin, alors que centré il se lit d'un coup d'œil — c'est aussi ce que
+          fait le PDF. */}
+      {!speciale && (
       <span style={{
         position: 'absolute', top: 3, right: 4,
         background: 'rgba(255,255,255,0.92)', border: `1px solid ${c.border}`,
@@ -225,17 +234,14 @@ export function CarteMatiere({ type, intitule, lignes }: {
         fontSize: 10, fontWeight: 700,
         display: 'inline-block', minWidth: 46, textAlign: 'center',
       }}>{c.label}</span>
-
-      {/* Le badge nomme déjà la séance spéciale : ne pas écrire « Sport »
-          deux fois dans la même case. */}
-      {intitule !== c.label && (
-        <div style={{
-          fontWeight: 700, fontSize: 13, color: '#000',
-          textDecoration: toutAnnule ? 'line-through' : 'none',
-        }}>
-          {intitule}
-        </div>
       )}
+
+      <div style={{
+        fontWeight: 700, fontSize: 13, color: '#000',
+        textDecoration: toutAnnule ? 'line-through' : 'none',
+      }}>
+        {intitule}
+      </div>
 
       {lignes.map(ligne => (
         <div key={ligne.cle}>

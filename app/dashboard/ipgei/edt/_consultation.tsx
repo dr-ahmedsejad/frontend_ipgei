@@ -203,7 +203,8 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
   };
 
   const blocs = new Map<string, {
-    cle: string; type: string; intitule: string; lignes: LigneSeance[];
+    cle: string; type: string; intitule: string; speciale: boolean;
+    lignes: LigneSeance[];
   }>();
 
   for (const s of seances) {
@@ -214,6 +215,7 @@ function grouperParMatiere(seances: SeanceReelle[], axe: AxeEDT) {
         type:     s.type_seance_libelle,
         // Sans matière, le type nomme seul la séance.
         intitule: s.matiere_intitule || s.matiere_code || s.type_seance_libelle,
+        speciale: !!s.type_seance_special,
         lignes:   [],
       });
     }
@@ -297,6 +299,7 @@ export function GrilleConsultation({
                           key={bloc.cle}
                           type={bloc.type}
                           intitule={bloc.intitule}
+                          speciale={bloc.speciale}
                           lignes={bloc.lignes}
                         />
                       ))}
