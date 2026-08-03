@@ -179,6 +179,11 @@ export interface Inscription {
   statut:               StatutInscription;
   statut_display:       string;
   nb_redoublements:     number;
+  /** Montant figé au moment de l'inscription, d'après la grille tarifaire. */
+  montant_frais:        string;
+  est_payee:            boolean;
+  date_paiement:        string | null;
+  recu_paiement:        string;
   date_inscription:     string;
   actif:                boolean;
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  History, Pencil, Plus, Search, Trash2, UserCheck, X,
+  FileText, History, Pencil, Plus, Receipt, Search, Trash2, UserCheck, Wallet, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -17,6 +17,7 @@ import {
   useClassesSelect, useHistoriqueClasses, useInscriptionMutations, useInscriptions,
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
+import { documentsApi } from '@/lib/api/ipgei';
 import { listEtudiants } from '@/lib/api/absences';
 import { NIVEAUX, type Inscription, type StatutInscription } from '@/types/ipgei';
 
@@ -42,6 +43,13 @@ function messageInscription(base: string, creee: unknown): string {
   const n = (creee as { matieres_inscrites?: number } | undefined)?.matieres_inscrites;
   if (!n) return base;
   return `${base} · ${n} matière${n > 1 ? 's' : ''} rattachée${n > 1 ? 's' : ''}`;
+}
+
+/** Montant lisible, sans décimales inutiles : les frais sont des sommes rondes. */
+function montantFrais(montant: string): string {
+  const n = Number(montant);
+  if (!n) return '—';
+  return `${n.toLocaleString('fr-FR')} MRU `;
 }
 
 function tonStatut(statut: StatutInscription) {
@@ -74,6 +82,31 @@ export default function InscriptionsIPGEIPage() {
   const [edition, setEdition]       = useState<Inscription | null>(null);
   const [aSupprimer, setASupprimer] = useState<Inscription | null>(null);
   const [historique, setHistorique] = useState<Inscription | null>(null);
+  const [paiement, setPaiement]     = useState<Inscription | null>(null);
+  const [erreurDoc, setErreurDoc]   = useState<string | null>(null);
+
+  /**
+   * Téléchargement d'un document officiel.
+   *
+   * Chaque tirage porte son propre numéro de série et son QR de vérification :
+   * le serveur les émet, le navigateur ne fait que recevoir le fichier.
+   */
+  const telecharger = async (quoi: 'attestation' | 'recu', i: Inscription) => {
+    setErreurDoc(null);
+    try {
+      const blob = quoi === 'recu'
+        ? await documentsApi.recuPaiement(i.id)
+        : await documentsApi.attestationInscription(i.id);
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = `${quoi === 'recu' ? 'Recu' : 'Attestation'}_${i.etudiant_matricule}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErreurDoc(e instanceof Error ? e.message : 'Émission impossible.');
+    }
+  };
   const [toast, setToast]           = useState<string | null>(null);
 
   const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2800); };
@@ -96,6 +129,10 @@ export default function InscriptionsIPGEIPage() {
       />
 
       <Erreur erreur={error} />
+      {/* L'émission d'un document peut être refusée à bon droit — reçu demandé
+          avant paiement, attestation sur une inscription close. Le motif doit
+          se lire, sinon le bouton paraît simplement cassé. */}
+      <Erreur erreur={erreurDoc ? new Error(erreurDoc) : null} />
 
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
@@ -150,6 +187,7 @@ export default function InscriptionsIPGEIPage() {
                   <th className="px-4 py-3">Sous-groupe</th>
                   <th className="px-4 py-3">Statut</th>
                   <th className="px-4 py-3 text-center">Redoub.</th>
+                  <th className="px-4 py-3 text-right">Frais</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -168,8 +206,34 @@ export default function InscriptionsIPGEIPage() {
                         ? <Badge ton="ambre">{i.nb_redoublements}</Badge>
                         : <span className="text-iss-gray">—</span>}
                     </td>
+                    {/* Le montant vient de la grille tarifaire et a été figé à
+                        l'inscription : il dit ce qui a été facturé, pas le tarif
+                        du jour. */}
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <span className="text-iss-dark">{montantFrais(i.montant_frais)}</span>
+                      {i.est_payee
+                        ? <Badge ton="vert">Payé</Badge>
+                        : <Badge ton="ambre">Dû</Badge>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {!i.est_payee && (
+                          <button onClick={() => setPaiement(i)} title="Enregistrer le paiement"
+                                  className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
+                            <Wallet size={13} />
+                          </button>
+                        )}
+                        {i.est_payee && (
+                          <button onClick={() => telecharger('recu', i)} title="Reçu de paiement"
+                                  className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
+                            <Receipt size={13} />
+                          </button>
+                        )}
+                        <button onClick={() => telecharger('attestation', i)}
+                                title="Attestation d'inscription"
+                                className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
+                          <FileText size={13} />
+                        </button>
                         <button onClick={() => setHistorique(i)} title="Historique de classe"
                                 className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
                           <History size={13} />
@@ -200,6 +264,13 @@ export default function InscriptionsIPGEIPage() {
 
       {historique && (
         <ModaleHistorique inscription={historique} onFerme={() => setHistorique(null)} />
+      )}
+
+      {paiement && (
+        <ModalePaiement
+          inscription={paiement}
+          onFerme={() => setPaiement(null)}
+        />
       )}
 
       <ConfirmModal
@@ -559,6 +630,80 @@ function ModaleHistorique({
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Enregistrement du règlement.
+ *
+ * Le montant n'y est pas saisissable : il vient de la grille tarifaire et a
+ * été figé à l'inscription. Le rendre modifiable ici ouvrirait un écart
+ * silencieux entre ce qui est facturé et ce qui est tarifé.
+ */
+function ModalePaiement({ inscription, onFerme }: {
+  inscription: Inscription;
+  onFerme: () => void;
+}) {
+  const { payer } = useInscriptionMutations();
+  const [reference, setReference] = useState('');
+  const [date, setDate]           = useState('');
+  const [erreur, setErreur]       = useState<string | null>(null);
+
+  const valider = () => {
+    if (!reference.trim()) { setErreur('La référence du versement est requise.'); return; }
+    payer.mutate(
+      { id: inscription.id, input: { recu_paiement: reference.trim(), date_paiement: date || undefined } },
+      {
+        onSuccess: onFerme,
+        onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className={`${CARTE} p-6 w-full`} style={{ maxWidth: 460 }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-iss-dark">Enregistrer le paiement</h3>
+          <button onClick={onFerme} className="p-1.5 rounded-lg text-iss-gray hover:bg-gray-100">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="text-xs text-iss-gray mb-4">
+          {inscription.etudiant_nom} · {inscription.classe_nom}
+        </div>
+
+        <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 mb-4 text-center">
+          <div className="text-xs text-iss-gray mb-1">Montant dû</div>
+          <div className="text-lg font-bold" style={{ color: '#006633' }}>
+            {montantFrais(inscription.montant_frais)}
+          </div>
+        </div>
+
+        <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+          Référence du versement
+        </label>
+        <input value={reference} onChange={e => setReference(e.target.value)}
+               placeholder="Numéro de reçu, référence bancaire…" className={INPUT} />
+
+        <label className="block text-xs font-semibold text-iss-dark mb-1.5 mt-3">
+          Date du versement <span className="font-normal text-iss-gray">(aujourd\'hui si vide)</span>
+        </label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} className={INPUT} />
+
+        {erreur && <p className="text-xs text-red-600 mt-3">{erreur}</p>}
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
+          <button onClick={valider} disabled={payer.isPending}
+                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+            {payer.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
       </div>
     </div>
   );

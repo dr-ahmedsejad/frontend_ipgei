@@ -120,6 +120,11 @@ export const inscriptionsApi = {
     apiFetch<InscriptionCreee>(`${BASE}/inscriptions/nouvelle/`,
       { method: 'POST', body: input }),
 
+  /** Enregistre le règlement. Le montant n'est pas ressaisi : il est déjà figé. */
+  payer: (id: number, input: { recu_paiement: string; date_paiement?: string }) =>
+    apiFetch<Inscription>(`${BASE}/inscriptions/${id}/payer/`,
+      { method: 'POST', body: input }),
+
   initialiserNotes: (id: number, semestre: number) =>
     apiFetch<{ notes_creees: number }>(
       `${BASE}/inscriptions/${id}/initialiser-notes/`, { method: 'POST', body: { semestre } },
@@ -361,6 +366,12 @@ export const documentsApi = {
     emettreDocument('decision-deliberation', { deliberation, inscription }),
   attestationCnim:(deliberation: number, inscription: number) =>
     emettreDocument('attestation-cnim', { deliberation, inscription }),
+  /** Attestation de scolarité de l'année en cours, maquette comprise. */
+  attestationInscription: (inscription: number) =>
+    emettreDocument('attestation-inscription', { inscription }),
+  /** Reçu des frais — refusé tant que le paiement n'est pas enregistré. */
+  recuPaiement:   (inscription: number) =>
+    emettreDocument('recu-paiement', { inscription }),
 
   decisionsClasse: (deliberation: number, classe?: number) =>
     apiFetch<{ emis: number; numeros: string[]; erreurs: { etudiant: string; erreur: string }[] }>(

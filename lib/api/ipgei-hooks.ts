@@ -322,6 +322,12 @@ export function useInscriptionMutations() {
       onSuccess:  invalider,
     }),
     remove: useMutation({ mutationFn: inscriptionsApi.remove, onSuccess: invalider }),
+    payer:  useMutation({
+      mutationFn: ({ id, input }: {
+        id: number; input: { recu_paiement: string; date_paiement?: string };
+      }) => inscriptionsApi.payer(id, input),
+      onSuccess: invalider,
+    }),
     initialiserNotes: useMutation({
       mutationFn: ({ id, semestre }: { id: number; semestre: number }) =>
         inscriptionsApi.initialiserNotes(id, semestre),
