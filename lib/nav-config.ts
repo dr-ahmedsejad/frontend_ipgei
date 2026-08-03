@@ -65,6 +65,7 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/classes',      label: 'Classes & sous-groupes', module: 'ipgei_classes' },
       { href: '/dashboard/ipgei/inscriptions/nouvelle', label: 'Nouvelle inscription', module: 'ipgei_inscriptions', action: 'modifier' },
       { href: '/dashboard/ipgei/inscriptions', label: 'Inscriptions',           module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/inscriptions/pedagogiques', label: 'Inscriptions pédag.', module: 'ipgei_inscriptions' },
       { href: '/dashboard/ipgei/inscriptions/frais', label: 'Grille tarifaire',  module: 'ipgei_inscriptions' },
     ],
   },
