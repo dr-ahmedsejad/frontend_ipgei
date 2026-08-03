@@ -48,7 +48,8 @@ export function useGrillesFrais(annee?: number | null) {
   return useQuery({
     queryKey: [...cle, annee ?? 0] as const,
     queryFn:  () => apiFetch<{ results: GrilleFrais[] } | GrilleFrais[]>(
-      `${BASE}/grilles-frais/`, { params: annee ? { annee_univ: annee } : {} },
+      `${BASE}/grilles-frais/`,
+      { params: { page_size: 200, ...(annee ? { annee_univ: annee } : {}) } },
     ).then(r => (Array.isArray(r) ? r : r.results ?? [])),
   });
 }
