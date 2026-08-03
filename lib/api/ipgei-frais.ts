@@ -84,3 +84,26 @@ export function useGrilleFraisMutations() {
     }),
   };
 }
+
+
+/**
+ * Contexte de tarification de la prépa.
+ *
+ * La grille du socle est indexée par type de diplôme — notion absente en
+ * classes préparatoires, où les classes portent une valeur unique héritée de
+ * leur filière. Le serveur la donne : la figer dans le front ferait enregistrer
+ * les tarifs sous un type que la lecture ne cherche pas, et les inscriptions
+ * resteraient à zéro sans que rien ne l'explique.
+ */
+export interface ContexteFrais {
+  type_diplome: string;
+  niveaux:      { niveau: number; libelle: string }[];
+}
+
+export function useContexteFrais() {
+  return useQuery({
+    queryKey: ['ipgei', 'contexte-frais'] as const,
+    queryFn:  () => apiFetch<ContexteFrais>('/api/v1/ipgei/classes/contexte-frais/'),
+    staleTime: 5 * 60 * 1000,
+  });
+}

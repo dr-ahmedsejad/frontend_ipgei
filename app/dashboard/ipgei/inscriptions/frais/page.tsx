@@ -5,41 +5,23 @@ import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Coins, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 
 import { canAccess } from '@/lib/auth';
-import { formatNiveau, getNiveauxPossibles, type TypeDiplomeKey } from '@/lib/niveaux';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import {
-  useAnneesUniv, useGrilleFraisMutations, useGrillesFrais, type GrilleFrais,
+  useAnneesUniv, useContexteFrais, useGrilleFraisMutations, useGrillesFrais,
+  type GrilleFrais,
 } from '@/lib/api/ipgei-frais';
 
-/** Miroir de `scolarite.TYPE_DIPLOME_CHOICES` — mêmes clés que le socle. */
-const TYPE_DIPLOMES: { key: TypeDiplomeKey; label: string }[] = [
-  { key: 'LP',       label: 'Licence' },
-  { key: 'M',        label: 'Master' },
-  { key: 'ING',      label: 'Ingénieur' },
-  { key: 'Doctorat', label: 'Doctorat' },
-];
-
-/**
- * Correspondance prépa : la 1re année est la MPSI, la 2e la MP.
- *
- * Le socle numérote les années d'étude, il ne connaît pas les classes de
- * prépa. Le rappeler ici évite d'avoir à se souvenir que « niveau 2 » désigne
- * la MP au moment de saisir un montant.
- */
-const CLASSE_PREPA: Record<number, string> = { 1: 'MPSI', 2: 'MP' };
-
 type Formulaire = {
-  id?:          number;
-  annee_univ:   number | '';
-  type_diplome: TypeDiplomeKey;
-  niveau:       number;
-  montant:      string;
-  actif:        boolean;
+  id?:        number;
+  annee_univ: number | '';
+  niveau:     number;
+  montant:    string;
+  actif:      boolean;
 };
 
 const FORMULAIRE_VIDE: Formulaire = {
-  annee_univ: '', type_diplome: 'LP', niveau: 1, montant: '', actif: true,
+  annee_univ: '', niveau: 1, montant: '', actif: true,
 };
 
 /**
@@ -49,31 +31,45 @@ const FORMULAIRE_VIDE: Formulaire = {
  * saisi, une inscription se crée à zéro — visible et corrigeable, mais fausse.
  *
  * La grille est celle du socle, partagée avec le reste de l'établissement :
- * aucun modèle ni endpoint n'est dupliqué. L'écran reprend celui de SIGA, à
- * ceci près qu'il rappelle la classe de prépa correspondant à chaque année
- * d'étude.
+ * aucun modèle ni endpoint n'est dupliqué. L'écran reprend celui de SIGA, sans
+ * la notion de type de diplôme — la prépa n'en délivre pas. Ses classes
+ * suffisent à désigner un tarif, et le type que la grille exige vient du
+ * serveur, jamais d'un choix.
  */
 export default function GrilleFraisIPGEIPage() {
   const toast   = useToast();
   const canView = canAccess('insc_grille_frais', 'voir');
   const canEdit = canAccess('insc_grille_frais', 'modifier');
 
-  const { data: grilles = [], isLoading } = useGrillesFrais();
-  const { data: annees = [] }             = useAnneesUniv();
-  const { create, update, remove }        = useGrilleFraisMutations();
+  const { data: toutes = [], isLoading } = useGrillesFrais();
+  const { data: annees = [] }            = useAnneesUniv();
+  const { data: contexte }               = useContexteFrais();
+  const { create, update, remove }       = useGrilleFraisMutations();
 
   const [form, setForm] = useState<Formulaire>(FORMULAIRE_VIDE);
   const enEdition = form.id != null;
 
-  const niveauxDispo = useMemo(
-    () => getNiveauxPossibles(form.type_diplome), [form.type_diplome],
+  const niveaux = contexte?.niveaux ?? [];
+  const libelleNiveau = (n: number) =>
+    niveaux.find(x => x.niveau === n)?.libelle ?? `Niveau ${n}`;
+
+  /**
+   * Seuls les tarifs de la prépa sont montrés.
+   *
+   * La grille est partagée avec le reste de l'établissement ; y mêler les
+   * cursus voisins ferait modifier par erreur un tarif qui ne relève pas
+   * d'ici — et les deux premiers niveaux se ressemblent d'un cursus à l'autre.
+   */
+  const grilles = useMemo(
+    () => toutes.filter(g => !contexte || g.type_diplome === contexte.type_diplome),
+    [toutes, contexte],
   );
 
   const reinitialiser = () => setForm(FORMULAIRE_VIDE);
 
   const editer = (g: GrilleFrais) => {
     setForm({
-      id: g.id, annee_univ: g.annee_univ, type_diplome: g.type_diplome as TypeDiplomeKey,
+      id: g.id, annee_univ: g.annee_univ,
       niveau: g.niveau, montant: g.montant, actif: g.actif,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -84,9 +80,15 @@ export default function GrilleFraisIPGEIPage() {
       toast.error('Année et montant sont obligatoires.');
       return;
     }
+    if (!contexte?.type_diplome) {
+      toast.error('Cursus non identifié : aucune classe n\'est rattachée à une filière.');
+      return;
+    }
     const corps = {
       annee_univ:   form.annee_univ as number,
-      type_diplome: form.type_diplome,
+      // Repris du serveur, jamais choisi : c'est cette valeur que la lecture
+      // du tarif recherchera au moment d'inscrire un étudiant.
+      type_diplome: contexte.type_diplome,
       niveau:       form.niveau,
       montant:      form.montant,
       actif:        form.actif,
@@ -106,8 +108,8 @@ export default function GrilleFraisIPGEIPage() {
     // Un tarif retiré ne laisse pas de trace à l'écran : les inscriptions de ce
     // niveau se créeront à zéro sans que rien ne le signale ailleurs.
     if (!window.confirm(
-      `Supprimer ce tarif ? Les prochaines inscriptions de ${formatNiveau(
-        g.niveau, g.type_diplome as TypeDiplomeKey)} se créeront à 0 MRU.`,
+      `Supprimer ce tarif ? Les prochaines inscriptions de `
+      + `${libelleNiveau(g.niveau)} se créeront à 0 MRU.`,
     )) return;
     remove.mutate(g.id, {
       onSuccess: () => toast.success('Tarif supprimé'),
@@ -151,7 +153,7 @@ export default function GrilleFraisIPGEIPage() {
         <div>
           <h1 className="text-xl font-bold text-iss-dark">Grille tarifaire</h1>
           <p className="text-sm text-iss-gray">
-            Frais d&apos;inscription par année, diplôme et niveau
+            Frais d&apos;inscription par année universitaire et par classe
           </p>
         </div>
       </div>
@@ -163,7 +165,7 @@ export default function GrilleFraisIPGEIPage() {
             {enEdition ? 'Modifier le tarif' : 'Ajouter un tarif'}
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Champ label="Année universitaire">
               <select value={form.annee_univ} className={CHAMP}
                       onChange={e => setForm(f => ({
@@ -174,23 +176,13 @@ export default function GrilleFraisIPGEIPage() {
               </select>
             </Champ>
 
-            <Champ label="Type de diplôme">
-              <select value={form.type_diplome} className={CHAMP}
-                      onChange={e => setForm(f => ({
-                        ...f, type_diplome: e.target.value as TypeDiplomeKey, niveau: 1,
-                      }))}>
-                {TYPE_DIPLOMES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </Champ>
-
-            <Champ label="Niveau">
+            {/* Pas de type de diplôme : la prépa n'en délivre pas. Ses deux
+                classes suffisent à désigner le tarif. */}
+            <Champ label="Classe">
               <select value={form.niveau} className={CHAMP}
                       onChange={e => setForm(f => ({ ...f, niveau: Number(e.target.value) }))}>
-                {niveauxDispo.map(n => (
-                  <option key={n} value={n}>
-                    {formatNiveau(n, form.type_diplome)}
-                    {CLASSE_PREPA[n] ? ` · prépa ${CLASSE_PREPA[n]}` : ''}
-                  </option>
+                {niveaux.map(n => (
+                  <option key={n.niveau} value={n.niveau}>{n.libelle}</option>
                 ))}
               </select>
             </Champ>
@@ -246,8 +238,7 @@ export default function GrilleFraisIPGEIPage() {
             <thead>
               <tr className="text-left text-xs text-iss-gray uppercase tracking-wider border-b border-gray-100">
                 <th className="px-5 py-3 font-medium">Année</th>
-                <th className="px-5 py-3 font-medium">Diplôme</th>
-                <th className="px-5 py-3 font-medium">Niveau</th>
+                <th className="px-5 py-3 font-medium">Classe</th>
                 <th className="px-5 py-3 font-medium text-right">Montant (MRU)</th>
                 <th className="px-5 py-3 font-medium text-center">Actif</th>
                 {canEdit && <th className="px-5 py-3 font-medium text-right">Actions</th>}
@@ -257,13 +248,7 @@ export default function GrilleFraisIPGEIPage() {
               {grilles.map(g => (
                 <tr key={g.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-5 py-3 text-iss-dark">{g.annee_univ_label}</td>
-                  <td className="px-5 py-3 text-iss-dark">{g.type_diplome_label ?? g.type_diplome}</td>
-                  <td className="px-5 py-3 text-iss-dark">
-                    {formatNiveau(g.niveau, g.type_diplome as TypeDiplomeKey)}
-                    {CLASSE_PREPA[g.niveau] && (
-                      <span className="text-iss-gray"> · prépa {CLASSE_PREPA[g.niveau]}</span>
-                    )}
-                  </td>
+                  <td className="px-5 py-3 text-iss-dark">{libelleNiveau(g.niveau)}</td>
                   <td className="px-5 py-3 text-right font-semibold text-iss-dark">
                     {Number(g.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                   </td>
