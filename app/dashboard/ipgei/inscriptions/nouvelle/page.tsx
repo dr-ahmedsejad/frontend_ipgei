@@ -4,8 +4,12 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, UserPlus,
+  AlertCircle, ArrowLeft, ArrowRight, Check, GraduationCap, Loader2, Search,
+  Upload, UserPlus,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+import { apiFetch } from '@/lib/api';
 
 import Stepper from '@/components/ui/Stepper';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
@@ -20,6 +24,24 @@ const ETAPES = [
   { label: 'Académique' },
   { label: 'Confirmation' },
 ];
+
+/** Un bachelier du référentiel officiel, tel que le socle le stocke. */
+interface CandidatBac {
+  id:             number;
+  nni:            string;
+  num_bac:        string;
+  nom_fr:         string;
+  date_naissance: string | null;
+  lieu_naissance: string;
+  sexe:           string;
+  serie:          string;
+  moyenne:        string | null;
+  mention:        string;
+  wilaya:         string;
+  inscrit:        boolean;
+}
+
+type Voie = 'formulaire' | 'bac' | 'mers';
 
 const IDENTITE_VIDE: NouvelEtudiant = {
   matricule: '', nom: '', prenom_fr: '', genre: 'M', date_naissance: '',
@@ -41,7 +63,10 @@ export default function NouvelleInscriptionPage() {
   const router = useRouter();
   const annee  = anneeParDefaut();
 
+  const [voie, setVoie]         = useState<Voie>('formulaire');
   const [etape, setEtape]       = useState(0);
+  const [recherche, setRecherche] = useState('');
+  const [candidat, setCandidat]   = useState<CandidatBac | null>(null);
   const [identite, setIdentite] = useState<NouvelEtudiant>(IDENTITE_VIDE);
   const [classeId, setClasseId] = useState<number | null>(null);
   const [sousGroupe, setSousGroupe] = useState<string>('');
@@ -55,6 +80,42 @@ export default function NouvelleInscriptionPage() {
   const { nouvelle }           = useInscriptionMutations();
 
   const classe = classes.find(c => c.id === classeId);
+
+  /**
+   * Vivier des bacheliers, importé par la scolarité.
+   *
+   * C'est la voie normale d'entrée en prépa : le candidat existe déjà au
+   * référentiel officiel, avec son numéro de bac et sa moyenne. Le retaper à
+   * la main, c'est risquer une faute sur les deux valeurs qui décident de
+   * l'admission.
+   */
+  const { data: candidats = [], isFetching: chercheBac } = useQuery({
+    queryKey: ['ipgei', 'candidats-bac', recherche] as const,
+    queryFn:  () => apiFetch<{ results: CandidatBac[] } | CandidatBac[]>(
+      '/api/v1/inscriptions/candidats-bac/',
+      { params: { search: recherche, page_size: 20 } },
+    ).then(r => (Array.isArray(r) ? r : r.results ?? [])),
+    enabled:  voie === 'bac' && recherche.trim().length >= 2,
+  });
+
+  /** Reprend le dossier du bachelier dans le formulaire, sans ressaisie. */
+  const choisirCandidat = (c: CandidatBac) => {
+    setCandidat(c);
+    setIdentite({
+      ...IDENTITE_VIDE,
+      matricule:         c.num_bac,
+      nom:               c.nom_fr,
+      genre:             c.sexe === 'F' ? 'F' : 'M',
+      date_naissance:    c.date_naissance ?? '',
+      lieu_naissance_fr: c.lieu_naissance,
+      cni:               c.nni,
+      nbac:              c.num_bac,
+      serie_bac:         c.serie,
+      moyenne_bac:       c.moyenne ?? '',
+    });
+    setVoie('formulaire');
+    setEtape(0);
+  };
 
   /** Le montant que portera l'inscription — lu dans la grille, comme au serveur. */
   const montant = useMemo(() => {
@@ -130,8 +191,99 @@ export default function NouvelleInscriptionPage() {
         </div>
       </div>
 
-      <Stepper steps={ETAPES} currentStep={etape} />
+      {/* Trois voies d'entrée, comme dans SIGA. Le référentiel BAC alimente le
+          formulaire plutôt que de le doubler : une fois le dossier repris, les
+          étapes sont les mêmes, et rien n'est saisi deux fois. */}
+      <div className="flex gap-1 p-1 rounded-xl bg-gray-100 w-fit">
+        {([
+          { cle: 'formulaire', libelle: 'Formulaire manuel', icone: UserPlus },
+          { cle: 'bac',        libelle: 'Référentiel BAC',   icone: GraduationCap },
+          { cle: 'mers',       libelle: 'Import MESRS',      icone: Upload },
+        ] as const).map(o => (
+          <button key={o.cle} type="button" onClick={() => setVoie(o.cle)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    voie === o.cle
+                      ? 'bg-white text-iss-primary shadow-sm'
+                      : 'text-iss-gray hover:text-iss-dark'}`}>
+            <o.icone size={15} /> {o.libelle}
+          </button>
+        ))}
+      </div>
 
+      {voie === 'bac' && (
+        <div className={`${CARTE} p-5 space-y-3`}>
+          <h2 className="font-semibold text-iss-dark">Rechercher un bachelier</h2>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-iss-gray" />
+            <input value={recherche} onChange={e => setRecherche(e.target.value)}
+                   placeholder="Nom, numéro de bac ou NNI…"
+                   className={`${INPUT} pl-9`} />
+          </div>
+
+          {recherche.trim().length < 2 ? (
+            <p className="text-xs text-iss-gray">Saisissez au moins deux caractères.</p>
+          ) : chercheBac ? (
+            <p className="text-xs text-iss-gray flex items-center gap-1.5">
+              <Loader2 size={13} className="animate-spin" /> Recherche…
+            </p>
+          ) : !candidats.length ? (
+            <p className="text-xs text-iss-gray">
+              Aucun bachelier trouvé. Le vivier est alimenté par l&apos;import du
+              fichier officiel.
+            </p>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {candidats.map(c => (
+                <button key={c.id} onClick={() => choisirCandidat(c)}
+                        disabled={c.inscrit}
+                        className="w-full text-left py-2.5 flex items-center justify-between hover:bg-gray-50/70 disabled:opacity-50 disabled:hover:bg-transparent">
+                  <span>
+                    <span className="font-semibold text-iss-dark">{c.nom_fr}</span>
+                    <span className="text-xs text-iss-gray block">
+                      Bac n° {c.num_bac} · série {c.serie || '—'}
+                      {c.moyenne ? ` · moyenne ${c.moyenne}` : ''}
+                      {c.wilaya ? ` · ${c.wilaya}` : ''}
+                    </span>
+                  </span>
+                  {/* Un bachelier déjà inscrit ne doit pas l'être deux fois :
+                      le serveur le refuserait, autant le dire avant le clic. */}
+                  {c.inscrit
+                    ? <span className="text-xs text-iss-gray">déjà inscrit</span>
+                    : <ArrowRight size={15} className="text-iss-gray" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {voie === 'mers' && (
+        <div className={`${CARTE} p-5`}>
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-start gap-2">
+            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+            <span>
+              L&apos;import du fichier MESRS n&apos;est pas encore branché sur les
+              inscriptions IPGEI. Celui du socle crée des inscriptions
+              administratives LMD, qui ne portent ni classe de prépa ni
+              rattachement automatique aux matières — l&apos;employer ici produirait
+              des dossiers inexploitables. Un import propre à l&apos;IPGEI reste à
+              écrire.
+            </span>
+          </p>
+        </div>
+      )}
+
+      {voie !== 'mers' && candidat && (
+        <p className="text-xs text-iss-gray">
+          Dossier repris du référentiel BAC — bachelier n° {candidat.num_bac}.
+        </p>
+      )}
+
+      {voie !== 'bac' && voie !== 'mers' && (
+      <Stepper steps={ETAPES} currentStep={etape} />
+      )}
+
+      {voie === 'formulaire' && (
       <div className={`${CARTE} p-5 space-y-4`}>
         {etape === 0 && (
           <>
@@ -291,6 +443,7 @@ export default function NouvelleInscriptionPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
