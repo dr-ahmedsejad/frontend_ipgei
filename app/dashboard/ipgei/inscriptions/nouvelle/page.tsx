@@ -7,7 +7,7 @@ import {
   AlertCircle, ArrowLeft, ArrowRight, Check, GraduationCap, Loader2, Search,
   Upload, UserPlus,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '@/lib/api';
 
@@ -43,6 +43,14 @@ interface CandidatBac {
 
 type Voie = 'formulaire' | 'bac' | 'mers';
 
+/** Ce que l'import rend : le détail compte autant que le total. */
+interface RapportImport {
+  inscriptions_creees: number;
+  deja_inscrits:       number;
+  montant_applique:    string;
+  erreurs:             { ligne: number; etudiant?: string; motif: string }[];
+}
+
 const IDENTITE_VIDE: NouvelEtudiant = {
   matricule: '', nom: '', prenom_fr: '', genre: 'M', date_naissance: '',
   lieu_naissance_fr: '', cni: '', telephone: '', email: '',
@@ -67,6 +75,8 @@ export default function NouvelleInscriptionPage() {
   const [etape, setEtape]       = useState(0);
   const [recherche, setRecherche] = useState('');
   const [candidat, setCandidat]   = useState<CandidatBac | null>(null);
+  const [fichier, setFichier]     = useState<File | null>(null);
+  const [rapport, setRapport]     = useState<RapportImport | null>(null);
   const [identite, setIdentite] = useState<NouvelEtudiant>(IDENTITE_VIDE);
   const [classeId, setClasseId] = useState<number | null>(null);
   const [sousGroupe, setSousGroupe] = useState<string>('');
@@ -116,6 +126,29 @@ export default function NouvelleInscriptionPage() {
     setVoie('formulaire');
     setEtape(0);
   };
+
+  /**
+   * Import du fichier officiel.
+   *
+   * Il passe par un endpoint propre à l'IPGEI : celui du socle crée des
+   * inscriptions LMD, sans classe de prépa, sans matières et sans frais.
+   */
+  const importer = useMutation({
+    mutationFn: async () => {
+      const corps = new FormData();
+      corps.append('fichier', fichier as File);
+      corps.append('classe', String(classeId));
+      return apiFetch<RapportImport>(
+        '/api/v1/ipgei/inscriptions/importer-mesrs/',
+        { method: 'POST', body: corps },
+      );
+    },
+    onSuccess: (r) => {
+      setRapport(r);
+      toast.success(`${r.inscriptions_creees} inscription(s) créée(s)`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Import impossible.'),
+  });
 
   /** Le montant que portera l'inscription — lu dans la grille, comme au serveur. */
   const montant = useMemo(() => {
@@ -258,18 +291,66 @@ export default function NouvelleInscriptionPage() {
       )}
 
       {voie === 'mers' && (
-        <div className={`${CARTE} p-5`}>
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-start gap-2">
-            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
-            <span>
-              L&apos;import du fichier MESRS n&apos;est pas encore branché sur les
-              inscriptions IPGEI. Celui du socle crée des inscriptions
-              administratives LMD, qui ne portent ni classe de prépa ni
-              rattachement automatique aux matières — l&apos;employer ici produirait
-              des dossiers inexploitables. Un import propre à l&apos;IPGEI reste à
-              écrire.
-            </span>
+        <div className={`${CARTE} p-5 space-y-4`}>
+          <h2 className="font-semibold text-iss-dark">Import du fichier officiel</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Champ label="Classe de destination *">
+              <select value={classeId ?? ''} className={SELECT}
+                      onChange={e => setClasseId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">— Choisir —</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+              </select>
+            </Champ>
+            <Champ label="Fichier Excel *">
+              <input type="file" accept=".xlsx,.xls" className={INPUT}
+                     onChange={e => { setFichier(e.target.files?.[0] ?? null); setRapport(null); }} />
+            </Champ>
+          </div>
+
+          <p className="text-xs text-iss-gray">
+            Colonnes attendues : <strong>NNI</strong> et <strong>NOMFR</strong> au
+            minimum. NUMBAC, SERIE, MOYENNE, DATENAIS, LIEUNAIS et SEXE sont reprises
+            si elles figurent. Chaque étudiant sera inscrit à toute la maquette de son
+            niveau, avec les frais en vigueur.
           </p>
+
+          <button onClick={() => importer.mutate()}
+                  disabled={!fichier || !classeId || importer.isPending}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white flex items-center gap-1.5 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #006633, #008844)' }}>
+            {importer.isPending
+              ? <><Loader2 size={14} className="animate-spin" /> Import en cours…</>
+              : <><Upload size={14} /> Importer</>}
+          </button>
+
+          {rapport && (
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <p className="text-sm text-iss-dark">
+                <strong>{rapport.inscriptions_creees}</strong> inscription(s) créée(s)
+                {rapport.deja_inscrits > 0 && <> · {rapport.deja_inscrits} déjà inscrit(s), ignoré(s)</>}
+                {' · '}frais appliqués : {Number(rapport.montant_applique).toLocaleString('fr-FR')} MRU
+              </p>
+
+              {/* Une ligne écartée doit dire pourquoi. Un import partiel
+                  silencieux est pire qu'un import refusé : on croit la classe
+                  complète et l'absence ne se voit qu'en délibération. */}
+              {rapport.erreurs.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1.5">
+                    <AlertCircle size={13} /> {rapport.erreurs.length} ligne(s) écartée(s)
+                  </p>
+                  <ul className="text-xs text-amber-800 space-y-0.5">
+                    {rapport.erreurs.map(e => (
+                      <li key={e.ligne}>
+                        Ligne {e.ligne}{e.etudiant ? ` — ${e.etudiant}` : ''} : {e.motif}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
