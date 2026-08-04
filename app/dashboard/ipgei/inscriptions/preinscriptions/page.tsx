@@ -31,9 +31,10 @@ interface Preinscription {
 
 const TONS: Record<string, 'bleu' | 'vert' | 'rouge' | 'ambre'> = {
   soumise:   'ambre',
+  en_examen: 'ambre',
   acceptee:  'vert',
   rejetee:   'rouge',
-  convertie: 'bleu',
+  inscrite:  'bleu',
 };
 
 /**
@@ -122,7 +123,8 @@ export default function PreinscriptionsIPGEIPage() {
         <select value={statut} className={SELECT} style={{ maxWidth: 200 }}
                 onChange={e => setStatut(e.target.value)}>
           <option value="soumise">À examiner</option>
-          <option value="acceptee">Acceptés</option>
+          <option value="acceptee">Acceptés — à inscrire</option>
+          <option value="inscrite">Inscrits</option>
           <option value="rejetee">Rejetés</option>
           <option value="">Tous</option>
         </select>

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Upload, File, X, AlertCircle } from 'lucide-react';
+import { validateUpload } from '@/lib/file-validation';
 
 interface FileDropzoneProps {
   label?:        string;
@@ -29,22 +30,11 @@ export default function FileDropzone({
   const [dragging, setDragging] = useState(false);
   const [localErr, setLocalErr] = useState('');
 
-  function validate(file: File): string | null {
-    if (accept) {
-      const accepted = accept.split(',').map(s => s.trim().toLowerCase());
-      const mime     = file.type.toLowerCase();
-      const ext      = '.' + file.name.split('.').pop()!.toLowerCase();
-      const ok       = accepted.some(a => a === mime || a === ext || (a.endsWith('/*') && mime.startsWith(a.slice(0, -1))));
-      if (!ok) return `Type de fichier non autorisé. Acceptés : ${accept}`;
-    }
-    if (file.size > maxSizeMb * 1024 * 1024) {
-      return `Fichier trop volumineux (max ${maxSizeMb} Mo)`;
-    }
-    return null;
-  }
-
   function handleFile(file: File) {
-    const err = validate(file);
+    // Règle unique : `validateUpload` est la même barrière que pour les
+    // <input type="file"> natifs. La dupliquer ici, c'était accepter que les
+    // deux chemins finissent par diverger.
+    const err = validateUpload(file, { maxSizeMb, accept });
     if (err) { setLocalErr(err); return; }
     setLocalErr('');
     onChange(file);

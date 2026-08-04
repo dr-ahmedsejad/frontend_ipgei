@@ -9,11 +9,15 @@ import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
   Erreur, INPUT, SELECT, Toast, Vide, fmtCoef,
 } from '../_ui';
-import { useMatiereMutations, useMatieres } from '@/lib/api/ipgei-hooks';
+import {
+  useMatiereMutations, useMatieres, useNiveauxCursus,
+} from '@/lib/api/ipgei-hooks';
 import { CODES_SEMESTRE, type CodeSemestre, type Matiere } from '@/types/ipgei';
 
 type Formulaire = {
   code: string; intitule: string; code_semestre: CodeSemestre;
+  /** Niveau dont cette matière fait partie de la maquette. */
+  niveau_ref: number | null;
   coefficient: string; volume_cm: string; volume_td: string; volume_tp: string; has_tp: boolean;
   pct_ds: string; pct_tp: string; pct_exam: string; ordre: string; actif: boolean;
 };
@@ -23,12 +27,13 @@ const PCT_SANS_TP = { pct_ds: '30', pct_tp: '0',  pct_exam: '70' };
 const PCT_AVEC_TP = { pct_ds: '20', pct_tp: '10', pct_exam: '70' };
 
 const VIDE: Formulaire = {
-  code: '', intitule: '', code_semestre: 'S1', coefficient: '1',
+  code: '', intitule: '', code_semestre: 'S1', niveau_ref: null, coefficient: '1',
   volume_cm: '0', volume_td: '0', volume_tp: '0',
   has_tp: false, ...PCT_SANS_TP, ordre: '0', actif: true,
 };
 
 export default function MatieresIPGEIPage() {
+  const { data: niveaux = [] } = useNiveauxCursus(true);
   const [page, setPage]         = useState(1);
   const [recherche, setRecherche] = useState('');
   const [semestre, setSemestre] = useState('');
@@ -63,6 +68,7 @@ export default function MatieresIPGEIPage() {
     setEdition(m);
     setForm({
       code: m.code, intitule: m.intitule, code_semestre: m.code_semestre,
+      niveau_ref: m.niveau_ref ?? null,
       coefficient: m.coefficient,
       volume_cm: String(m.volume_cm), volume_td: String(m.volume_td), volume_tp: String(m.volume_tp),
       has_tp: m.has_tp, pct_ds: m.pct_ds, pct_tp: m.pct_tp, pct_exam: m.pct_exam,
@@ -85,6 +91,7 @@ export default function MatieresIPGEIPage() {
       code:           form.code.trim().toUpperCase(),
       intitule:       form.intitule.trim(),
       code_semestre:  form.code_semestre,
+      niveau_ref:     form.niveau_ref,
       coefficient:    form.coefficient || '1',
       volume_cm:      Number(form.volume_cm) || 0,
       volume_td:      Number(form.volume_td) || 0,
@@ -167,6 +174,25 @@ export default function MatieresIPGEIPage() {
               <select value={form.code_semestre} className={SELECT}
                       onChange={e => setForm(f => ({ ...f, code_semestre: e.target.value as CodeSemestre }))}>
                 {CODES_SEMESTRE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            {/* Deux niveaux d'une même année suivent les mêmes semestres sans
+                partager leur programme : sans ce choix, une matière de MPI
+                irait grossir la maquette de MP. */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Niveau</label>
+              <select value={form.niveau_ref ?? ''} className={SELECT}
+                      onChange={e => setForm(f => ({
+                        ...f, niveau_ref: e.target.value ? Number(e.target.value) : null,
+                      }))}>
+                <option value="">Déduit du semestre</option>
+                {niveaux
+                  .filter(n => n.codes_semestres.includes(form.code_semestre))
+                  .map(n => (
+                    <option key={n.id} value={n.id}>
+                      {n.code} — {n.libelle_rang}
+                    </option>
+                  ))}
               </select>
             </div>
 

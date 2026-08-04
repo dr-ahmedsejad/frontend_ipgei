@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useRetour } from '@/lib/retour';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CalendarDays, Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
@@ -25,6 +26,8 @@ const EMPTY: Form = { date_debut: '', nombre_semaines: '', annee_universitaire: 
 const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all";
 
 export default function AjouterSemainePage() {
+  const retour = useRetour('/dashboard/parametres/semaines', 'Semaines');
+  const liste  = `/dashboard/parametres/semaines${retour.suffixe}`;
   const router = useRouter();
   const qc     = useQueryClient();
   const [form,   setForm]   = useState<Form>(EMPTY);
@@ -47,7 +50,7 @@ export default function AjouterSemainePage() {
     onSuccess: (res) => {
       setResult(`${res.weeks} semaine${res.weeks !== 1 ? 's' : ''} ajoutée${res.weeks !== 1 ? 's' : ''} (S${res.numero_debut}${res.numero_fin > res.numero_debut ? `–S${res.numero_fin}` : ''}, ${res.created} lignes) à partir du ${res.start_of_week}.`);
       qc.invalidateQueries({ queryKey: ['parametres', 'semaines'] });
-      setTimeout(() => router.push('/dashboard/parametres/semaines'), 1500);
+      setTimeout(() => router.push(liste), 1500);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
   });
@@ -69,8 +72,9 @@ export default function AjouterSemainePage() {
   return (
     <div className="space-y-6 max-w-xl">
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/parametres/semaines"
-          className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
+        <Link href={liste} title="Semaines"
+          
+className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
           <ArrowLeft size={16} />
         </Link>
         <div className="flex items-center gap-2">

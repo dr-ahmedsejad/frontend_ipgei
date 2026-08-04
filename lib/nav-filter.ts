@@ -38,9 +38,46 @@ export function visibleItems(group: NavGroup): SubItem[] {
   });
 }
 
+/**
+ * Longueur du lien le plus précis de ce groupe correspondant à l'URL — 0 si
+ * aucun.
+ *
+ * La correspondance se fait par préfixe, ce qui rend plusieurs groupes
+ * « actifs » à la fois : `/dashboard/ipgei` est le préfixe de toutes les pages
+ * IPGEI. Retenir la longueur permet de départager, et de préférer le lien qui
+ * décrit vraiment la page à celui qui l'englobe.
+ */
+function precisionCorrespondance(group: NavGroup, pathname: string): number {
+  return group.items.reduce((meilleure, item) => {
+    const correspond = pathname === item.href || pathname.startsWith(item.href + '/');
+    return correspond && item.href.length > meilleure ? item.href.length : meilleure;
+  }, 0);
+}
+
 /** Le groupe contient-il un item correspondant à l'URL courante ? */
 export function isGroupActive(group: NavGroup, pathname: string): boolean {
-  return group.items.some(i => pathname === i.href || pathname.startsWith(i.href + '/'));
+  return precisionCorrespondance(group, pathname) > 0;
+}
+
+/**
+ * Groupe auquel appartient réellement l'URL courante.
+ *
+ * Prendre le premier groupe « actif » ouvrait le mauvais : l'accueil IPGEI,
+ * dont le lien préfixe toutes les autres pages du module, gagnait toujours. Le
+ * menu se refermait donc sur lui dès qu'on suivait un lien, quel qu'il soit.
+ * On retient ici le groupe dont le lien colle le plus étroitement à l'URL.
+ */
+export function groupeActif(groups: NavGroup[], pathname: string): NavGroup | null {
+  let meilleur: NavGroup | null = null;
+  let precision = 0;
+  for (const group of groups) {
+    const score = precisionCorrespondance(group, pathname);
+    if (score > precision) {
+      precision = score;
+      meilleur  = group;
+    }
+  }
+  return meilleur;
 }
 
 /**

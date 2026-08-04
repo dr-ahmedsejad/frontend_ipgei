@@ -29,6 +29,18 @@ import type { Etudiant, NiveauEtude, StatutEtudiant } from '@/types/scolarite';
 import type { InscriptionAdministrative } from '@/types/inscriptions';
 type Tab = 'identite' | 'inscriptions' | 'notes' | 'stages' | 'documents' | 'absences';
 
+/**
+ * État civil d'un seul tenant.
+ *
+ * Les fiches créées avant la bascule portent le prénom dans un champ séparé,
+ * les nouvelles le rangent dans le nom — le référentiel officiel ne scinde pas.
+ * Concaténer ce qui existe donne le même résultat dans les deux cas, sans avoir
+ * à réécrire les anciennes données.
+ */
+function nomComplet(prenom?: string | null, nom?: string | null): string {
+  return [prenom, nom].map(p => (p ?? '').trim()).filter(Boolean).join(' ');
+}
+
 export default function EtudiantPage() {
   const params = useParams();
   const toast  = useToast();
@@ -43,8 +55,6 @@ export default function EtudiantPage() {
   // Edit state
   const [editNomFr, setEditNomFr]       = useState('');
   const [editNomAr, setEditNomAr]       = useState('');
-  const [editPrenomFr, setEditPrenomFr] = useState('');
-  const [editPrenomAr, setEditPrenomAr] = useState('');
   const [editFiliere, setEditFiliere]   = useState<number | null>(null);
   const [editNiveau, setEditNiveau]     = useState<NiveauEtude>('L1');
   const [editStatut, setEditStatut]     = useState<StatutEtudiant>('actif');
@@ -83,10 +93,10 @@ export default function EtudiantPage() {
     try {
       const e = await etudiantsApi.get(id);
       setEtudiant(e);
-      setEditNomFr(e.nom_fr);
-      setEditNomAr(e.nom_ar ?? '');
-      setEditPrenomFr(e.prenom_fr);
-      setEditPrenomAr(e.prenom_ar ?? '');
+      // Les fiches d'avant la bascule ont l'état civil scindé : on le
+      // recompose pour l'éditer d'un seul tenant, sans rien perdre.
+      setEditNomFr(nomComplet(e.prenom_fr, e.nom_fr));
+      setEditNomAr(nomComplet(e.prenom_ar, e.nom_ar));
       setEditFiliere(e.filiere);
       setEditNiveau(e.niveau ?? 'L1');
       setEditStatut(e.statut);
@@ -160,8 +170,13 @@ export default function EtudiantPage() {
     setSaving(true);
     try {
       const updated = await etudiantsApi.update(id, {
-        nom_fr: editNomFr, nom_ar: editNomAr,
-        prenom_fr: editPrenomFr, prenom_ar: editPrenomAr,
+        // Le nom complet va dans `nom_fr`, et les anciens prénoms séparés sont
+        // vidés — les garder ferait réapparaître le prénom en double, la
+        // composition d'affichage les concaténant. `nom` suit, car c'est lui
+        // que lit `nom_display` quand `nom_fr` est vide sur d'autres fiches.
+        nom: editNomFr.trim(),
+        nom_fr: editNomFr.trim(), nom_ar: editNomAr.trim(),
+        prenom_fr: '', prenom_ar: '',
         filiere: editFiliere, niveau: editNiveau, statut: editStatut,
         cni: editCni.trim() || null,
         nbac: editNbac.trim() || null,
@@ -212,7 +227,7 @@ export default function EtudiantPage() {
   if (loading) return <LoadingSkeleton rows={6} cols={3} className="p-6" />;
   if (!etudiant) return <p className="text-iss-gray p-6">Étudiant introuvable.</p>;
 
-  const fullName = [etudiant.prenom_fr, etudiant.nom_fr].filter(Boolean).join(' ');
+  const fullName = nomComplet(etudiant.prenom_fr, etudiant.nom_fr);
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'identite',     label: 'Identité',      icon: User       },
@@ -354,10 +369,11 @@ export default function EtudiantPage() {
         {tab === 'identite' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             {[
-              { label: 'Nom (FR)',    value: etudiant.nom_fr },
-              { label: 'Nom (AR)',    value: etudiant.nom_ar, rtl: true },
-              { label: 'Prénom (FR)', value: etudiant.prenom_fr },
-              { label: 'Prénom (AR)', value: etudiant.prenom_ar, rtl: true },
+              // Un état civil, pas quatre lignes : les fiches anciennes ont le
+              // prénom à part, les nouvelles le portent dans le nom. La
+              // composition rend les deux identiques à la lecture.
+              { label: 'Nom complet (FR)', value: nomComplet(etudiant.prenom_fr, etudiant.nom_fr) },
+              { label: 'Nom complet (AR)', value: nomComplet(etudiant.prenom_ar, etudiant.nom_ar), rtl: true },
               { label: 'Nationalité', value: etudiant.nationalite_fr },
               { label: 'CNI / NNI',   value: etudiant.cni },
               { label: 'N° BAC',      value: etudiant.nbac },
@@ -465,15 +481,14 @@ export default function EtudiantPage() {
           </div>
         }>
         <div className="space-y-4">
+          {/* Un seul champ, prénoms inclus : c'est la forme du référentiel
+              officiel et du fichier MESRS, celle qu'emploie désormais
+              l'inscription. Enregistrer réunit un état civil autrefois scindé —
+              voir `handleSave`. */}
           <BilingualInput
-            labelFr="Nom FR" labelAr="اللقب"
+            labelFr="Nom complet" labelAr="الاسم الكامل"
             valueFr={editNomFr} valueAr={editNomAr}
             onChangeFr={setEditNomFr} onChangeAr={setEditNomAr}
-          />
-          <BilingualInput
-            labelFr="Prénom FR" labelAr="الاسم"
-            valueFr={editPrenomFr} valueAr={editPrenomAr}
-            onChangeFr={setEditPrenomFr} onChangeAr={setEditPrenomAr}
           />
           <FiliereSelect value={editFiliere} onChange={setEditFiliere} />
           <div className="grid grid-cols-2 gap-3">

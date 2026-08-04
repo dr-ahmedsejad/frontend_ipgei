@@ -7,7 +7,7 @@ import {
   GraduationCap, UserCheck, FileBadge, BellRing, Globe, Scale,
   LayoutDashboard, AlertCircle, ClipboardCheck, Edit3,
   BookMarked, ArrowUpCircle, MessageSquareWarning, History,
-  Briefcase, Shield, Database, ShieldCheck, Repeat, Settings,
+  Briefcase, Shield, Database, ShieldCheck, Repeat, BookOpenCheck,
 } from 'lucide-react';
 import type { UserRole, RbacAction } from '@/lib/auth';
 import {
@@ -71,12 +71,25 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/inscriptions/frais', label: 'Grille tarifaire',  module: 'ipgei_inscriptions' },
     ],
   },
+  // Espace personnel de l'enseignant. Sans `module` : les enseignants n'ont pas
+  // `ipgei_notes` — c'est justement pourquoi cette entrée existe — et le groupe
+  // « Académique », adossé à un module, leur resterait fermé. L'écran ne montre
+  // que le périmètre de celui qui le consulte.
+  {
+    key: 'ipgei-mon-enseignement', icon: BookOpenCheck, label: 'Mon enseignement',
+    roles: [...ENSEIGNANT_ONLY, 'admin'],
+    items: [
+      { href: '/dashboard/ipgei/notes/mes-feuilles', label: 'Mes feuilles de notes' },
+    ],
+  },
   {
     key: 'ipgei-academique', icon: BookOpen, label: 'Académique',
     roles: ALL, module: 'ipgei_matieres',
     items: [
       { href: '/dashboard/ipgei/matieres',      label: 'Matières & pondération', module: 'ipgei_matieres' },
       { href: '/dashboard/ipgei/notes',         label: 'Saisie des notes',       module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',    module: 'ipgei_notes' },
+      { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies',   module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/deliberations', label: 'Délibérations',          module: 'ipgei_deliberation' },
     ],
   },
@@ -102,13 +115,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/absences',     label: 'Absences',     module: 'ipgei_absences' },
       { href: '/dashboard/ipgei/permutations', label: 'Permutations', module: 'ipgei_permutations' },
       { href: '/dashboard/ipgei/documents',    label: 'Documents officiels', module: 'ipgei_documents' },
-    ],
-  },
-  {
-    key: 'ipgei-parametres', icon: Settings, label: 'Paramètres IPGEI',
-    roles: MANAGE, module: 'ipgei_parametres',
-    items: [
-      { href: '/dashboard/ipgei/parametres', label: 'Cursus, semestres, semaines' },
     ],
   },
   {
@@ -249,6 +255,16 @@ const TOUS_LES_GROUPES: NavGroup[] = [
   },
   // ── Paramétrage ──────────────────────────────────────────────────────────────
   {
+    key: 'ipgei-parametres', icon: GraduationCap, label: 'Cursus prépa',
+    section: 'Paramétrage', roles: MANAGE, module: 'ipgei_parametres',
+    items: [
+      { href: '/dashboard/parametres/cursus',              label: "Vue d'ensemble" },
+      { href: '/dashboard/parametres/cursus/niveaux',      label: 'Niveaux du cursus' },
+      { href: '/dashboard/parametres/cursus/semestres',    label: "Semestres de l'année" },
+      { href: '/dashboard/parametres/cursus/deliberation', label: 'Règles de délibération' },
+    ],
+  },
+  {
     key: 'param-institutions', icon: Building2, label: 'Institutions',
     section: 'Paramétrage', roles: ADMIN_ONLY,
     items: [
@@ -269,14 +285,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/parametres/niveaux',         label: 'Liste des niveaux' },
       { href: '/dashboard/parametres/niveaux/ajouter', label: 'Ajouter niveau' },
-    ],
-  },
-  {
-    key: 'semestres', icon: List, label: 'Semestres',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/semestres',         label: 'Liste des semestres' },
-      { href: '/dashboard/parametres/semestres/ajouter', label: 'Ajouter semestre' },
     ],
   },
   {

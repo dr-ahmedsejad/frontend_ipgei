@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRetour } from '@/lib/retour';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, CalendarDays, Trash2, Edit3,
@@ -43,6 +44,7 @@ const TYPE_BADGE: Record<string, { bg: string; color: string; icon: string }> = 
 const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all";
 
 export default function SemainesPage() {
+  const retour = useRetour('/dashboard/parametres', 'Paramètres');
   const qc = useQueryClient();
   const user = getStoredUser();
 
@@ -175,8 +177,9 @@ export default function SemainesPage() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/parametres"
-          className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
+        <Link href={retour.href} title={retour.libelle}
+          
+className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
           <ArrowLeft size={16} />
         </Link>
         <div className="flex-1">
@@ -198,7 +201,7 @@ export default function SemainesPage() {
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-iss-gray hover:bg-gray-50 transition-colors">
             <Filter size={14} /> Filtrer <ChevronDown size={12} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
-          <Link href="/dashboard/parametres/semaines/generer"
+          <Link href={`/dashboard/parametres/semaines/generer${retour.suffixe}`}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-all"
             style={{ background: 'linear-gradient(135deg,#B8960C,#D4A80E)' }}>
             Générer
@@ -281,7 +284,7 @@ export default function SemainesPage() {
             </div>
             <p className="text-sm font-semibold text-iss-dark mb-1">Aucune semaine enregistrée</p>
             <p className="text-xs text-iss-gray mb-4">Utilisez la page Générer pour créer les semaines automatiquement.</p>
-            <Link href="/dashboard/parametres/semaines/generer"
+            <Link href={`/dashboard/parametres/semaines/generer${retour.suffixe}`}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
               style={{ background: 'linear-gradient(135deg,#B8960C,#D4A80E)' }}>
               Générer les semaines

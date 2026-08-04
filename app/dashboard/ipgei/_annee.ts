@@ -37,9 +37,15 @@ export function libelleSemestreSession(): string {
   return typeSemestreSession() === 'P' ? 'Semestres pairs' : 'Semestres impairs';
 }
 
-export function useAnneeIPGEI() {
+/**
+ * `saisissables` : ne proposer que les années où une note peut encore être
+ * écrite, c'est-à-dire dont un semestre au moins n'est pas clôturé. Les écrans
+ * de saisie s'en servent — offrir une année close ne mènerait qu'à un refus à
+ * l'enregistrement.
+ */
+export function useAnneeIPGEI(saisissables = false) {
   const [annee, setAnnee] = useState<string>('');
-  const { data: annees = [], isLoading } = useAnneesIPGEI();
+  const { data: annees = [], isLoading } = useAnneesIPGEI(saisissables);
 
   useEffect(() => {
     if (annee) return;
@@ -52,8 +58,10 @@ export function useAnneeIPGEI() {
     else if (!isLoading)         setAnnee(defaut);
   }, [annees, isLoading, annee]);
 
-  /** Années proposées : celles qui ont des données, plus l'année par défaut. */
-  const options = annees.includes(anneeParDefaut())
+  // Années proposées : celles qui ont des données. L'année par défaut n'y est
+  // ajoutée que hors mode saisie — l'imposer alors qu'elle est close rouvrirait
+  // le choix qu'on vient de fermer.
+  const options = (saisissables || annees.includes(anneeParDefaut()))
     ? annees
     : [anneeParDefaut(), ...annees];
 

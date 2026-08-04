@@ -4,10 +4,17 @@ import Link from 'next/link';
 import {
   Settings, Calendar, BookOpen, DollarSign,
   Building, Layers, Clock, MapPin, ArrowRight,
-  Sun, CalendarDays, Moon, CalendarRange,
+  Sun, CalendarDays, Moon, CalendarRange, GraduationCap,
 } from 'lucide-react';
 
 const PARAM_SECTIONS = [
+  {
+    href: '/dashboard/parametres/cursus',
+    icon: GraduationCap,
+    label: 'Cursus prépa',
+    desc: "Niveaux, semestres de l'année, règles de délibération",
+    color: '#006633',
+  },
   {
     href: '/dashboard/parametres/annees',
     icon: Calendar,
@@ -20,13 +27,6 @@ const PARAM_SECTIONS = [
     icon: Layers,
     label: 'Niveaux',
     desc: 'Configurer les niveaux d\'études',
-    color: '#006633',
-  },
-  {
-    href: '/dashboard/parametres/semestres',
-    icon: CalendarRange,
-    label: 'Semestres',
-    desc: 'Gérer les semestres par niveau',
     color: '#006633',
   },
   {

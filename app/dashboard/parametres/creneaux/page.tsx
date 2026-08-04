@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRetour } from '@/lib/retour';
 import { ArrowLeft, Clock, Plus, Pencil, Trash2, X, Loader2, CheckCircle, Circle, Search } from 'lucide-react';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -25,6 +26,7 @@ const TYPE_LABELS: Record<string, string> = { matin: 'Matin', 'apres-midi': 'Apr
 const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all";
 
 export default function CreneauxPage() {
+  const retour = useRetour('/dashboard/parametres', 'Paramètres');
   const [page,    setPage]    = useState(1);
   const [search,  setSearch]  = useState('');
 
@@ -93,7 +95,8 @@ export default function CreneauxPage() {
     <div className="space-y-5 max-w-4xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/parametres" className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
+        <Link href={retour.href} title={retour.libelle} 
+className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
           <ArrowLeft size={16} />
         </Link>
         <div className="flex-1">
@@ -105,7 +108,7 @@ export default function CreneauxPage() {
           </div>
           <p className="text-sm text-iss-gray">{count} créneau{count !== 1 ? 'x' : ''} au total</p>
         </div>
-        <Link href="/dashboard/parametres/creneaux/ajouter"
+        <Link href={`/dashboard/parametres/creneaux/ajouter${retour.suffixe}`}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-all"
           style={{ background: 'linear-gradient(135deg,#006633,#008844)' }}>
           <Plus size={14} /> Ajouter
@@ -198,7 +201,7 @@ export default function CreneauxPage() {
             </div>
             <p className="text-sm font-semibold text-iss-dark mb-1">{search ? 'Aucun résultat' : 'Aucun créneau enregistré'}</p>
             {!search && <><p className="text-xs text-iss-gray mb-4">Définissez les plages horaires de la journée.</p>
-            <Link href="/dashboard/parametres/creneaux/ajouter"
+            <Link href={`/dashboard/parametres/creneaux/ajouter${retour.suffixe}`}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
               style={{ background: 'linear-gradient(135deg,#006633,#008844)' }}>
               <Plus size={13} /> Ajouter le premier

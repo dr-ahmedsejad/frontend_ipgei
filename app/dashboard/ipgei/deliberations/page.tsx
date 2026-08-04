@@ -12,15 +12,15 @@ import {
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
 import {
-  useDeliberationMutations, useDeliberations, useParametresIPGEI, useSemestresAll,
+  useDeliberationMutations, useDeliberations, useParametresIPGEI, useSemestresAll, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
-import {
-  NIVEAUX, type Deliberation, type NiveauIPGEI, type PorteeDeliberation,
+import { type Deliberation, type NiveauIPGEI, type PorteeDeliberation,
 } from '@/types/ipgei';
 
 const TON_STATUT = { brouillon: 'neutre', calculee: 'bleu', validee: 'vert' } as const;
 
 export default function DeliberationsPage() {
+  const optionsNiveaux = useOptionsNiveaux();
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const [page, setPage]     = useState(1);
   const [niveau, setNiveau] = useState('');
@@ -63,7 +63,7 @@ export default function DeliberationsPage() {
         <select value={niveau} onChange={e => { setNiveau(e.target.value); setPage(1); }}
                 className={SELECT} style={{ width: 170 }}>
           <option value="">Tous les niveaux</option>
-          {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+          {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
         </select>
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
                 className={SELECT} style={{ width: 160 }}>
@@ -151,6 +151,7 @@ function FormulaireDeliberation({
   annee: string; onFerme: () => void; onCree: () => void;
   create: { mutate: (v: never, o?: object) => void; isPending: boolean };
 }) {
+  const optionsNiveaux = useOptionsNiveaux();
   const { data: params } = useParametresIPGEI();
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
 
@@ -162,7 +163,12 @@ function FormulaireDeliberation({
   const [plafond, setPlafond] = useState('');
   const [erreur, setErreur]   = useState<string | null>(null);
 
-  const semestresDuNiveau = semestres.filter(s => s.niveau === niveau);
+  const semestresDuNiveau = semestres.filter(s => s.niveaux.includes(niveau));
+
+  // Le seuil proposé suit la portée, comme le fait le serveur à la création.
+  const seuilDefaut = portee === 'semestre' && params?.seuil_validation_semestre
+    ? params.seuil_validation_semestre
+    : params?.seuil_validation;
 
   const enregistrer = () => {
     if (portee === 'semestre' && !semestre) {
@@ -199,7 +205,7 @@ function FormulaireDeliberation({
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Niveau</label>
           <select value={niveau} className={SELECT}
                   onChange={e => { setNiveau(e.target.value as NiveauIPGEI); setSemestre(null); }}>
-            {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+            {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
           </select>
         </div>
         <div>
@@ -232,8 +238,11 @@ function FormulaireDeliberation({
             Seuil de validation
           </label>
           <input type="number" min="0" max="20" step="0.25" value={seuil} className={INPUT}
-                 placeholder={params ? Number(params.seuil_validation).toFixed(2) : '10.00'}
+                 placeholder={seuilDefaut ? Number(seuilDefaut).toFixed(2) : '10.00'}
                  onChange={e => setSeuil(e.target.value)} />
+          <p className="text-xs text-iss-gray mt-1">
+            Défaut {portee === 'semestre' ? 'semestriel' : 'annuel'} — figé à la création.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">

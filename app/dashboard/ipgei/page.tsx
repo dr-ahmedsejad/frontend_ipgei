@@ -21,6 +21,23 @@ const RACCOURCIS = [
   { href: '/dashboard/ipgei/permutations',  label: 'Permutations',           icone: Repeat,       aide: 'Enseignants et changements de classe' },
 ];
 
+/**
+ * « 12 en MPSI · 4 en MP » — la répartition, quels que soient les niveaux.
+ *
+ * Écrite en dur, elle ignorait tout niveau ajouté après coup : un MPI existant
+ * n'apparaissait nulle part sur ce tableau de bord. Les niveaux sans effectif
+ * sont tus, pour ne pas allonger la ligne d'une énumération de zéros.
+ */
+function repartition(
+  niveaux: { code: string; classes: number; effectifs: number }[],
+  champ: 'classes' | 'effectifs',
+): string {
+  const parts = (niveaux ?? [])
+    .filter(n => n[champ] > 0)
+    .map(n => `${n[champ]} ${n.code}`);
+  return parts.length ? parts.join(' · ') : 'aucun';
+}
+
 export default function TableauBordIPGEI() {
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const { data, isLoading, error } = useResumeIPGEI(annee || undefined);
@@ -45,10 +62,10 @@ export default function TableauBordIPGEI() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Tuile label="Étudiants" valeur={data.effectifs.total}
-                   detail={`${data.effectifs.mpsi} en MPSI · ${data.effectifs.mp} en MP`}
+                   detail={repartition(data.par_niveau, 'effectifs')}
                    icone={<UserCheck size={22} />} />
             <Tuile label="Classes" valeur={data.classes.total}
-                   detail={`${data.classes.mpsi} MPSI · ${data.classes.mp} MP`}
+                   detail={repartition(data.par_niveau, 'classes')}
                    icone={<Users size={22} />} />
             <Tuile label="Matières actives" valeur={data.matieres}
                    detail={`${data.semestres} semestre${data.semestres > 1 ? 's' : ''} ouverts`}
@@ -89,7 +106,7 @@ export default function TableauBordIPGEI() {
                 leur pondération, puis rattacher les
                 {' '}<Link href="/dashboard/ipgei/inscriptions" className="font-semibold text-[#006633] underline">étudiants</Link>.
                 Les semestres et leurs semaines se règlent dans
-                {' '}<Link href="/dashboard/ipgei/parametres" className="font-semibold text-[#006633] underline">Paramètres</Link>.
+                {' '}<Link href="/dashboard/parametres/cursus" className="font-semibold text-[#006633] underline">Paramètres</Link>.
               </p>
             </div>
           )}

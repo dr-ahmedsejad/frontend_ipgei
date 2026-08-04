@@ -11,6 +11,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '@/lib/api';
 
+import BilingualInput from '@/components/ui/BilingualInput';
 import Stepper from '@/components/ui/Stepper';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
 import { BTN_SECONDAIRE, CARTE, INPUT, SELECT } from '../../_ui';
@@ -51,9 +52,12 @@ interface RapportImport {
   erreurs:             { ligne: number; etudiant?: string; motif: string }[];
 }
 
+// `nom` porte le nom COMPLET, prénoms inclus : c'est la forme du référentiel
+// officiel et celle du fichier MESRS, où l'état civil n'est pas scindé. Séparer
+// nom et prénom obligerait à trancher une coupure que la source ne donne pas.
 const IDENTITE_VIDE: NouvelEtudiant = {
-  matricule: '', nom: '', prenom_fr: '', genre: 'M', date_naissance: '',
-  lieu_naissance_fr: '', cni: '', telephone: '', email: '',
+  matricule: '', nom: '', nom_ar: '', genre: 'M', date_naissance: '',
+  lieu_naissance_fr: '', lieu_naissance_ar: '', cni: '', telephone: '', email: '',
   nbac: '', serie_bac: '', moyenne_bac: '',
 };
 
@@ -167,7 +171,7 @@ export default function NouvelleInscriptionPage() {
     setErreur(null);
     if (etape === 0) {
       if (!identite.matricule.trim()) { setErreur('Le matricule est requis.'); return; }
-      if (!identite.nom.trim())       { setErreur('Le nom est requis.'); return; }
+      if (!identite.nom.trim())       { setErreur('Le nom complet est requis.'); return; }
     }
     if (etape === 1 && !classeId) { setErreur('Choisissez une classe.'); return; }
     setEtape(e => e + 1);
@@ -369,18 +373,29 @@ export default function NouvelleInscriptionPage() {
         {etape === 0 && (
           <>
             <h2 className="font-semibold text-iss-dark">Identité de l&apos;étudiant</h2>
+
+            {/* Nom complet et lieu de naissance sont bilingues, comme sur le
+                formulaire du socle : les documents officiels — attestation,
+                relevé, décision — impriment les deux versions. */}
+            <BilingualInput
+              labelFr="Nom complet" labelAr="الاسم الكامل"
+              valueFr={identite.nom} valueAr={identite.nom_ar ?? ''}
+              onChangeFr={v => majIdentite('nom', v)}
+              onChangeAr={v => majIdentite('nom_ar', v)}
+              required
+            />
+            <BilingualInput
+              labelFr="Lieu de naissance" labelAr="مكان الولادة"
+              valueFr={identite.lieu_naissance_fr ?? ''}
+              valueAr={identite.lieu_naissance_ar ?? ''}
+              onChangeFr={v => majIdentite('lieu_naissance_fr', v)}
+              onChangeAr={v => majIdentite('lieu_naissance_ar', v)}
+            />
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Champ label="Matricule *">
                 <input value={identite.matricule} className={INPUT}
                        onChange={e => majIdentite('matricule', e.target.value)} />
-              </Champ>
-              <Champ label="Nom *">
-                <input value={identite.nom} className={INPUT}
-                       onChange={e => majIdentite('nom', e.target.value)} />
-              </Champ>
-              <Champ label="Prénom">
-                <input value={identite.prenom_fr ?? ''} className={INPUT}
-                       onChange={e => majIdentite('prenom_fr', e.target.value)} />
               </Champ>
               <Champ label="Genre">
                 <select value={identite.genre ?? 'M'} className={SELECT}
@@ -392,10 +407,6 @@ export default function NouvelleInscriptionPage() {
               <Champ label="Date de naissance">
                 <input type="date" value={identite.date_naissance ?? ''} className={INPUT}
                        onChange={e => majIdentite('date_naissance', e.target.value)} />
-              </Champ>
-              <Champ label="Lieu de naissance">
-                <input value={identite.lieu_naissance_fr ?? ''} className={INPUT}
-                       onChange={e => majIdentite('lieu_naissance_fr', e.target.value)} />
               </Champ>
               <Champ label="CNI">
                 <input value={identite.cni ?? ''} className={INPUT}
@@ -468,7 +479,10 @@ export default function NouvelleInscriptionPage() {
           <>
             <h2 className="font-semibold text-iss-dark">Confirmation</h2>
             <dl className="text-sm divide-y divide-gray-100">
-              <Ligne cle="Étudiant" valeur={`${identite.nom} ${identite.prenom_fr ?? ''}`.trim()} />
+              <Ligne cle="Étudiant" valeur={identite.nom.trim() || "—"} />
+              {identite.nom_ar?.trim() && (
+                <Ligne cle="Nom (AR)" valeur={identite.nom_ar} />
+              )}
               <Ligne cle="Matricule" valeur={identite.matricule} />
               <Ligne cle="Classe" valeur={classe?.nom ?? '—'} />
               <Ligne cle="Sous-groupe"

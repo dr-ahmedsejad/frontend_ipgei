@@ -7,10 +7,9 @@ import { Badge, CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { BTN_FLECHE, BoutonPDF, GrilleConsultation } from '../_consultation';
 import {
-  useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive,
+  useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
-import { NIVEAUX } from '@/types/ipgei';
 
 /**
  * Emplois du temps tels qu'ils étaient au moment où le suivi en a été tiré.
@@ -26,6 +25,7 @@ import { NIVEAUX } from '@/types/ipgei';
  * comparaison, qui est sa seule raison d'être.
  */
 export default function HistoriqueEdtPage() {
+  const optionsNiveaux = useOptionsNiveaux();
   const annee = anneeParDefaut();
   const typeSemestre = typeSemestreSession();
 
@@ -128,7 +128,7 @@ export default function HistoriqueEdtPage() {
             <select value={niveau} className={SELECT}
                     onChange={e => { setNiveau(e.target.value); setClasseId(null); }}>
               <option value="">Tous</option>
-              {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.value}</option>)}
+              {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.value}</option>)}
             </select>
           </div>
           <div style={{ minWidth: 200 }}>

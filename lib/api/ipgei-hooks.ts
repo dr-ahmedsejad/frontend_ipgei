@@ -11,17 +11,23 @@ import {
 
 import {
   archivesEdtApi, absencesApi, classesApi, deliberationsApi, documentsApi, grillesApi,
-  inscriptionsApi, lignesDeliberationApi, matieresApi, notesApi, parametresApi,
+  inscriptionsApi, lignesDeliberationApi, matieresApi, membresJuryApi, notesApi,
+  parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
-  semainesApi, semestresApi, sousGroupesApi, tableauBordApi,
+  niveauxApi,
+  semainesApi, semestresApi, sessionsApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters, type Params,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
 } from './ipgei';
 import type {
-  ClasseInput, Deliberation, InscriptionComplete, MatiereInput, Note, SaisieCollective,
-  SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, StatutAbsence,
+  ClasseInput, Deliberation, InscriptionComplete, MatiereInput,
+  NiveauCursusInput, Note, RoleJuryIPGEI,
+  SaisieAnonyme, SaisieCollective,
+  SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
+  StatutAbsence,
 } from '@/types/ipgei';
+import { NIVEAUX } from '@/types/ipgei';
 
 // ── Factory de query keys ────────────────────────────────────────────────────
 const racine = ['ipgei'] as const;
@@ -42,6 +48,7 @@ export const ipgeiKeys = {
   parametres:    [...racine, 'parametres'] as const,
   tableauBord:   (annee?: string) => [...racine, 'tableau-bord', annee ?? ''] as const,
   annees:        [...racine, 'annees'] as const,
+  niveaux:       (actifs: boolean) => [...racine, 'niveaux', actifs] as const,
 
   semestres:     domaine<SemestreFilters>('semestres'),
   semaines:      (semestre?: number) => [...racine, 'semaines', semestre ?? 0] as const,
@@ -55,8 +62,12 @@ export const ipgeiKeys = {
   notes:         domaine<unknown>('notes'),
   grilleNotes:   (classe: number, matiere: number, semestre: number) =>
                    [...racine, 'notes', 'grille', classe, matiere, semestre] as const,
+  sessions:      (annee?: string) => [...racine, 'sessions', annee ?? ''] as const,
+  anonymats:     (session: number) => [...racine, 'anonymats', session] as const,
+  mesFeuilles:   (annee?: string) => [...racine, 'mes-feuilles', annee ?? ''] as const,
 
   deliberations: domaine<DeliberationFilters>('deliberations'),
+  membresJury:   (deliberation: number) => [...racine, 'membres-jury', deliberation] as const,
   lignesDelib:   (id: number, classe?: number) =>
                    [...racine, 'deliberations', 'lignes', id, classe ?? 0] as const,
   statsDelib:    (id: number) => [...racine, 'deliberations', 'stats', id] as const,
@@ -99,8 +110,57 @@ export function useResumeIPGEI(annee?: string) {
   });
 }
 
-export function useAnneesIPGEI() {
-  return useQuery({ queryKey: ipgeiKeys.annees, queryFn: tableauBordApi.annees });
+export function useAnneesIPGEI(saisissables = false) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.annees, saisissables] as const,
+    queryFn:  () => tableauBordApi.annees(saisissables),
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Niveaux du cursus
+// ═════════════════════════════════════════════════════════════════════════════
+export function useNiveauxCursus(actifsSeuls = false) {
+  return useQuery({
+    queryKey: ipgeiKeys.niveaux(actifsSeuls),
+    queryFn:  () => niveauxApi.list(actifsSeuls),
+  });
+}
+
+/**
+ * Niveaux proposables dans un menu déroulant.
+ *
+ * Remplace la constante `NIVEAUX` : un niveau ajouté au référentiel doit
+ * apparaître partout sans retoucher les écrans. Repli sur le cursus d'origine
+ * tant que la requête n'a pas répondu, pour qu'un select ne soit jamais vide.
+ */
+export function useOptionsNiveaux() {
+  const { data: niveaux = [] } = useNiveauxCursus(true);
+  if (!niveaux.length) return NIVEAUX;
+  return niveaux.map(n => ({
+    value: n.code,
+    label: n.libelle || `${n.code} — ${n.libelle_rang}`,
+  }));
+}
+
+export function useNiveauMutations() {
+  const qc = useQueryClient();
+  // Un niveau touche aux classes, aux matières et aux délibérations : tout le
+  // module se rafraîchit, pas seulement la liste des niveaux.
+  const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.all });
+
+  return {
+    create: useMutation({
+      mutationFn: (input: NiveauCursusInput) => niveauxApi.create(input),
+      onSuccess:  invalider,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, input }: { id: number; input: NiveauCursusInput }) =>
+        niveauxApi.update(id, input),
+      onSuccess:  invalider,
+    }),
+    remove: useMutation({ mutationFn: niveauxApi.remove, onSuccess: invalider }),
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -148,6 +208,12 @@ export function useSemestreMutations() {
     }),
     remove: useMutation({ mutationFn: semestresApi.remove, onSuccess: invalider }),
     cloturer: useMutation({ mutationFn: semestresApi.cloturer, onSuccess: invalider }),
+    // Ouvrir une année crée des semestres, donc des lignes de note pour les
+    // inscrits : tout le module se rafraîchit, pas seulement le calendrier.
+    creerAnnee: useMutation({
+      mutationFn: semestresApi.creerAnnee,
+      onSuccess:  () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+    }),
     genererSemaines: useMutation({
       mutationFn: ({ id, remplacer, nb }: { id: number; remplacer?: boolean; nb?: number }) =>
         semestresApi.genererSemaines(id, remplacer ?? false, nb),
@@ -389,6 +455,77 @@ export function useGrilleNotes(
   });
 }
 
+export function useSessions(annee?: string) {
+  return useQuery({
+    queryKey: ipgeiKeys.sessions(annee),
+    queryFn:  () => sessionsApi.list(annee),
+    enabled:  !!annee,
+  });
+}
+
+export function useSessionMutations() {
+  const qc = useQueryClient();
+  // Ouvrir ou clôturer une campagne change ce que la grille de notes autorise :
+  // les deux domaines s'invalident ensemble, sans quoi l'écran de saisie
+  // continuerait d'afficher un verrou levé une seconde plus tôt.
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'sessions'] });
+    qc.invalidateQueries({ queryKey: ipgeiKeys.notes.all });
+  };
+
+  return {
+    ouvrir:   useMutation({ mutationFn: sessionsApi.ouvrir,   onSuccess: invalider }),
+    cloturer: useMutation({ mutationFn: sessionsApi.cloturer, onSuccess: invalider }),
+    rouvrir:  useMutation({ mutationFn: sessionsApi.rouvrir,  onSuccess: invalider }),
+    plafond:  useMutation({
+      mutationFn: ({ id, valeur }: { id: number; valeur: string | null }) =>
+        sessionsApi.plafond(id, valeur),
+      onSuccess: invalider,
+    }),
+    dates: useMutation({
+      mutationFn: ({ id, input }: { id: number; input: Partial<SessionEvaluationIPGEI> }) =>
+        sessionsApi.update(id, input),
+      onSuccess: invalider,
+    }),
+  };
+}
+
+export function useMesFeuilles(annee?: string) {
+  return useQuery({
+    queryKey: ipgeiKeys.mesFeuilles(annee),
+    queryFn:  () => notesApi.mesFeuilles(annee),
+    enabled:  !!annee,
+  });
+}
+
+export function useAnonymats(session: number | null | undefined) {
+  return useQuery({
+    queryKey: ipgeiKeys.anonymats(session ?? 0),
+    queryFn:  () => sessionsApi.anonymats(session as number),
+    enabled:  session != null,
+  });
+}
+
+export function useAnonymatMutations(session?: number) {
+  const qc = useQueryClient();
+  const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.anonymats(session ?? 0) });
+
+  return {
+    generer: useMutation({
+      mutationFn: ({ id, regenerer, force }: {
+        id: number; regenerer?: boolean; force?: boolean;
+      }) => sessionsApi.genererAnonymats(id, { regenerer, force }),
+      onSuccess: invalider,
+    }),
+    // Une saisie anonyme change les moyennes : les grilles nominatives doivent
+    // se rafraîchir, mais la table de correspondance, elle, n'a pas bougé.
+    saisir: useMutation({
+      mutationFn: (input: SaisieAnonyme) => notesApi.saisieAnonyme(input),
+      onSuccess:  () => qc.invalidateQueries({ queryKey: ipgeiKeys.notes.all }),
+    }),
+  };
+}
+
 export function useNoteMutations() {
   const qc = useQueryClient();
   const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.notes.all });
@@ -466,12 +603,46 @@ export function useDeliberationMutations() {
     remove:   useMutation({ mutationFn: deliberationsApi.remove,   onSuccess: invalider }),
     calculer: useMutation({ mutationFn: deliberationsApi.calculer, onSuccess: invalider }),
     valider:  useMutation({ mutationFn: deliberationsApi.valider,  onSuccess: invaliderTout }),
+    // Dévalider touche autant de choses que valider : mêmes invalidations.
+    devalider: useMutation({ mutationFn: deliberationsApi.devalider, onSuccess: invaliderTout }),
     ajusterLigne: useMutation({
       mutationFn: ({ id, input }: {
         id: number; input: { decision?: string; motif_ajustement?: string; observations?: string };
       }) => lignesDeliberationApi.update(id, input),
       onSuccess:  invalider,
     }),
+    // Les éditions ne modifient rien : pas d'invalidation à leur suite.
+    pvPdf:   useMutation({ mutationFn: deliberationsApi.pvPdf }),
+    pvExcel: useMutation({ mutationFn: deliberationsApi.pvExcel }),
+  };
+}
+
+// ── Jury ─────────────────────────────────────────────────────────────────────
+export function useMembresJury(deliberation: number | null | undefined) {
+  return useQuery({
+    queryKey: ipgeiKeys.membresJury(deliberation ?? 0),
+    queryFn:  () => membresJuryApi.list(deliberation as number),
+    enabled:  deliberation != null,
+  });
+}
+
+export function useJuryMutations(deliberation?: number) {
+  const qc = useQueryClient();
+  // Le compte de signatures figure sur la délibération elle-même : les deux
+  // domaines se rafraîchissent ensemble.
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: ipgeiKeys.membresJury(deliberation ?? 0) });
+    qc.invalidateQueries({ queryKey: ipgeiKeys.deliberations.all });
+  };
+
+  return {
+    ajouter: useMutation({
+      mutationFn: (input: { deliberation: number; utilisateur: number; role: RoleJuryIPGEI }) =>
+        membresJuryApi.create(input),
+      onSuccess: invalider,
+    }),
+    retirer: useMutation({ mutationFn: membresJuryApi.remove, onSuccess: invalider }),
+    signer:  useMutation({ mutationFn: deliberationsApi.signer, onSuccess: invalider }),
   };
 }
 

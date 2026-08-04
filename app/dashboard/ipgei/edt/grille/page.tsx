@@ -25,7 +25,7 @@ import {
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
-import { type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
+import { type NiveauIPGEI, type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
 import {
   ModaleAppel, ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
@@ -897,7 +897,7 @@ type Mutations = ReturnType<typeof useGrilleMutations>;
 function ModaleDuplication({
   grilleId, annee, niveau, typeSemestre, onFerme, onFait, mutations,
 }: {
-  grilleId: number; annee: string; niveau: 'MPSI' | 'MP'; typeSemestre: TypeSemestre;
+  grilleId: number; annee: string; niveau: NiveauIPGEI; typeSemestre: TypeSemestre;
   onFerme: () => void; onFait: (message: string) => void; mutations: Mutations;
 }) {
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });

@@ -10,7 +10,7 @@ import {
 import { getQueryClient } from '@/lib/query-client';
 import { DEV_BYPASS_ENABLED, DEV_USER } from '@/lib/dev-mode';
 import { NAV_GROUPS } from '@/lib/nav-config';
-import { isGroupActive, resolveGroups } from '@/lib/nav-filter';
+import { groupeActif, resolveGroups } from '@/lib/nav-filter';
 import { useInstitution } from '@/hooks/useInstitution';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { useInactivityTimer } from '@/hooks/useInactivityTimer';
@@ -128,7 +128,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
 
-    const active = NAV_GROUPS.find(g => isGroupActive(g, pathname));
+    // Le groupe le plus précis, pas le premier venu : l'accueil IPGEI préfixe
+    // toutes les pages du module et raflait la sélection, si bien que le menu
+    // se refermait sur lui dès qu'on suivait un lien.
+    const active = groupeActif(NAV_GROUPS, pathname);
     if (active) setOpenKey(active.key);
   }, [user, pathname, router]);
 

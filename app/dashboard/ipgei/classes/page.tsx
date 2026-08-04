@@ -13,9 +13,9 @@ import {
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
 import {
-  useClasseMutations, useClasses, useMatieresSelect, useSousGroupeMutations,
+  useClasseMutations, useClasses, useMatieresSelect, useSousGroupeMutations, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
-import { NIVEAUX, type Classe, type NiveauIPGEI, type SousGroupeTP } from '@/types/ipgei';
+import { type Classe, type NiveauIPGEI, type SousGroupeTP } from '@/types/ipgei';
 
 type Formulaire = {
   niveau: NiveauIPGEI; libelle: string; capacite: string; actif: boolean;
@@ -23,6 +23,7 @@ type Formulaire = {
 const VIDE: Formulaire = { niveau: 'MPSI', libelle: '', capacite: '', actif: true };
 
 export default function ClassesIPGEIPage() {
+  const optionsNiveaux = useOptionsNiveaux();
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const [page, setPage]     = useState(1);
   const [niveau, setNiveau] = useState('');
@@ -98,7 +99,7 @@ export default function ClassesIPGEIPage() {
             <select value={niveau} onChange={e => { setNiveau(e.target.value); setPage(1); }}
                     className={SELECT} style={{ width: 160 }}>
               <option value="">Tous les niveaux</option>
-              {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+              {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
             </select>
             <button onClick={ouvrirAjout} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
               <Plus size={14} /> Ajouter
@@ -126,7 +127,7 @@ export default function ClassesIPGEIPage() {
               <label className="block text-xs font-semibold text-iss-dark mb-1.5">Niveau</label>
               <select value={form.niveau} className={SELECT}
                       onChange={e => setForm(f => ({ ...f, niveau: e.target.value as NiveauIPGEI }))}>
-                {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
               </select>
             </div>
             <div>

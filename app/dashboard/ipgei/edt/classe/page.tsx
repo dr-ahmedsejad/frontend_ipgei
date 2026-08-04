@@ -13,10 +13,9 @@ import {
 } from '../_consultation';
 import {
   useClassesSelect, useEdtPublie, useGrillePourClasse, useSemaines, useSemestresAll,
-  useSousGroupes,
+  useSousGroupes, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
-import { NIVEAUX } from '@/types/ipgei';
 
 /**
  * Emploi du temps d'une classe, en lecture seule et imprimable.
@@ -27,6 +26,7 @@ import { NIVEAUX } from '@/types/ipgei';
  * classe est l'unité de planification.
  */
 export default function EdtParClassePage() {
+  const optionsNiveaux = useOptionsNiveaux();
   const annee = anneeParDefaut();
   const typeSemestre = typeSemestreSession();
 
@@ -127,7 +127,7 @@ export default function EdtParClassePage() {
             <select value={niveau} className={SELECT}
                     onChange={e => { setNiveau(e.target.value); setClasseId(null); }}>
               <option value="">Tous</option>
-              {NIVEAUX.map(n => <option key={n.value} value={n.value}>{n.value}</option>)}
+              {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.value}</option>)}
             </select>
           </div>
           <div style={{ minWidth: 200 }}>

@@ -9,11 +9,14 @@ import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete, InscriptionCreee,
-  LigneDeliberation, Matiere, MatiereInput, MatiereSelect, Note, OccupationCreneau,
+  AnonymatIPGEI, FeuilleEnseignant, SaisieAnonyme, SaisieAnonymeResultat,
+  LigneDeliberation, Matiere, MatiereInput, MatiereSelect, MembreJuryIPGEI,
+  NiveauCursus, NiveauCursusInput, Note, OccupationCreneau, RoleJuryIPGEI,
   SeanceArchivee, VersionArchive,
   ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
   ReleveSemestre, ResultatDuplication, ResumeIPGEI, SaisieCollective,
-  SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SousGroupeTP,
+  SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
+  SousGroupeTP,
   StatistiquesDeliberation, StatutAbsence, TypeDocumentIPGEI,
 } from '@/types/ipgei';
 
@@ -37,6 +40,18 @@ export const parametresApi = {
   courant: () => apiFetch<ParametresIPGEI>(`${BASE}/parametres/courant/`),
   update:  (input: Partial<ParametresIPGEI>) =>
     apiFetch<ParametresIPGEI>(`${BASE}/parametres/courant/`, { method: 'PATCH', body: input }),
+};
+
+// ── Niveaux du cursus ────────────────────────────────────────────────────────
+export const niveauxApi = {
+  list:     (actifsSeuls = false) =>
+    apiFetch<NiveauCursus[]>(`${BASE}/niveaux/`,
+      { params: nettoyer({ actif: actifsSeuls ? true : undefined }) }),
+  create:   (input: NiveauCursusInput) =>
+    apiFetch<NiveauCursus>(`${BASE}/niveaux/`, { method: 'POST', body: input }),
+  update:   (id: number, input: NiveauCursusInput) =>
+    apiFetch<NiveauCursus>(`${BASE}/niveaux/${id}/`, { method: 'PATCH', body: input }),
+  remove:   (id: number) => apiFetch<void>(`${BASE}/niveaux/${id}/`, { method: 'DELETE' }),
 };
 
 // ── Calendrier ───────────────────────────────────────────────────────────────
@@ -65,6 +80,15 @@ export const semestresApi = {
     apiFetch<SemaineIPGEI[]>(`${BASE}/semestres/${id}/semaines/`,
       { params: nettoyer({ classe }) }),
   cloturer:  (id: number) => apiFetch<SemestreIPGEI>(`${BASE}/semestres/${id}/cloturer/`, { method: 'POST' }),
+
+  /**
+   * Ouvre une année d'un coup : ses quatre semestres, datés par convention.
+   * Ceux déjà présents sont laissés tels quels, dates comprises.
+   */
+  creerAnnee: (annee: string) =>
+    apiFetch<{ annee_universitaire: string; semestres_crees: number; codes: string[] }>(
+      `${BASE}/semestres/creer-annee/`, { method: 'POST', body: { annee_universitaire: annee } },
+    ),
 };
 
 export const semainesApi = {
@@ -158,9 +182,55 @@ export const matieresApi = {
 };
 
 // ── Notes ────────────────────────────────────────────────────────────────────
+// ── Sessions de saisie ───────────────────────────────────────────────────────
+export const sessionsApi = {
+  /**
+   * Sessions d'une année. Le backend matérialise les campagnes manquantes :
+   * la liste est donc toujours complète, deux entrées par semestre.
+   */
+  list: (annee?: string) =>
+    apiFetch<SessionEvaluationIPGEI[]>(
+      `${BASE}/sessions/`, { params: nettoyer({ annee_universitaire: annee }) },
+    ),
+
+  ouvrir:   (id: number) => apiFetch<SessionEvaluationIPGEI>(`${BASE}/sessions/${id}/ouvrir/`,   { method: 'POST' }),
+  cloturer: (id: number) => apiFetch<SessionEvaluationIPGEI>(`${BASE}/sessions/${id}/cloturer/`, { method: 'POST' }),
+  rouvrir:  (id: number) => apiFetch<SessionEvaluationIPGEI>(`${BASE}/sessions/${id}/rouvrir/`,  { method: 'POST' }),
+
+  /** Pose le plafond de rattrapage et recalcule le semestre. `null` = sans plafond. */
+  plafond: (id: number, valeur: string | null) =>
+    apiFetch<SessionEvaluationIPGEI & { notes_recalculees: number }>(
+      `${BASE}/sessions/${id}/plafond/`, { method: 'POST', body: { valeur } },
+    ),
+
+  update: (id: number, input: Partial<SessionEvaluationIPGEI>) =>
+    apiFetch<SessionEvaluationIPGEI>(`${BASE}/sessions/${id}/`, { method: 'PATCH', body: input }),
+
+  /** Table de correspondance numéro ↔ étudiant : c'est la levée d'anonymat. */
+  anonymats: (id: number) =>
+    apiFetch<AnonymatIPGEI[]>(`${BASE}/sessions/${id}/anonymats/`),
+
+  /** Tirage au sort. `force` n'est accepté qu'à un administrateur. */
+  genererAnonymats: (id: number, options: { regenerer?: boolean; force?: boolean } = {}) =>
+    apiFetch<{ anonymats_generes: number }>(
+      `${BASE}/sessions/${id}/anonymats/`, { method: 'POST', body: options },
+    ),
+};
+
 export const notesApi = {
   grille: (classe: number, matiere: number, semestre: number) =>
     apiFetch<GrilleNotes>(`${BASE}/notes/grille/`, { params: { classe, matiere, semestre } }),
+
+  /** Périmètre de l'enseignant connecté : ses couples classe × matière. */
+  mesFeuilles: (annee?: string) =>
+    apiFetch<FeuilleEnseignant[]>(`${BASE}/notes/mes-feuilles/`,
+      { params: nettoyer({ annee_universitaire: annee }) }),
+
+  /** Saisie sous numéro d'anonymat — la réponse ne nomme jamais l'étudiant. */
+  saisieAnonyme: (input: SaisieAnonyme) =>
+    apiFetch<SaisieAnonymeResultat>(
+      `${BASE}/notes/saisie-anonyme/`, { method: 'POST', body: input },
+    ),
 
   saisieCollective: (input: SaisieCollective) =>
     apiFetch<{ lignes_traitees: number }>(
@@ -198,10 +268,29 @@ export const deliberationsApi = {
       `${BASE}/deliberations/${id}/calculer/`, { method: 'POST' },
     ),
   valider:  (id: number) => apiFetch<Deliberation>(`${BASE}/deliberations/${id}/valider/`, { method: 'POST' }),
+  /** Retire la validation : restaure les inscriptions, déverrouille les notes. Admin. */
+  devalider: (id: number) =>
+    apiFetch<Deliberation>(`${BASE}/deliberations/${id}/devalider/`, { method: 'POST' }),
   lignes:   (id: number, classe?: number) =>
     apiFetch<LigneDeliberation[]>(`${BASE}/deliberations/${id}/lignes/`, { params: nettoyer({ classe }) }),
   statistiques: (id: number) =>
     apiFetch<StatistiquesDeliberation>(`${BASE}/deliberations/${id}/statistiques/`),
+
+  /** Signature du PV par le membre de jury connecté — on ne signe que pour soi. */
+  signer:   (id: number) =>
+    apiFetch<MembreJuryIPGEI>(`${BASE}/deliberations/${id}/signer/`, { method: 'POST' }),
+
+  /** PV complet. Tant que la délibération n'est pas validée, il porte « projet ». */
+  pvPdf:    (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-pdf/`),
+  pvExcel:  (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-excel/`),
+};
+
+export const membresJuryApi = {
+  list:   (deliberation: number) =>
+    apiFetch<MembreJuryIPGEI[]>(`${BASE}/membres-jury/`, { params: { deliberation } }),
+  create: (input: { deliberation: number; utilisateur: number; role: RoleJuryIPGEI }) =>
+    apiFetch<MembreJuryIPGEI>(`${BASE}/membres-jury/`, { method: 'POST', body: input }),
+  remove: (id: number) => apiFetch<void>(`${BASE}/membres-jury/${id}/`, { method: 'DELETE' }),
 };
 
 export const lignesDeliberationApi = {
@@ -385,5 +474,11 @@ export const documentsApi = {
 export const tableauBordApi = {
   resume: (annee?: string) =>
     apiFetch<ResumeIPGEI>(`${BASE}/tableau-bord/resume/`, { params: nettoyer({ annee }) }),
-  annees: () => apiFetch<string[]>(`${BASE}/tableau-bord/annees/`),
+  /**
+   * Années ayant au moins une classe. `saisissables` restreint à celles dont un
+   * semestre reste ouvert — les seules où une note peut encore être écrite.
+   */
+  annees: (saisissables = false) =>
+    apiFetch<string[]>(`${BASE}/tableau-bord/annees/`,
+      { params: nettoyer({ saisissables: saisissables ? true : undefined }) }),
 };

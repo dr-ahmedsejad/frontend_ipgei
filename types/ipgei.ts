@@ -6,22 +6,38 @@
  */
 
 // ── Vocabulaire du cursus ────────────────────────────────────────────────────
-export type NiveauIPGEI    = 'MPSI' | 'MP';
+/**
+ * Code d'un niveau : « MPSI », « MP », et ceux ajoutés au référentiel — « MPI »
+ * par exemple. Volontairement ouvert : la liste vit en base depuis que les
+ * niveaux s'administrent, et la figer ici rejetterait tout ajout à la
+ * compilation. Les valeurs affichables se lisent via `useNiveauxCursus()`.
+ */
+export type NiveauIPGEI    = string;
 export type CodeSemestre   = 'S1' | 'S2' | 'S3' | 'S4';
 export type TypeSemestre   = 'I' | 'P';
 export type TypeSeance     = 'cours' | 'td' | 'tp' | 'ds';
 export type TypeSemaine    = 'cours' | 'examen' | 'vacances' | 'ferie';
 
+/**
+ * Cursus d'origine — repli d'affichage tant que le référentiel n'est pas chargé.
+ * Ne plus s'en servir pour proposer un choix : passer par `useNiveauxCursus()`,
+ * sans quoi les niveaux ajoutés resteraient invisibles.
+ */
 export const NIVEAUX: { value: NiveauIPGEI; label: string }[] = [
   { value: 'MPSI', label: 'MPSI — 1re année' },
   { value: 'MP',   label: 'MP — 2e année' },
 ];
 
-export const CODES_SEMESTRE: { value: CodeSemestre; label: string; niveau: NiveauIPGEI }[] = [
-  { value: 'S1', label: 'S1 — MPSI', niveau: 'MPSI' },
-  { value: 'S2', label: 'S2 — MPSI', niveau: 'MPSI' },
-  { value: 'S3', label: 'S3 — MP',   niveau: 'MP' },
-  { value: 'S4', label: 'S4 — MP',   niveau: 'MP' },
+/**
+ * Un semestre appartient à une année d'étude, pas à un niveau : S1 est celui
+ * de tous les niveaux de première année. L'étiqueter « S1 — MPSI » laissait
+ * croire qu'ouvrir un MPI de première année demandait un semestre de plus.
+ */
+export const CODES_SEMESTRE: { value: CodeSemestre; label: string; rang: number }[] = [
+  { value: 'S1', label: 'S1 — 1re année', rang: 1 },
+  { value: 'S2', label: 'S2 — 1re année', rang: 1 },
+  { value: 'S3', label: 'S3 — 2e année',  rang: 2 },
+  { value: 'S4', label: 'S4 — 2e année',  rang: 2 },
 ];
 
 export const TYPES_SEANCE: { value: TypeSeance; label: string }[] = [
@@ -31,16 +47,47 @@ export const TYPES_SEANCE: { value: TypeSeance; label: string }[] = [
   { value: 'ds',    label: 'Devoir surveillé' },
 ];
 
-/** Niveau auquel appartient un semestre — S1/S2 en MPSI, S3/S4 en MP. */
-export function niveauDuSemestre(code: CodeSemestre): NiveauIPGEI {
-  return code === 'S1' || code === 'S2' ? 'MPSI' : 'MP';
+/** Année d'étude d'un semestre — S1/S2 en 1re, S3/S4 en 2e. */
+export function rangDuSemestre(code: CodeSemestre): number {
+  return code === 'S1' || code === 'S2' ? 1 : 2;
 }
+
+/**
+ * Niveau du cursus — MPSI, MP, et ceux qu'on ajoute.
+ *
+ * Le rang commande les semestres suivis et le tarif appliqué ; le reste dit ce
+ * que le jury peut prononcer à ce niveau. `NiveauIPGEI` (le type union) reste
+ * la clé d'usage : classes et délibérations portent le code, pas l'identifiant.
+ */
+export interface NiveauCursus {
+  id:                    number;
+  institution:           number | null;
+  code:                  string;
+  libelle:               string;
+  /** 1 = première année, 2 = deuxième. Deux niveaux peuvent le partager. */
+  rang:                  number;
+  libelle_rang:          string;
+  codes_semestres:       CodeSemestre[];
+  redoublement_autorise: boolean;
+  /** Codes des décisions permises au jury. Vide = celles du rang. */
+  decisions_possibles:   string[];
+  actif:                 boolean;
+  ordre:                 number;
+  nb_classes:            number;
+  nb_matieres:           number;
+}
+
+export type NiveauCursusInput = Partial<Omit<NiveauCursus,
+  'id' | 'libelle_rang' | 'codes_semestres' | 'nb_classes' | 'nb_matieres'>>;
 
 // ── Paramètres ───────────────────────────────────────────────────────────────
 export interface ParametresIPGEI {
   id:                     number;
   institution:            number;
+  /** Seuil des délibérations annuelles. */
   seuil_validation:       string;
+  /** Seuil des semestrielles. Nul = même exigence que les annuelles. */
+  seuil_validation_semestre: string | null;
   plafond_rattrapage:     string | null;
   nb_semaines_defaut:     number;
   droit_redoublement_max: number;
@@ -56,6 +103,13 @@ export interface SemestreIPGEI {
   date_fin:             string;
   nb_semaines:          number;
   est_cloture:          boolean;
+  /** 1 = première année, 2 = deuxième. C'est le vrai rattachement du semestre. */
+  rang:                 number;
+  /** « 1re année », « 2e année ». */
+  libelle_annee:        string;
+  /** Niveaux actifs qui suivent ce semestre — MPSI et MPI le partagent. */
+  niveaux:              NiveauIPGEI[];
+  /** @deprecated Premier niveau de l'année d'étude. Ne pas filtrer dessus. */
   niveau:               NiveauIPGEI;
   type_semestre:        TypeSemestre;
   nb_semaines_generees: number;
@@ -87,7 +141,11 @@ export interface Matiere {
   intitule:       string;
   intitule_ar:    string;
   code_semestre:  CodeSemestre;
+  /** Code du niveau, dérivé côté serveur. */
   niveau:         NiveauIPGEI;
+  /** Niveau dont la matière fait partie de la maquette. */
+  niveau_ref:     number | null;
+  niveau_ref_code: string;
   coefficient:    string;
   volume_cm:      number;
   volume_td:      number;
@@ -191,12 +249,15 @@ export interface Inscription {
 /** Identité saisie lors de l'inscription d'un étudiant encore inconnu. */
 export interface NouvelEtudiant {
   matricule:          string;
+  /** Nom COMPLET, prénoms inclus — la forme du référentiel officiel et du MESRS. */
   nom:                string;
-  prenom_fr?:         string;
   nom_ar?:            string;
+  /** Accepté par le serveur, mais le formulaire ne scinde plus l'état civil. */
+  prenom_fr?:         string;
   genre?:             'M' | 'F';
   date_naissance?:    string | null;
   lieu_naissance_fr?: string;
+  lieu_naissance_ar?: string;
   cni?:               string | null;
   telephone?:         string;
   email?:             string;
@@ -286,12 +347,102 @@ export interface Note {
 }
 
 /** Grille de saisie d'une matière pour toute une classe. */
+/** Une matière qu'un enseignant a en charge dans une classe, pour un semestre. */
+export interface FeuilleEnseignant {
+  classe:              number;
+  classe_nom:          string;
+  matiere:             number;
+  matiere_code:        string;
+  matiere_intitule:    string;
+  semestre:            number;
+  semestre_code:       CodeSemestre;
+  annee_universitaire: string;
+  /** Nombre de séances planifiées — ce qui fonde le périmètre. */
+  seances:             number;
+}
+
+/** Correspondance numéro ↔ étudiant : sa lecture est la levée d'anonymat. */
+export interface AnonymatIPGEI {
+  numero:             number;
+  inscription:        number;
+  etudiant_nom:       string;
+  etudiant_matricule: string;
+  classe:             string;
+}
+
+export interface SaisieAnonyme {
+  semestre:        number;
+  matiere:         number;
+  numero_anonymat: number;
+  type_evaluation: TypeEvaluation;
+  numero:          number;
+  valeur:          string;
+}
+
+/** Écho de la saisie : volontairement sans nom ni matricule. */
+export interface SaisieAnonymeResultat {
+  numero_anonymat: number;
+  matiere:         string;
+  type_evaluation: TypeEvaluation;
+  numero:          number;
+  valeur:          string;
+}
+
+/** Rôle au sein du jury — le président arrête la séance, un seul par délibération. */
+export type RoleJuryIPGEI = 'president' | 'directeur' | 'enseignant' | 'secretaire';
+
+export interface MembreJuryIPGEI {
+  id:              number;
+  deliberation:    number;
+  utilisateur:     number;
+  utilisateur_nom: string;
+  role:            RoleJuryIPGEI;
+  role_display:    string;
+  /** Posée par l'action `signer` uniquement — jamais écrite directement. */
+  signature_le:    string | null;
+  a_signe:         boolean;
+}
+
+/** Campagne de saisie d'un semestre : la normale (DS, TP, examens) ou le rattrapage. */
+export type TypeSessionIPGEI = 'normale' | 'rattrapage';
+
+/** `fermee` = pas encore ouverte, `close` = terminée (réouverture réservée admin). */
+export type EtatSessionIPGEI = 'fermee' | 'ouverte' | 'close';
+
+export interface SessionEvaluationIPGEI {
+  id:                   number;
+  semestre:             number;
+  semestre_code:        CodeSemestre;
+  semestre_annee:       string;
+  semestre_cloture:     boolean;
+  type_session:         TypeSessionIPGEI;
+  type_session_display: string;
+  etat:                 EtatSessionIPGEI;
+  est_saisissable:      boolean;
+  est_ouverte:          boolean;
+  est_close:            boolean;
+  date_debut_saisie:    string | null;
+  date_fin_saisie:      string | null;
+  /** Figé à la création de la session ; `null` = sans plafond. */
+  plafond_rattrapage:   string | null;
+  ouverte_le:           string | null;
+  cloturee_le:          string | null;
+  cloturee_par:         number | null;
+  cloturee_par_nom:     string;
+}
+
 export interface GrilleNotes {
   matiere:     Matiere;
   semestre:    SemestreIPGEI;
   nb_ds:       number;
   nb_examens:  number;
+  /** Semestre clôturé : plus rien n'est saisissable, quelle que soit la campagne. */
   verrouillee: boolean;
+  sessions:    SessionEvaluationIPGEI[];
+  /** La campagne des DS, TP et examens accepte-t-elle des notes maintenant ? */
+  saisie_normale:    boolean;
+  /** Et celle du rattrapage ? Les deux ne sont jamais ouvertes en même temps. */
+  saisie_rattrapage: boolean;
   notes:       Note[];
 }
 
@@ -322,7 +473,21 @@ export type StatutDeliberation = 'brouillon' | 'calculee' | 'validee';
 export type DecisionJury =
   | 'admis' | 'reoriente' | 'autorise_cnim' | 'redoublant' | 'exclu' | '';
 
-export const DECISIONS_PAR_NIVEAU: Record<NiveauIPGEI, { value: DecisionJury; label: string }[]> = {
+/** Toutes les décisions qu'un jury peut prononcer, pour le paramétrage. */
+export const DECISIONS_JURY: { value: DecisionJury; label: string }[] = [
+  { value: 'admis',         label: 'Admis en 2e année' },
+  { value: 'reoriente',     label: 'Réorienté' },
+  { value: 'autorise_cnim', label: 'Autorisé à concourir (CNIM)' },
+  { value: 'redoublant',    label: 'Redoublant' },
+  { value: 'exclu',         label: 'Exclu — droit épuisé' },
+];
+
+/**
+ * Décisions du cursus d'origine. Repli seulement : la liste qui fait foi arrive
+ * avec la délibération (`decisions_niveau`), car un code seul ne dit pas s'il
+ * s'agit d'une première ou d'une deuxième année.
+ */
+export const DECISIONS_PAR_NIVEAU: Record<string, { value: DecisionJury; label: string }[]> = {
   MPSI: [
     { value: 'admis',      label: 'Admis en 2e année' },
     { value: 'reoriente',  label: 'Réorienté' },
@@ -355,6 +520,12 @@ export interface Deliberation {
   validee_par:         number | null;
   validee_par_nom:     string;
   nb_lignes:           number;
+  nb_membres_jury:     number;
+  nb_signatures:       number;
+  /** Décisions déjà éditées — ce qu'une dévalidation remettrait en cause. */
+  nb_decisions_emises: number;
+  /** Décisions que le jury peut prononcer à ce niveau — calculées côté serveur. */
+  decisions_niveau:    { value: DecisionJury; label: string }[];
 }
 
 export interface DetailLigneDeliberation {
@@ -380,6 +551,8 @@ export interface LigneDeliberation {
   rang:                  number | null;
   decision_auto:         DecisionJury;
   decision_auto_display: string;
+  /** Pourquoi rien n'est proposé — vide quand une proposition existe. */
+  motif_sans_proposition: string;
   decision:              DecisionJury;
   decision_display:      string;
   est_ajustee:           boolean;
@@ -648,8 +821,10 @@ export interface DocumentIPGEI {
 // ── Tableau de bord ──────────────────────────────────────────────────────────
 export interface ResumeIPGEI {
   annee_universitaire: string;
-  classes:   { total: number; mpsi: number; mp: number };
-  effectifs: { total: number; mpsi: number; mp: number };
+  classes:   { total: number };
+  effectifs: { total: number };
+  /** Répartition par niveau, lue au référentiel : MPSI, MP, et ceux qu'on ajoute. */
+  par_niveau: { code: string; libelle: string; classes: number; effectifs: number }[];
   matieres:      number;
   semestres:     number;
   deliberations: number;

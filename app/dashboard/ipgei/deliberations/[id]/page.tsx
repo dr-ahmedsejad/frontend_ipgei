@@ -3,7 +3,8 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, Calculator, CheckCircle2, FileBadge, FileText, Lock, Scale,
+  ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText, Lock,
+  Scale, Table2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -13,10 +14,15 @@ import {
 } from '../../_ui';
 import {
   useClassesSelect, useDeliberation, useDeliberationMutations, useDocumentMutations,
-  useLignesDeliberation, useStatistiquesDeliberation,
+  useJuryMutations, useLignesDeliberation, useMembresJury, useStatistiquesDeliberation,
 } from '@/lib/api/ipgei-hooks';
+import { useComptesList } from '@/lib/api/comptes-hooks';
+import { getStoredUser } from '@/lib/auth';
 import { downloadBlob } from '@/lib/downloadBlob';
-import { DECISIONS_PAR_NIVEAU, type LigneDeliberation } from '@/types/ipgei';
+import {
+  DECISIONS_PAR_NIVEAU, type LigneDeliberation,
+  type RoleJuryIPGEI,
+} from '@/types/ipgei';
 
 export default function JuryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -26,6 +32,12 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
   const [toast, setToast]   = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [aValider, setAValider] = useState(false);
+  const [aDevalider, setADevalider] = useState(false);
+
+  // Dévalider remet en cause des décisions notifiées : le backend le réserve à
+  // un administrateur, l'écran n'a pas à proposer un bouton voué au 403.
+  const moi = getStoredUser();
+  const estAdmin = moi?.role === 'admin';
 
   const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3200); };
   const signaler = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
@@ -39,14 +51,21 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
     annee_universitaire: deliberation?.annee_universitaire, actif: true,
   });
 
-  const { calculer, valider, ajusterLigne } = useDeliberationMutations();
+  const { calculer, valider, devalider, ajusterLigne, pvPdf, pvExcel } =
+    useDeliberationMutations();
   const documents = useDocumentMutations();
 
   if (isLoading || !deliberation) return <Chargement />;
 
   const verrouillee = deliberation.est_verrouillee;
+  const nomPv = `PV-${deliberation.niveau}-`
+    + `${deliberation.portee === 'semestre' ? deliberation.semestre_code : 'annuel'}-`
+    + deliberation.annee_universitaire;
   const classesDuNiveau = classes.filter(c => c.niveau === deliberation.niveau);
-  const decisions = DECISIONS_PAR_NIVEAU[deliberation.niveau];
+  // La liste vient du serveur : un code de niveau seul ne dit pas s'il s'agit
+  // d'une 1re ou d'une 2e année, donc l'écran ne peut pas la déduire.
+  const decisions = deliberation.decisions_niveau
+    ?? DECISIONS_PAR_NIVEAU[deliberation.niveau] ?? [];
 
   const emettreDecisions = () => {
     documents.decisionsClasse.mutate(
@@ -98,6 +117,28 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
             {!verrouillee && deliberation.statut === 'calculee' && (
               <button onClick={() => setAValider(true)} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
                 <CheckCircle2 size={14} /> Valider le jury
+              </button>
+            )}
+            {/* Le PV s'édite à tout moment : avant validation il sort marqué
+                « projet », ce qui est précisément ce dont le jury a besoin en
+                séance. */}
+            <button onClick={() => pvPdf.mutate(deliberationId, {
+                      onSuccess: (b) => downloadBlob(b, `${nomPv}.pdf`),
+                      onError: signaler,
+                    })}
+                    disabled={pvPdf.isPending} className={BTN_SECONDAIRE}>
+              <FileSignature size={14} /> {pvPdf.isPending ? 'Édition…' : 'PV (PDF)'}
+            </button>
+            <button onClick={() => pvExcel.mutate(deliberationId, {
+                      onSuccess: (b) => downloadBlob(b, `${nomPv}.xlsx`),
+                      onError: signaler,
+                    })}
+                    disabled={pvExcel.isPending} className={BTN_SECONDAIRE}>
+              <Table2 size={14} /> {pvExcel.isPending ? 'Édition…' : 'PV (Excel)'}
+            </button>
+            {verrouillee && estAdmin && (
+              <button onClick={() => setADevalider(true)} className={BTN_SECONDAIRE}>
+                <Undo2 size={14} /> Dévalider
               </button>
             )}
             {verrouillee && (
@@ -177,7 +218,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                   <LigneJury
                     key={ligne.id} ligne={ligne}
                     deliberationId={deliberationId}
-                    niveau={deliberation.niveau}
+                    decisions={decisions}
                     verrouillee={verrouillee}
                     seuil={Number(deliberation.seuil_validation)}
                     onAjuster={ajusterLigne}
@@ -192,13 +233,20 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         )}
       </div>
 
+      <SectionJury
+        deliberationId={deliberationId}
+        validee={verrouillee}
+        onNotifier={notifier}
+        onErreur={signaler}
+      />
+
       <ConfirmModal
         open={aValider}
         title="Valider la délibération"
         message={
           "La validation fige les décisions, verrouille les notes concernées et met à jour " +
           "le statut de chaque inscription. Le compteur de redoublement est incrémenté pour " +
-          "les redoublants. Cette opération n'est pas réversible."
+          "les redoublants. Seul un administrateur peut ensuite la dévalider."
         }
         confirmLabel="Valider le jury"
         variant="success"
@@ -210,6 +258,29 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         loading={valider.isPending}
       />
 
+      <ConfirmModal
+        open={aDevalider}
+        title="Dévalider la délibération"
+        message={
+          'Les inscriptions retrouvent le statut et le compteur de redoublement '
+          + "qu'elles avaient avant ce jury, et les notes se déverrouillent — sauf "
+          + 'celles qu’un autre jury validé couvre encore. La délibération repasse '
+          + 'en « calculée » : ses moyennes et ses décisions restent.'
+          + (deliberation.nb_decisions_emises
+             ? ` ⚠ ${deliberation.nb_decisions_emises} décision(s) ont déjà été `
+               + 'éditées et vérifiables en ligne : elles resteront dans la nature.'
+             : '')
+        }
+        confirmLabel="Dévalider"
+        variant="danger"
+        onConfirm={() => devalider.mutate(deliberationId, {
+          onSuccess: () => { setADevalider(false); notifier('Délibération dévalidée'); },
+          onError:   (e) => { setADevalider(false); signaler(e); },
+        })}
+        onCancel={() => setADevalider(false)}
+        loading={devalider.isPending}
+      />
+
       <Toast message={toast} />
     </div>
   );
@@ -217,12 +288,132 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
 
 type MutationsDocuments = ReturnType<typeof useDocumentMutations>;
 
+const ROLES: { value: RoleJuryIPGEI; label: string }[] = [
+  { value: 'president',  label: 'Président du jury' },
+  { value: 'directeur',  label: 'Directeur des études' },
+  { value: 'enseignant', label: 'Enseignant' },
+  { value: 'secretaire', label: 'Secrétaire de séance' },
+];
+
+/**
+ * Composition du jury et signatures du PV.
+ *
+ * Une délibération est un acte collégial : sans membres désignés, le PV sort
+ * avec la seule signature de l'établissement. La signature n'est ouverte
+ * qu'après validation — signer un projet reviendrait à approuver ce qui peut
+ * encore changer.
+ */
+function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
+  deliberationId: number;
+  validee:        boolean;
+  onNotifier:     (m: string) => void;
+  onErreur:       (e: unknown) => void;
+}) {
+  const { data: membres = [], isLoading } = useMembresJury(deliberationId);
+  const { ajouter, retirer, signer } = useJuryMutations(deliberationId);
+  const { data: comptes } = useComptesList({ page: 1 });
+
+  const [utilisateur, setUtilisateur] = useState('');
+  const [role, setRole] = useState<RoleJuryIPGEI>('enseignant');
+
+  const moi = getStoredUser();
+  const maPlace = membres.find(m => m.utilisateur === moi?.id);
+  const disponibles = (comptes?.results ?? []).filter(
+    c => c.is_active && !membres.some(m => m.utilisateur === c.id),
+  );
+
+  return (
+    <div className={`${CARTE} p-4 space-y-3`}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Users size={15} className="text-[#006633]" />
+        <h2 className="text-sm font-bold text-iss-dark">Jury et signatures du procès-verbal</h2>
+        <Badge ton={membres.length && membres.every(m => m.a_signe) ? 'vert' : 'neutre'}>
+          {membres.filter(m => m.a_signe).length} / {membres.length} signature(s)
+        </Badge>
+        {maPlace && !maPlace.a_signe && validee && (
+          <button onClick={() => signer.mutate(deliberationId, {
+                    onSuccess: () => onNotifier('Procès-verbal signé'),
+                    onError: onErreur,
+                  })}
+                  disabled={signer.isPending}
+                  className={`${BTN_PRIMAIRE} ml-auto`} style={{ background: DEGRADE }}>
+            <FileSignature size={13} /> {signer.isPending ? 'Signature…' : 'Signer le PV'}
+          </button>
+        )}
+      </div>
+
+      {isLoading ? <Chargement texte="Lecture du jury…" /> : membres.length === 0 ? (
+        <p className="text-xs text-iss-gray">
+          Aucun membre désigné : le procès-verbal sortira sans signataire.
+        </p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {membres.map(membre => (
+            <div key={membre.id} className="rounded-xl border border-gray-100 p-3">
+              <p className="text-[11px] text-iss-gray">{membre.role_display}</p>
+              <p className="text-sm font-semibold text-iss-dark">{membre.utilisateur_nom}</p>
+              <div className="flex items-center justify-between mt-1.5">
+                {membre.a_signe ? (
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    Signé le {membre.signature_le?.slice(0, 10)}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-iss-gray">En attente de signature</span>
+                )}
+                {/* Un signataire ne se retire pas : sa signature disparaîtrait
+                    avec lui. Le bouton n'apparaît donc pas. */}
+                {!membre.a_signe && (
+                  <button onClick={() => retirer.mutate(membre.id, {
+                            onSuccess: () => onNotifier('Membre retiré du jury'),
+                            onError: onErreur,
+                          })}
+                          title="Retirer du jury"
+                          className="p-1 rounded-md text-iss-gray hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap pt-1">
+        <select value={utilisateur} onChange={e => setUtilisateur(e.target.value)}
+                className={SELECT} style={{ width: 240 }}>
+          <option value="">Ajouter un membre…</option>
+          {disponibles.map(c => (
+            <option key={c.id} value={c.id}>{c.name || c.username}</option>
+          ))}
+        </select>
+        <select value={role} onChange={e => setRole(e.target.value as RoleJuryIPGEI)}
+                className={SELECT} style={{ width: 200 }}>
+          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+        <button onClick={() => {
+                  if (!utilisateur) return;
+                  ajouter.mutate(
+                    { deliberation: deliberationId, utilisateur: Number(utilisateur), role },
+                    {
+                      onSuccess: () => { setUtilisateur(''); onNotifier('Membre ajouté au jury'); },
+                      onError: onErreur,
+                    },
+                  );
+                }}
+                disabled={!utilisateur || ajouter.isPending} className={BTN_SECONDAIRE}>
+          <UserPlus size={13} /> Ajouter
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LigneJury({
-  ligne, deliberationId, niveau, verrouillee, seuil, onAjuster, onNotifier, onErreur, documents,
+  ligne, deliberationId, decisions, verrouillee, seuil, onAjuster, onNotifier, onErreur, documents,
 }: {
   ligne: LigneDeliberation;
   deliberationId: number;
-  niveau: 'MPSI' | 'MP';
+  decisions: { value: string; label: string }[];
   verrouillee: boolean;
   seuil: number;
   onAjuster: { mutate: (v: never, o?: object) => void; isPending: boolean };
@@ -231,7 +422,6 @@ function LigneJury({
   documents: MutationsDocuments;
 }) {
   const [motif, setMotif] = useState(ligne.motif_ajustement);
-  const decisions = DECISIONS_PAR_NIVEAU[niveau];
   const moyenne = ligne.moyenne_generale != null ? Number(ligne.moyenne_generale) : null;
   const sousSeuil = moyenne != null && moyenne < seuil;
 
@@ -267,9 +457,16 @@ function LigneJury({
         {fmtNote(ligne.moyenne_generale)}
       </td>
       <td className="px-4 py-3">
-        {ligne.decision_auto
-          ? <Badge ton={tonDecision(ligne.decision_auto)}>{ligne.decision_auto_display}</Badge>
-          : <span className="text-xs text-iss-gray">—</span>}
+        {ligne.decision_auto ? (
+          <Badge ton={tonDecision(ligne.decision_auto)}>{ligne.decision_auto_display}</Badge>
+        ) : ligne.motif_sans_proposition ? (
+          <span className="text-xs text-iss-gray leading-snug block max-w-[240px]"
+                title={ligne.motif_sans_proposition}>
+            {ligne.motif_sans_proposition}
+          </span>
+        ) : (
+          <span className="text-xs text-iss-gray">—</span>
+        )}
       </td>
       <td className="px-4 py-3">
         {verrouillee ? (

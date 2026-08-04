@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useRetour } from '@/lib/retour';
 import { ArrowLeft, Clock, Loader2, CheckCircle, Circle } from 'lucide-react';
 import { useCreneauxMutations } from '@/lib/api/creneaux-hooks';
 
@@ -12,6 +13,8 @@ const EMPTY: Form = { creneau: '', duree: '1.5', type_creneau: 'matin', ordre: '
 const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all";
 
 export default function AjouterCreneauPage() {
+  const retour = useRetour('/dashboard/parametres/creneaux', 'Créneaux');
+  const liste  = `/dashboard/parametres/creneaux${retour.suffixe}`;
   const router = useRouter();
   const [form,  setForm]  = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +34,7 @@ export default function AjouterCreneauPage() {
       is_actif:     form.is_actif,
     };
     create.mutate(payload, {
-      onSuccess: () => router.push('/dashboard/parametres/creneaux'),
+      onSuccess: () => router.push(liste),
       onError:   (e) => setError(e instanceof Error ? e.message : 'Erreur'),
     });
   };
@@ -39,8 +42,9 @@ export default function AjouterCreneauPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/parametres/creneaux"
-          className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
+        <Link href={liste} title="Créneaux"
+          
+className="p-2 rounded-xl text-iss-gray hover:bg-gray-100 transition-colors">
           <ArrowLeft size={16} />
         </Link>
         <div className="flex items-center gap-2">
