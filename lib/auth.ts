@@ -186,6 +186,19 @@ export function isJuryOrAdmin(): boolean {
   return user?.role === 'admin' || user?.role === 'jury_president';
 }
 
+/**
+ * Vrai si l'utilisateur décide seul sur l'emploi du temps.
+ *
+ * La permutation d'enseignants suit un circuit — demande, accord de la
+ * contrepartie, validation de la direction. Le raccourci « action directe »
+ * était offert par une case à cocher que n'importe qui pouvait cocher ; c'est
+ * le rôle qui l'ouvre désormais, et le serveur le vérifie de son côté.
+ */
+export function peutDeciderEdt(): boolean {
+  const role = getStoredUser()?.role;
+  return role === 'admin' || role === 'DG' || role === 'DE' || role === 'DA';
+}
+
 /** Vrai si l'utilisateur est administrateur — pour les actions réservées (réouverture PV clos, etc.). */
 export function isAdmin(): boolean {
   const user = getStoredUser();

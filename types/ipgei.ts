@@ -107,10 +107,15 @@ export interface SemestreIPGEI {
   rang:                 number;
   /** « 1re année », « 2e année ». */
   libelle_annee:        string;
-  /** Niveaux actifs qui suivent ce semestre — MPSI et MPI le partagent. */
+  /**
+   * Niveaux actifs qui suivent ce semestre — MPSI et MPI partagent la 1re année.
+   *
+   * Il n'y a délibérément pas de `niveau` au singulier : la propriété existait,
+   * rendait le premier niveau du rang, et cinq écrans s'en servaient pour
+   * retrouver le semestre d'une classe. L'ajout de MPI a fait basculer sa
+   * valeur et ces écrans se sont vidés sans erreur.
+   */
   niveaux:              NiveauIPGEI[];
-  /** @deprecated Premier niveau de l'année d'étude. Ne pas filtrer dessus. */
-  niveau:               NiveauIPGEI;
   type_semestre:        TypeSemestre;
   nb_semaines_generees: number;
 }

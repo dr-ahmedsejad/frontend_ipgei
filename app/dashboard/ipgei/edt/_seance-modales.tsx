@@ -10,12 +10,13 @@
  * une case de modèle.
  */
 import { useEffect, useState } from 'react';
-import { Ban, Layers, Repeat, X } from 'lucide-react';
+import { ArrowRight, Ban, Layers, Repeat, X } from 'lucide-react';
 
 import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, CARTE, Chargement, DEGRADE, INPUT,
   SELECT, Vide,
 } from '../_ui';
+import { peutDeciderEdt } from '@/lib/auth';
 import {
   useAbsenceMutations, useFeuilleAppel, usePermutationProfMutations,
   useSeanceMutations,
@@ -279,33 +280,63 @@ export function ModaleAppel({
 }
 
 // ── Demande de permutation d'enseignants ─────────────────────────────────────
+/** Une séance telle qu'elle se lit dans l'échange : matière, enseignant, salle. */
+function Trio({ seance }: { seance: SeanceReelle }) {
+  return (
+    <span className="text-sm">
+      <span className="font-bold text-iss-dark">{seance.matiere_code}</span>
+      <span className="text-iss-gray"> · {seance.prof_nom || 'sans enseignant'}</span>
+      {seance.salle_nom && <span className="text-iss-gray"> · {seance.salle_nom}</span>}
+    </span>
+  );
+}
+
+/**
+ * Permutation d'enseignants — tout se décide ici.
+ *
+ * Le clic sur ⇄ ouvre directement cette fenêtre avec les échanges possibles :
+ * le serveur exige deux séances de la même classe et du même créneau, la liste
+ * des candidates est donc connue d'avance. Faire désigner la seconde dans la
+ * grille obligeait à un aller-retour pour une information que l'écran avait
+ * déjà.
+ *
+ * Le bouton dépend du rôle et non d'une case à cocher : la direction permute
+ * sur-le-champ, les autres déposent une demande qui suivra son circuit.
+ */
 export function ModalePermutation({
-  seance, candidates, onFerme, onFait,
+  depart, candidats, onFerme, onFait,
 }: {
-  seance: SeanceReelle; candidates: SeanceReelle[];
+  depart: SeanceReelle; candidats: SeanceReelle[];
   onFerme: () => void; onFait: (m: string) => void;
 }) {
-  const { create } = usePermutationProfMutations();
-  const [cible, setCible]     = useState<number | null>(candidates[0]?.id ?? null);
-  const [nbSemaines, setNbSemaines] = useState('1');
-  const [motif, setMotif]     = useState('');
-  const [directe, setDirecte] = useState(false);
-  const [erreur, setErreur]   = useState<string | null>(null);
+  const { create, permuterMaintenant } = usePermutationProfMutations();
+  // Une seule possibilité — deux TP dédoublés, le cas courant — ne mérite pas
+  // qu'on fasse choisir : elle est retenue d'emblée.
+  const [cible, setCible]   = useState<SeanceReelle | null>(
+    candidats.length === 1 ? candidats[0] : null);
+  // Même portée que le report d'une séance et que la duplication d'emploi du
+  // temps : cette semaine, ou un lot de N semaines à partir d'elle. Trois
+  // écrans, un seul vocabulaire.
+  const [enLot, setEnLot]         = useState(false);
+  const [nbSemaines, setNbSemaines] = useState('4');
+  const [motif, setMotif]         = useState('');
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const tranche  = peutDeciderEdt();
+  const mutation = tranche ? permuterMaintenant : create;
 
   const enregistrer = () => {
-    if (!cible) { setErreur('Choisissez la séance à permuter.'); return; }
+    if (!cible) { setErreur('Choisissez la séance à échanger.'); return; }
     setErreur(null);
-    create.mutate(
+    mutation.mutate(
+      { seance_a: depart.id, seance_b: cible.id,
+        nb_semaines: enLot ? Number(nbSemaines) || 1 : 1, motif,
+        ...(tranche ? {} : { action_directe: false }) },
       {
-        seance_a: seance.id, seance_b: cible,
-        nb_semaines: Number(nbSemaines) || 1,
-        motif, action_directe: directe,
-      },
-      {
-        onSuccess: () => onFait(directe
-          ? 'Permutation validée — à appliquer depuis l\'écran Permutations'
-          : 'Demande de permutation enregistrée'),
-        onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+        onSuccess: (r: { seances_impactees?: number }) => onFait(tranche
+          ? `Permutation appliquée — ${r?.seances_impactees ?? 0} séance(s) touchée(s)`
+          : 'Demande de permutation envoyée'),
+        onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },
     );
   };
@@ -318,7 +349,8 @@ export function ModalePermutation({
           <div>
             <h3 className="text-sm font-bold text-iss-dark">Permuter les enseignants</h3>
             <p className="text-xs text-iss-gray">
-              Le créneau est conservé : ce sont l&apos;enseignant, la salle et la matière qui s&apos;échangent.
+              Les créneaux ne bougent pas : ce sont l&apos;enseignant, la salle et la
+              matière qui s&apos;échangent.
             </p>
           </div>
           <button onClick={onFerme} className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
@@ -326,74 +358,125 @@ export function ModalePermutation({
           </button>
         </div>
 
+        {/* La séance de départ, rappelée : on a cliqué une case, il faut
+            pouvoir vérifier laquelle sans refermer la fenêtre. */}
         <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 mb-3">
-          <p className="text-xs font-semibold text-iss-gray uppercase tracking-wide mb-1">Séance de départ</p>
-          <p className="text-sm font-bold text-iss-dark">
-            {seance.matiere_code} · {seance.prof_nom || 'sans enseignant'} · {seance.salle_nom || 'sans salle'}
+          <p className="text-xs font-semibold text-iss-gray uppercase tracking-wide mb-1">
+            Séance de départ
           </p>
-          <p className="text-xs text-iss-gray">
-            {seance.jour_libelle} {seance.creneau_libelle} — semaine {seance.semaine_numero}
+          <Trio seance={depart} />
+          <p className="text-xs text-iss-gray mt-0.5">
+            {depart.jour_libelle} {depart.creneau_libelle}
+            {depart.sous_groupe_libelle && ` · ${depart.sous_groupe_libelle}`}
           </p>
         </div>
 
-        {candidates.length === 0 ? (
+        {candidats.length === 0 ? (
           <p className="text-sm text-amber-700 mb-3">
-            Aucune autre séance sur ce créneau dans la classe. La permutation exige deux séances
-            du même créneau — typiquement deux TP dédoublés.
+            Aucune autre séance sur {depart.creneau_libelle} dans cette classe.
+            La permutation exige deux séances du même créneau — typiquement deux
+            TP dédoublés, ou deux cours placés au même horaire des jours
+            différents.
           </p>
         ) : (
-          <div className="space-y-3">
+        <div className="space-y-3">
+          {/* Plusieurs possibilités : on les montre entières plutôt qu'en
+              libellés dans un menu — c'est l'enseignant et le jour qui font
+              choisir, pas le code de la matière. */}
+          {candidats.length > 1 && (
             <div>
-              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Séance à échanger</label>
-              <select value={cible ?? ''} className={SELECT}
-                      onChange={e => setCible(e.target.value ? Number(e.target.value) : null)}>
-                {candidates.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.matiere_code} · {s.prof_nom || 'sans enseignant'}
-                    {s.sous_groupe_libelle && ` · ${s.sous_groupe_libelle}`}
-                  </option>
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+                Échanger avec
+              </label>
+              <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                {candidats.map(c => (
+                  <button key={c.id} onClick={() => setCible(c)}
+                          className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
+                            cible?.id === c.id
+                              ? 'border-[#7c3aed] bg-[#7c3aed]/6'
+                              : 'border-gray-200 hover:border-[#7c3aed]/40'}`}>
+                    <Trio seance={c} />
+                    <p className="text-xs text-iss-gray mt-0.5">
+                      {c.jour_libelle} {c.creneau_libelle}
+                      {c.sous_groupe_libelle && ` · ${c.sous_groupe_libelle}`}
+                    </p>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Portée (semaines)</label>
-              <input type="number" min={1} max={40} value={nbSemaines} className={INPUT} style={{ width: 110 }}
-                     onChange={e => setNbSemaines(e.target.value)} />
-              <p className="text-xs text-iss-gray mt-1">
-                1 = cette semaine seulement. Au-delà, l&apos;échange se répète sur les semaines suivantes.
-              </p>
+          {/* L'échange tel qu'il sera, ligne à ligne : on confirmait sans voir
+              le résultat. */}
+          {cible && (
+            <div className="rounded-xl border border-gray-200 divide-y divide-gray-100">
+              {[[depart, cible], [cible, depart]].map(([avant, apres]) => (
+                <div key={avant.id} className="px-4 py-3">
+                  <p className="text-xs text-iss-gray mb-1">
+                    {avant.jour_libelle} {avant.creneau_libelle}
+                    {avant.sous_groupe_libelle && ` · ${avant.sous_groupe_libelle}`}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Trio seance={avant} />
+                    <ArrowRight size={13} className="text-[#7c3aed] flex-shrink-0" />
+                    <Trio seance={apres} />
+                  </div>
+                </div>
+              ))}
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Motif</label>
-              <input value={motif} className={INPUT} placeholder="Mission, indisponibilité…"
-                     onChange={e => setMotif(e.target.value)} />
-            </div>
-
+          <div className="pt-1 border-t border-gray-100">
             <label className="flex items-start gap-2 text-sm text-iss-dark cursor-pointer">
-              <input type="checkbox" checked={directe} onChange={e => setDirecte(e.target.checked)}
-                     className="w-4 h-4 mt-0.5 accent-[#006633]" />
+              <input type="checkbox" checked={enLot} onChange={e => setEnLot(e.target.checked)}
+                     className="w-4 h-4 mt-0.5 accent-[#7c3aed]" />
               <span>
-                Action directe du directeur
+                <Layers size={12} className="inline mr-1 text-iss-gray" />
+                Appliquer à plusieurs semaines
                 <span className="block text-xs text-iss-gray">
-                  Sans cette option, la demande suit le circuit : accord de la contrepartie,
-                  puis validation du directeur.
+                  Sans cette option, l&apos;échange ne vaut que pour la semaine affichée.
                 </span>
               </span>
             </label>
+            {enLot && (
+              <div className="mt-2 flex items-center gap-2">
+                <input type="number" min={1} max={40} value={nbSemaines} className={INPUT}
+                       style={{ width: 90 }} onChange={e => setNbSemaines(e.target.value)} />
+                <span className="text-xs text-iss-gray">
+                  semaines de cours, à partir de celle-ci
+                </span>
+              </div>
+            )}
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Motif <span className="font-normal text-iss-gray">(facultatif)</span>
+            </label>
+            <input value={motif} className={INPUT} placeholder="Mission, indisponibilité…"
+                   onChange={e => setMotif(e.target.value)} />
+          </div>
+        </div>
         )}
 
         {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
 
         <div className="flex gap-2 mt-5">
-          <button onClick={enregistrer} disabled={create.isPending || candidates.length === 0}
+          <button onClick={enregistrer}
+                  disabled={mutation.isPending || !cible}
                   className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            <Repeat size={14} /> {directe ? 'Permuter' : 'Demander la permutation'}
+            <Repeat size={14} />
+            {mutation.isPending ? 'En cours…' : tranche ? 'Permuter' : 'Demander la permutation'}
           </button>
           <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
         </div>
+
+        {!tranche && candidats.length > 0 && (
+          <p className="text-xs text-iss-gray mt-3">
+            La demande suit son circuit : accord de la contrepartie, puis validation
+            de la direction.
+          </p>
+        )}
       </div>
     </div>
   );

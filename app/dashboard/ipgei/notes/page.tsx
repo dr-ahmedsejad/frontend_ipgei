@@ -71,7 +71,7 @@ export default function SaisieNotesPage() {
   // choix qui ne mène qu'à un message d'erreur n'en est pas un.
   const semestresDuNiveau = useMemo(
     () => semestres.filter(s => (anneeOuverte ? !s.est_cloture : true)
-                             && (!classe || s.niveau === classe.niveau)),
+                             && (!classe || s.niveaux.includes(classe.niveau))),
     [classe, semestres, anneeOuverte],
   );
 

@@ -69,7 +69,7 @@ export default function AnonymatPage() {
               <option value="">Semestre…</option>
               {semestres.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.code} — {s.niveau}{s.est_cloture ? ' (clôturé)' : ''}
+                  {s.code} — {s.libelle_annee}{s.est_cloture ? ' (clôturé)' : ''}
                 </option>
               ))}
             </select>

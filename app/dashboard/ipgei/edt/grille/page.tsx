@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Ban, CalendarRange, CheckCircle, ChevronLeft, ChevronRight, CopyPlus,
-  Loader2, Lock, Repeat, Save, Trash2, UserX, X,
+  Loader2, Lock, Repeat, Save, Trash2, X,
 } from 'lucide-react';
 
 import {
@@ -27,7 +27,7 @@ import {
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
 import { type NiveauIPGEI, type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
 import {
-  ModaleAppel, ModaleEditionSeance, ModalePermutation,
+  ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
 import { BandeauCoherence } from '../_consultation';
 
@@ -90,7 +90,7 @@ export default function GrilleTypePage() {
   // Semaines de la période : c'est ce qui peuple le sélecteur.
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveau === classe.niveau
+    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
                               && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );
@@ -143,9 +143,21 @@ export default function GrilleTypePage() {
    */
   const [vue, setVue] = useState<string>('');
   const [seanceEditee, setSeanceEditee]   = useState<SeanceReelle | null>(null);
-  const [seanceAppel, setSeanceAppel]     = useState<SeanceReelle | null>(null);
-  const [permutation, setPermutation]     = useState<SeanceReelle | null>(null);
+  // Séance dont on veut permuter l'enseignant. Les échanges possibles se
+  // choisissent dans la fenêtre : le serveur n'accepte que deux séances de la
+  // même classe et du même créneau, la liste est donc connue d'avance et rien
+  // ne justifie un aller-retour dans la grille.
+  const [permutation, setPermutation] = useState<SeanceReelle | null>(null);
   const [duplicationOuverte, setDuplicationOuverte] = useState(false);
+
+  // Le serveur exige deux séances de la même classe ET du même créneau.
+  const candidats = useMemo(
+    () => (permutation
+      ? seancesSemaine.filter(s => s.creneau === permutation.creneau
+                                && s.id !== permutation.id)
+      : []),
+    [permutation, seancesSemaine],
+  );
   const [toast, setToast]   = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -799,11 +811,6 @@ export default function GrilleTypePage() {
                                                 className="text-iss-gray hover:text-[#7c3aed] transition-colors">
                                           <Repeat size={11} />
                                         </button>
-                                        <button onClick={() => setSeanceAppel(reelle)}
-                                                title="Feuille d'appel"
-                                                className="text-iss-gray hover:text-[#006633] transition-colors">
-                                          <UserX size={11} />
-                                        </button>
                                         {cellule.annulee && (
                                           <span style={{ fontSize: 9, fontWeight: 700, color: '#b91c1c' }}>
                                             ANNULÉE
@@ -864,18 +871,9 @@ export default function GrilleTypePage() {
           onFait={(m) => { setSeanceEditee(null); notifier(m); }}
         />
       )}
-      {seanceAppel && (
-        <ModaleAppel
-          seance={seanceAppel}
-          onFerme={() => setSeanceAppel(null)}
-          onFait={(m) => { setSeanceAppel(null); notifier(m); }}
-        />
-      )}
       {permutation && (
         <ModalePermutation
-          seance={permutation}
-          candidates={seancesSemaine.filter(
-            s => s.creneau === permutation.creneau && s.id !== permutation.id)}
+          depart={permutation} candidats={candidats}
           onFerme={() => setPermutation(null)}
           onFait={(m) => { setPermutation(null); notifier(m); }}
         />
@@ -901,7 +899,8 @@ function ModaleDuplication({
   onFerme: () => void; onFait: (message: string) => void; mutations: Mutations;
 }) {
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-  const candidats = semestres.filter(s => s.niveau === niveau && s.type_semestre === typeSemestre);
+  const candidats = semestres.filter(
+    s => s.niveaux.includes(niveau) && s.type_semestre === typeSemestre);
 
   const [semestre, setSemestre] = useState<number | null>(candidats[0]?.id ?? null);
   const [portee, setPortee]     = useState<'tout' | 'lot'>('tout');

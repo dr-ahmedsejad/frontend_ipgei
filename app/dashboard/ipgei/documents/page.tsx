@@ -164,7 +164,7 @@ function EmissionReleve({
   const inscriptions = inscriptionsPage?.results ?? [];
   const inscription  = inscriptions.find(i => i.id === inscriptionId);
   const semestresDuNiveau = inscription
-    ? semestres.filter(s => s.niveau === inscription.niveau)
+    ? semestres.filter(s => s.niveaux.includes(inscription.niveau))
     : semestres;
 
   const mutations = useDocumentMutations();

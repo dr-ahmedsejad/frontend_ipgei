@@ -891,6 +891,9 @@ export function usePermutationProfMutations() {
 
   return {
     create:    useMutation({ mutationFn: permutationsProfApi.create,    onSuccess: invalider }),
+    permuterMaintenant: useMutation({
+      mutationFn: permutationsProfApi.permuterMaintenant, onSuccess: invalider,
+    }),
     accorder:  useMutation({ mutationFn: permutationsProfApi.accorder,  onSuccess: invalider }),
     valider:   useMutation({ mutationFn: permutationsProfApi.valider,   onSuccess: invalider }),
     appliquer: useMutation({ mutationFn: permutationsProfApi.appliquer, onSuccess: invalider }),

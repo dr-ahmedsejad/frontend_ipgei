@@ -44,7 +44,7 @@ export default function HistoriqueEdtPage() {
 
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveau === classe.niveau
+    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
                               && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );

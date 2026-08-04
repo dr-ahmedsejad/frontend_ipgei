@@ -46,7 +46,12 @@ export default function EdtParClassePage() {
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   // Le semestre découle du niveau de la classe et de la période de session.
   const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveau === classe.niveau && s.type_semestre === typeSemestre),
+    // `niveaux` et non `niveau` : un semestre relève d'une année d'étude, que
+    // MPSI et MPI partagent. La propriété au singulier ne rend que le premier
+    // niveau du rang — la classe MPSI ne trouvait plus son semestre, donc plus
+    // aucune semaine.
+    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
+                              && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );
   const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);

@@ -39,7 +39,9 @@ export default function EdtSemainePage() {
   // Le semestre est entièrement déterminé par le niveau de la classe et la
   // période de session : un seul candidat, donc aucun choix à faire.
   const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveau === classe.niveau && s.type_semestre === typeSemestre),
+    // Le semestre se rattache à une année d'étude, pas à un niveau.
+    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
+                              && s.type_semestre === typeSemestre),
     [classe, semestres, typeSemestre],
   );
   const semestreId = semestre?.id ?? null;
@@ -64,7 +66,16 @@ export default function EdtSemainePage() {
 
   const [seanceEditee, setSeanceEditee] = useState<SeanceReelle | null>(null);
   const [seanceAppel, setSeanceAppel]   = useState<SeanceReelle | null>(null);
-  const [permutation, setPermutation]   = useState<SeanceReelle | null>(null);
+  // Les échanges possibles se choisissent dans la fenêtre : le serveur
+  // n'accepte que deux séances de la même classe et du même créneau.
+  const [permutation, setPermutation] = useState<SeanceReelle | null>(null);
+  const candidats = useMemo(
+    () => (permutation
+      ? seances.filter(s => s.creneau === permutation.creneau
+                         && s.id !== permutation.id)
+      : []),
+    [permutation, seances],
+  );
   const [toast, setToast] = useState<string | null>(null);
 
   const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
@@ -205,7 +216,8 @@ export default function EdtSemainePage() {
                                                   className="p-0.5 rounded bg-white/90 text-iss-gray hover:text-[#006633]">
                                             <UserX size={11} />
                                           </button>
-                                          <button onClick={() => setPermutation(s)} title="Permuter les enseignants"
+                                          <button onClick={() => setPermutation(s)}
+                                                  title="Permuter les enseignants"
                                                   className="p-0.5 rounded bg-white/90 text-iss-gray hover:text-violet-700">
                                             <Repeat size={11} />
                                           </button>
@@ -267,8 +279,7 @@ export default function EdtSemainePage() {
 
       {permutation && (
         <ModalePermutation
-          seance={permutation}
-          candidates={seances.filter(s => s.creneau === permutation.creneau && s.id !== permutation.id)}
+          depart={permutation} candidats={candidats}
           onFerme={() => setPermutation(null)}
           onFait={(m) => { setPermutation(null); notifier(m); }}
         />

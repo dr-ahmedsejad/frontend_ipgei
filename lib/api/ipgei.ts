@@ -404,6 +404,15 @@ export const permutationsProfApi = {
     motif?: string; action_directe?: boolean;
   }) => apiFetch<PermutationProf>(`${BASE}/permutations-prof/`, { method: 'POST', body: input }),
   remove: (id: number) => apiFetch<void>(`${BASE}/permutations-prof/${id}/`, { method: 'DELETE' }),
+  /**
+   * Demande, valide et applique en un seul appel — réservé côté serveur à qui
+   * pouvait déjà trancher seul. Évite les trois appels et le détour par
+   * l'écran des permutations pour un geste fait depuis la grille.
+   */
+  permuterMaintenant: (input: {
+    seance_a: number; seance_b: number; nb_semaines: number; motif?: string;
+  }) => apiFetch<PermutationProf & { seances_impactees: number }>(
+    `${BASE}/permutations-prof/permuter-maintenant/`, { method: 'POST', body: input }),
   ...workflow<PermutationProf>('permutations-prof'),
 };
 
