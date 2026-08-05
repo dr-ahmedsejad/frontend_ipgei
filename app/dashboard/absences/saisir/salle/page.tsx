@@ -129,6 +129,20 @@ export default function SalleSaisirPage() {
     return unique;
   }, [seancesQuery.data, selDepId, jourFilter]);
 
+  // Jours qui portent une séance pour ce groupe et cette semaine. Le filtre
+  // par défaut est le jour COURANT : s'il n'y a cours ni ce jour-là ni dans
+  // cette semaine, l'écran répondait « aucune séance » sans dire où en
+  // trouver, et l'on pouvait parcourir les six jours pour rien.
+  const joursAvecSeances = useMemo<Set<string>>(() => {
+    if (!seancesQuery.data || !selDepId) return new Set();
+    const all = Array.isArray(seancesQuery.data) ? seancesQuery.data : seancesQuery.data.results;
+    return new Set(
+      all.filter(s => s.prof_nom && s.type_seance_label && s.departement === Number(selDepId))
+         .map(s => s.jour_label)
+         .filter((j): j is string => !!j),
+    );
+  }, [seancesQuery.data, selDepId]);
+
   const peutAfficher = semaine && selDepId;
 
   return (
@@ -192,15 +206,26 @@ export default function SalleSaisirPage() {
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Jour</label>
             <div className="flex gap-1 flex-wrap">
-              {JOURS.map(j => (
+              {JOURS.map(j => {
+                const porte = joursAvecSeances.has(j);
+                return (
                 <button key={j} onClick={() => setJourFilter(j)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    jourFilter === j ? 'text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  title={porte ? undefined : 'Aucune séance ce jour pour ce groupe'}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                    inline-flex items-center gap-1.5 ${
+                    jourFilter === j ? 'text-white'
+                      : porte ? 'border border-gray-200 text-gray-700 hover:bg-gray-50'
+                              : 'border border-gray-100 text-gray-300'
                   }`}
                   style={jourFilter === j ? { background: '#C82020' } : {}}>
+                  {porte && (
+                    <span className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: jourFilter === j ? '#fff' : '#C82020' }} />
+                  )}
                   {j}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -230,8 +255,30 @@ export default function SalleSaisirPage() {
           ) : seances.length === 0 ? (
             <div className="bg-white rounded-2xl p-10 text-center shadow-sm border border-gray-100">
               <Clock size={32} className="mx-auto mb-3 text-gray-200" />
-              <p className="text-sm font-semibold text-gray-600">Aucune séance ce jour</p>
-              <p className="text-xs text-gray-400 mt-1">Essayez un autre jour ou une autre semaine.</p>
+              <p className="text-sm font-semibold text-gray-600">
+                Aucune séance le {jourFilter.toLowerCase()}
+              </p>
+              {joursAvecSeances.size > 0 ? (
+                <>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Ce groupe a cours en semaine {semaine} le :
+                  </p>
+                  <div className="flex gap-1.5 justify-center flex-wrap mt-2">
+                    {JOURS.filter(j => joursAvecSeances.has(j)).map(j => (
+                      <button key={j} onClick={() => setJourFilter(j)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200
+                                   text-gray-700 hover:bg-gray-50 transition-colors">
+                        {j}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">
+                  Aucune séance pour ce groupe en semaine {semaine}. Le suivi de la
+                  semaine a-t-il été généré depuis l&apos;emploi du temps ?
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

@@ -9,21 +9,17 @@
  * une séance datée : on ne permute pas un patron, on ne fait pas l'appel sur
  * une case de modèle.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowRight, Ban, Layers, Repeat, X } from 'lucide-react';
 
 import {
-  BTN_PRIMAIRE, BTN_SECONDAIRE, CARTE, Chargement, DEGRADE, INPUT,
-  SELECT, Vide,
+  BTN_PRIMAIRE, BTN_SECONDAIRE, CARTE, DEGRADE, INPUT, SELECT,
 } from '../_ui';
 import { peutDeciderEdt } from '@/lib/auth';
 import {
-  useAbsenceMutations, useFeuilleAppel, usePermutationProfMutations,
-  useSeanceMutations,
+  usePermutationProfMutations, useSeanceMutations,
 } from '@/lib/api/ipgei-hooks';
-import {
-  STATUTS_ABSENCE, type SeanceReelle, type StatutAbsence,
-} from '@/types/ipgei';
+import type { SeanceReelle } from '@/types/ipgei';
 
 export function ModaleEditionSeance({
   seance, profs, salles, onFerme, onFait,
@@ -156,123 +152,6 @@ export function ModaleEditionSeance({
             Enregistrer
           </button>
           <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Feuille d'appel « par exception » ────────────────────────────────────────
-export function ModaleAppel({
-  seance, onFerme, onFait,
-}: { seance: SeanceReelle; onFerme: () => void; onFait: (m: string) => void }) {
-  const { data, isLoading } = useFeuilleAppel(seance.id);
-  const { saisir } = useAbsenceMutations();
-  const [saisies, setSaisies] = useState<Record<number, StatutAbsence | null>>({});
-  const [initialise, setInitialise] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
-
-  // On part de ce qui est déjà enregistré : tout le monde présent sauf les
-  // lignes existantes.
-  useEffect(() => {
-    if (!data || initialise) return;
-    const depart: Record<number, StatutAbsence | null> = {};
-    for (const a of data.absents) depart[a.inscription] = a.statut;
-    setSaisies(depart);
-    setInitialise(true);
-  }, [data, initialise]);
-
-  const basculer = (inscription: number, statut: StatutAbsence) =>
-    setSaisies(s => ({ ...s, [inscription]: s[inscription] === statut ? null : statut }));
-
-  const enregistrer = () => {
-    setErreur(null);
-    const absents = Object.entries(saisies)
-      .filter(([, statut]) => statut !== null)
-      .map(([inscription, statut]) => ({
-        inscription: Number(inscription), statut: statut as StatutAbsence,
-      }));
-    saisir.mutate({ seance: seance.id, absents }, {
-      onSuccess: (r) => onFait(
-        absents.length === 0
-          ? 'Classe au complet enregistrée'
-          : `${r.enregistrees} absence(s) enregistrée(s)`,
-      ),
-      onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
-    });
-  };
-
-  const nbAbsents = Object.values(saisies).filter(Boolean).length;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-         onClick={onFerme} role="presentation">
-      <div className={`${CARTE} w-full max-w-xl p-6 max-h-[85vh] flex flex-col`}
-           onClick={e => e.stopPropagation()} role="presentation">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <h3 className="text-sm font-bold text-iss-dark">Feuille d&apos;appel</h3>
-            <p className="text-xs text-iss-gray">
-              {seance.matiere_code} · {seance.jour_libelle} {seance.creneau_libelle}
-              {seance.sous_groupe_libelle && ` · sous-groupe ${seance.sous_groupe_libelle}`}
-            </p>
-          </div>
-          <button onClick={onFerme} className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
-            <X size={14} />
-          </button>
-        </div>
-
-        <p className="text-xs text-iss-gray mb-3 pb-3 border-b border-gray-100">
-          Tout le monde est présent par défaut. Ne marquez que les exceptions —
-          décocher une ligne remet l&apos;étudiant présent.
-        </p>
-
-        <div className="flex-1 overflow-y-auto -mx-1 px-1">
-          {isLoading ? <Chargement /> : (data?.classe ?? []).length === 0 ? (
-            <Vide texte="Aucun étudiant concerné par cette séance." />
-          ) : (
-            <div className="space-y-1">
-              {(data?.classe ?? []).map(i => {
-                const statut = saisies[i.id] ?? null;
-                return (
-                  <div key={i.id}
-                       className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${
-                         statut ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100'
-                       }`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-iss-dark truncate">{i.etudiant_nom}</div>
-                      <div className="text-xs text-iss-gray">{i.etudiant_matricule}</div>
-                    </div>
-                    <div className="flex gap-1">
-                      {STATUTS_ABSENCE.map(s => (
-                        <button key={s.value} onClick={() => basculer(i.id, s.value)}
-                                className={`px-2 py-1 rounded-md border text-xs font-semibold transition-all ${
-                                  statut === s.value
-                                    ? 'bg-amber-500 text-white border-amber-500'
-                                    : 'bg-white text-iss-gray border-gray-200 hover:border-amber-400'
-                                }`}>
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
-
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
-          <button onClick={enregistrer} disabled={saisir.isPending}
-                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            Enregistrer l&apos;appel
-          </button>
-          <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
-          <span className="ml-auto text-xs text-iss-gray">
-            {nbAbsents === 0 ? 'Classe au complet' : `${nbAbsents} exception(s)`}
-          </span>
         </div>
       </div>
     </div>

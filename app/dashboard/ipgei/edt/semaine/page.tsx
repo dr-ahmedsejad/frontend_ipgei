@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CalendarDays, ChevronLeft, ChevronRight, Repeat, UserX,
+  CalendarDays, ChevronLeft, ChevronRight, Repeat,
 } from 'lucide-react';
 
 import {
@@ -16,7 +16,7 @@ import {
 } from '@/lib/api/ipgei-hooks';
 import { TYPES_SEANCE, type SeanceReelle } from '@/types/ipgei';
 import {
-  ModaleAppel, ModaleEditionSeance, ModalePermutation,
+  ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
 import {
   CarteSeance, CaseVide, STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU,
@@ -64,7 +64,6 @@ export default function EdtSemainePage() {
   const { data: seances = [], isLoading, error } = useEdtSemaine(classeId, semaineId);
 
   const [seanceEditee, setSeanceEditee] = useState<SeanceReelle | null>(null);
-  const [seanceAppel, setSeanceAppel]   = useState<SeanceReelle | null>(null);
   // Les échanges possibles se choisissent dans la fenêtre : le serveur
   // n'accepte que deux séances de la même classe et du même créneau.
   const [permutation, setPermutation] = useState<SeanceReelle | null>(null);
@@ -214,12 +213,6 @@ export default function EdtSemainePage() {
                                           {/* Icônes nues de 11 px collées l'une
                                               à l'autre : on visait le dessin,
                                               pas une cible. */}
-                                          <button onClick={() => setSeanceAppel(s)} title="Feuille d'appel"
-                                                  className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200
-                                                             text-iss-gray hover:bg-[#006633] hover:text-white
-                                                             hover:border-[#006633] transition-colors">
-                                            <UserX size={13} />
-                                          </button>
                                           <button onClick={() => setPermutation(s)}
                                                   title="Permuter les enseignants"
                                                   className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200
@@ -277,11 +270,6 @@ export default function EdtSemainePage() {
         />
       )}
 
-      {seanceAppel && (
-        <ModaleAppel seance={seanceAppel}
-                     onFerme={() => setSeanceAppel(null)}
-                     onFait={(m) => { setSeanceAppel(null); notifier(m); }} />
-      )}
 
       {permutation && (
         <ModalePermutation
