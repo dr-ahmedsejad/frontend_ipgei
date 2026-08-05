@@ -5,8 +5,8 @@ import { use, useState } from 'react';
 import type { TriDetailNotes } from '@/lib/api/ipgei';
 import Link from 'next/link';
 import {
-  ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText, Lock,
-  ListChecks, Scale, Table2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText,
+  ListChecks, Loader2, Lock, Scale, Table2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -25,6 +25,23 @@ import {
   DECISIONS_PAR_NIVEAU, type LigneDeliberation,
   type RoleJuryIPGEI,
 } from '@/types/ipgei';
+
+/**
+ * Icône d'un bouton : le sablier remplace le pictogramme pendant l'action.
+ *
+ * Éditer un PV ou émettre trente décisions prend plusieurs secondes ; sans
+ * signe visible, l'agent reclique, et l'on produit deux fois le même document
+ * — chacun avec son propre numéro de série au registre.
+ */
+function IconeBouton({ enCours, Icone, taille = 14 }: {
+  enCours: boolean;
+  Icone:   React.ElementType;
+  taille?: number;
+}) {
+  return enCours
+    ? <Loader2 size={taille} className="animate-spin" />
+    : <Icone size={taille} />;
+}
 
 export default function JuryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -114,7 +131,8 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                       })}
                       disabled={calculer.isPending}
                       className={BTN_SECONDAIRE}>
-                <Calculator size={14} /> {calculer.isPending ? 'Calcul…' : 'Calculer'}
+                <IconeBouton enCours={calculer.isPending} Icone={Calculator} />
+                {calculer.isPending ? 'Calcul…' : 'Calculer'}
               </button>
             )}
             {!verrouillee && deliberation.statut === 'calculee' && (
@@ -130,14 +148,16 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                       onError: signaler,
                     })}
                     disabled={pvPdf.isPending} className={BTN_SECONDAIRE}>
-              <FileSignature size={14} /> {pvPdf.isPending ? 'Édition…' : 'PV (PDF)'}
+              <IconeBouton enCours={pvPdf.isPending} Icone={FileSignature} />
+              {pvPdf.isPending ? 'Édition…' : 'PV (PDF)'}
             </button>
             <button onClick={() => pvExcel.mutate(deliberationId, {
                       onSuccess: (b) => downloadBlob(b, `${nomPv}.xlsx`),
                       onError: signaler,
                     })}
                     disabled={pvExcel.isPending} className={BTN_SECONDAIRE}>
-              <Table2 size={14} /> {pvExcel.isPending ? 'Édition…' : 'PV (Excel)'}
+              <IconeBouton enCours={pvExcel.isPending} Icone={Table2} />
+              {pvExcel.isPending ? 'Édition…' : 'PV (Excel)'}
             </button>
             {/* Document de séance, complémentaire du PV : celui-ci donne une
                 ligne et une décision par élève, celui-là les notes qui la
@@ -163,7 +183,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                             onError: signaler,
                           })}
                         disabled={detailNotes.isPending} className={BTN_SECONDAIRE}>
-                  <ListChecks size={14} />
+                  <IconeBouton enCours={detailNotes.isPending} Icone={ListChecks} />
                   {detailNotes.isPending ? 'Édition…' : 'Détail des notes'}
                 </button>
               </div>
@@ -176,7 +196,9 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
             {verrouillee && (
               <button onClick={emettreDecisions} disabled={documents.decisionsClasse.isPending}
                       className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-                <FileText size={14} /> Émettre les décisions
+                <IconeBouton enCours={documents.decisionsClasse.isPending} Icone={FileText} />
+                {documents.decisionsClasse.isPending
+                  ? 'Émission…' : 'Émettre les décisions'}
               </button>
             )}
           </>
@@ -347,6 +369,9 @@ function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
 
   const [utilisateur, setUtilisateur] = useState('');
   const [role, setRole] = useState<RoleJuryIPGEI>('enseignant');
+  // Quel membre est en cours de retrait : la mutation est partagée par toutes
+  // les cartes, son `isPending` seul les ferait toutes tourner à la fois.
+  const [retraitEnCours, setRetraitEnCours] = useState<number | null>(null);
 
   const moi = getStoredUser();
   const maPlace = membres.find(m => m.utilisateur === moi?.id);
@@ -369,7 +394,8 @@ function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
                   })}
                   disabled={signer.isPending}
                   className={`${BTN_PRIMAIRE} ml-auto`} style={{ background: DEGRADE }}>
-            <FileSignature size={13} /> {signer.isPending ? 'Signature…' : 'Signer le PV'}
+            <IconeBouton enCours={signer.isPending} Icone={FileSignature} taille={13} />
+            {signer.isPending ? 'Signature…' : 'Signer le PV'}
           </button>
         )}
       </div>
@@ -395,13 +421,18 @@ function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
                 {/* Un signataire ne se retire pas : sa signature disparaîtrait
                     avec lui. Le bouton n'apparaît donc pas. */}
                 {!membre.a_signe && (
-                  <button onClick={() => retirer.mutate(membre.id, {
-                            onSuccess: () => onNotifier('Membre retiré du jury'),
-                            onError: onErreur,
-                          })}
+                  <button onClick={() => {
+                            setRetraitEnCours(membre.id);
+                            retirer.mutate(membre.id, {
+                              onSuccess: () => onNotifier('Membre retiré du jury'),
+                              onError:   onErreur,
+                              onSettled: () => setRetraitEnCours(null),
+                            });
+                          }}
+                          disabled={retirer.isPending}
                           title="Retirer du jury"
-                          className="p-1 rounded-md text-iss-gray hover:bg-red-50 hover:text-red-600 transition-colors">
-                    <X size={13} />
+                          className="p-1 rounded-md text-iss-gray hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50">
+                    <IconeBouton enCours={retraitEnCours === membre.id} Icone={X} taille={13} />
                   </button>
                 )}
               </div>
@@ -433,7 +464,8 @@ function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
                   );
                 }}
                 disabled={!utilisateur || ajouter.isPending} className={BTN_SECONDAIRE}>
-          <UserPlus size={13} /> Ajouter
+          <IconeBouton enCours={ajouter.isPending} Icone={UserPlus} taille={13} />
+          {ajouter.isPending ? 'Ajout…' : 'Ajouter'}
         </button>
       </div>
     </div>
@@ -454,6 +486,9 @@ function LigneJury({
   documents: MutationsDocuments;
 }) {
   const [motif, setMotif] = useState(ligne.motif_ajustement);
+  // Quel document cette ligne est en train d'éditer : la mutation est partagée
+  // par toute la table, son `isPending` seul ferait tourner les trente lignes.
+  const [edition, setEdition] = useState<'decision' | 'cnim' | null>(null);
   const moyenne = ligne.moyenne_generale != null ? Number(ligne.moyenne_generale) : null;
   const sousSeuil = moyenne != null && moyenne < seuil;
 
@@ -528,28 +563,38 @@ function LigneJury({
           <div className="flex items-center justify-end gap-1">
             <button
               title="Décision de délibération (PDF)"
-              onClick={() => documents.decision.mutate(
-                { deliberation: deliberationId, inscription: ligne.inscription },
-                {
-                  onSuccess: (b) => telecharger(b, `decision-${ligne.etudiant_matricule}.pdf`),
-                  onError:   onErreur,
-                },
-              )}
-              className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
-              <FileText size={13} />
+              disabled={!!edition}
+              onClick={() => {
+                setEdition('decision');
+                documents.decision.mutate(
+                  { deliberation: deliberationId, inscription: ligne.inscription },
+                  {
+                    onSuccess: (b) => telecharger(b, `decision-${ligne.etudiant_matricule}.pdf`),
+                    onError:   onErreur,
+                    onSettled: () => setEdition(null),
+                  },
+                );
+              }}
+              className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors disabled:opacity-50">
+              <IconeBouton enCours={edition === 'decision'} Icone={FileText} taille={13} />
             </button>
             {ligne.decision === 'autorise_cnim' && (
               <button
                 title="Attestation d'autorisation CNIM (PDF)"
-                onClick={() => documents.attestationCnim.mutate(
-                  { deliberation: deliberationId, inscription: ligne.inscription },
-                  {
-                    onSuccess: (b) => telecharger(b, `cnim-${ligne.etudiant_matricule}.pdf`),
-                    onError:   onErreur,
-                  },
-                )}
-                className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors">
-                <FileBadge size={13} />
+                disabled={!!edition}
+                onClick={() => {
+                  setEdition('cnim');
+                  documents.attestationCnim.mutate(
+                    { deliberation: deliberationId, inscription: ligne.inscription },
+                    {
+                      onSuccess: (b) => telecharger(b, `cnim-${ligne.etudiant_matricule}.pdf`),
+                      onError:   onErreur,
+                      onSettled: () => setEdition(null),
+                    },
+                  );
+                }}
+                className="p-2 rounded-lg text-iss-gray hover:bg-gray-100 hover:text-[#006633] transition-colors disabled:opacity-50">
+                <IconeBouton enCours={edition === 'cnim'} Icone={FileBadge} taille={13} />
               </button>
             )}
           </div>
