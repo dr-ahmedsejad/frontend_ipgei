@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText, Lock,
-  Scale, Table2, Undo2, UserPlus, Users, X,
+  ListChecks, Scale, Table2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -51,7 +51,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
     annee_universitaire: deliberation?.annee_universitaire, actif: true,
   });
 
-  const { calculer, valider, devalider, ajusterLigne, pvPdf, pvExcel } =
+  const { calculer, valider, devalider, ajusterLigne, pvPdf, pvExcel, detailNotes } =
     useDeliberationMutations();
   const documents = useDocumentMutations();
 
@@ -136,6 +136,20 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                     disabled={pvExcel.isPending} className={BTN_SECONDAIRE}>
               <Table2 size={14} /> {pvExcel.isPending ? 'Édition…' : 'PV (Excel)'}
             </button>
+            {/* Document de séance, complémentaire du PV : celui-ci donne une
+                ligne et une décision par élève, celui-là les notes qui la
+                fondent. Réservé aux jurys de semestre — une délibération
+                annuelle porte deux maquettes, qu'on ne peut pas juxtaposer. */}
+            {deliberation.portee === 'semestre' && (
+              <button onClick={() => detailNotes.mutate(deliberationId, {
+                        onSuccess: (b) => downloadBlob(b, `detail-notes-${nomPv}.pdf`),
+                        onError: signaler,
+                      })}
+                      disabled={detailNotes.isPending} className={BTN_SECONDAIRE}>
+                <ListChecks size={14} />
+                {detailNotes.isPending ? 'Édition…' : 'Détail des notes'}
+              </button>
+            )}
             {verrouillee && estAdmin && (
               <button onClick={() => setADevalider(true)} className={BTN_SECONDAIRE}>
                 <Undo2 size={14} /> Dévalider

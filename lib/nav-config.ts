@@ -1,7 +1,7 @@
 import {
   BarChart2, Calendar, ClipboardList, TrendingUp, UserX,
   Banknote, Users, Building2, BookOpen, DoorOpen,
-  Landmark, UserCog, Unlock, CalendarDays, Layers, List,
+  Landmark, UserCog, Unlock, CalendarDays, Layers,
   CalendarRange, Clock, Presentation, Coins, Sun, Moon,
   ChevronRight, Bell, User, KeyRound, ChevronDown,
   GraduationCap, UserCheck, FileBadge, BellRing, Globe, Scale,
@@ -59,16 +59,27 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     ],
   },
   {
-    key: 'ipgei-structure', icon: Users, label: 'Classes & étudiants',
+    key: 'ipgei-structure', icon: Users, label: 'Classes',
     roles: ALL, module: 'ipgei_classes',
     items: [
-      { href: '/dashboard/ipgei/classes',      label: 'Classes & sous-groupes', module: 'ipgei_classes' },
-      { href: '/dashboard/ipgei/inscriptions/nouvelle', label: 'Nouvelle inscription', module: 'ipgei_inscriptions', action: 'modifier' },
-      { href: '/dashboard/ipgei/inscriptions/preinscriptions', label: 'Pré-inscriptions', module: 'ipgei_inscriptions' },
-      { href: '/dashboard/ipgei/inscriptions', label: 'Inscriptions admin.',   module: 'ipgei_inscriptions' },
-      { href: '/dashboard/ipgei/inscriptions/pedagogiques', label: 'Inscriptions pédag.', module: 'ipgei_inscriptions' },
-      { href: '/dashboard/ipgei/inscriptions/derogations', label: 'Dérogations',   module: 'ipgei_inscriptions' },
-      { href: '/dashboard/ipgei/inscriptions/frais', label: 'Grille tarifaire',  module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/classes', label: 'Classes & sous-groupes', module: 'ipgei_classes' },
+    ],
+  },
+  // Le parcours d'inscription tenait dans le groupe des classes : sept entrées
+  // dont six relevaient de l'inscription, et la classe — le seul objet
+  // réellement structurel — s'y perdait. Elles ont leur propre titre, dans
+  // l'ordre du parcours : le candidat se présente, on l'inscrit, on l'affecte à
+  // ses matières, on traite les cas particuliers, on facture.
+  {
+    key: 'ipgei-inscriptions', icon: UserCheck, label: 'Inscriptions',
+    roles: ALL, module: 'ipgei_inscriptions',
+    items: [
+      { href: '/dashboard/ipgei/inscriptions/preinscriptions', label: 'Pré-inscriptions',      module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/inscriptions/nouvelle',        label: 'Nouvelle inscription',  module: 'ipgei_inscriptions', action: 'modifier' },
+      { href: '/dashboard/ipgei/inscriptions',                 label: 'Inscriptions admin.',   module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/inscriptions/pedagogiques',    label: 'Inscriptions pédag.',   module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/inscriptions/derogations',     label: 'Dérogations',           module: 'ipgei_inscriptions' },
+      { href: '/dashboard/ipgei/inscriptions/frais',           label: 'Grille tarifaire',      module: 'ipgei_inscriptions' },
     ],
   },
   // Espace personnel de l'enseignant. Sans `module` : les enseignants n'ont pas
@@ -83,14 +94,27 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     ],
   },
   {
-    key: 'ipgei-academique', icon: BookOpen, label: 'Académique',
+    key: 'ipgei-academique', icon: BookOpen, label: 'Enseignements',
     roles: ALL, module: 'ipgei_matieres',
     items: [
-      { href: '/dashboard/ipgei/matieres',      label: 'Matières & pondération', module: 'ipgei_matieres' },
-      { href: '/dashboard/ipgei/notes',         label: 'Saisie des notes',       module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',    module: 'ipgei_notes' },
-      { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies',   module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/deliberations', label: 'Délibérations',          module: 'ipgei_deliberation' },
+      { href: '/dashboard/ipgei/matieres', label: 'Matières & pondération', module: 'ipgei_matieres' },
+    ],
+  },
+  // Tout ce qui touche aux notes, de la saisie au jury, sous un seul titre.
+  //
+  // Le groupe ne porte PAS de `module` : il l'empruntait à `ipgei_matieres`, si
+  // bien qu'un président de jury — qui a `ipgei_deliberation` mais ni les
+  // matières ni les notes — ne voyait aucune entrée, pas même la sienne. Sans
+  // module de groupe, chaque entrée est filtrée par le sien, et le groupe
+  // disparaît de lui-même quand il ne reste rien à montrer.
+  {
+    key: 'ipgei-evaluations', icon: ClipboardCheck, label: 'Évaluations',
+    roles: ALL,
+    items: [
+      { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
+      { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
     ],
   },
   {
@@ -114,7 +138,18 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/ipgei/absences',     label: 'Absences',     module: 'ipgei_absences' },
       { href: '/dashboard/ipgei/permutations', label: 'Permutations', module: 'ipgei_permutations' },
-      { href: '/dashboard/ipgei/documents',    label: 'Documents officiels', module: 'ipgei_documents' },
+    ],
+  },
+  // Les pièces officielles ont leur titre : elles ne relèvent pas de la vie
+  // scolaire, et l'émission se distingue désormais de la consultation.
+  {
+    key: 'ipgei-documents', icon: FileBadge, label: 'Documents officiels',
+    roles: ALL, module: 'ipgei_documents',
+    items: [
+      { href: '/dashboard/ipgei/documents/generer', label: 'Générer un document',
+        module: 'ipgei_documents', action: 'modifier' },
+      { href: '/dashboard/ipgei/documents',         label: 'Registre des documents',
+        module: 'ipgei_documents' },
     ],
   },
   {

@@ -13,7 +13,7 @@ import {
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
 import {
-  useClasseMutations, useClasses, useMatieresSelect, useSousGroupeMutations, useOptionsNiveaux,
+  useClasseMutations, useClasses, useSousGroupeMutations, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { type Classe, type NiveauIPGEI, type SousGroupeTP } from '@/types/ipgei';
 
@@ -257,11 +257,8 @@ function LigneClasse({
 }
 
 function SousGroupes({ classe, onNotifier }: { classe: Classe; onNotifier: (m: string) => void }) {
-  const { create, update, remove } = useSousGroupeMutations(classe.id);
-  // Seules les matières du niveau de la classe peuvent recevoir des TP dédoublés.
-  const semestres = classe.niveau === 'MPSI' ? ['S1', 'S2'] : ['S3', 'S4'];
-  const { data: matieres = [] } = useMatieresSelect({ has_tp: true, actif: true });
-  const matieresTP = matieres.filter(m => semestres.includes(m.code_semestre));
+  const { create, remove } = useSousGroupeMutations(classe.id);
+  const [aSupprimer, setASupprimer] = useState<SousGroupeTP | null>(null);
 
   const [libelle, setLibelle] = useState('');
   const [erreur, setErreur]   = useState<string | null>(null);
@@ -276,14 +273,6 @@ function SousGroupes({ classe, onNotifier }: { classe: Classe; onNotifier: (m: s
         onError:   (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },
     );
-  };
-
-  const basculerMatiere = (sg: SousGroupeTP, matiereId: number) => {
-    const actuelles = sg.matieres ?? [];
-    const suivantes = actuelles.includes(matiereId)
-      ? actuelles.filter(id => id !== matiereId)
-      : [...actuelles, matiereId];
-    update.mutate({ id: sg.id, input: { matieres: suivantes } });
   };
 
   return (
@@ -304,36 +293,14 @@ function SousGroupes({ classe, onNotifier }: { classe: Classe; onNotifier: (m: s
         <div className="space-y-2 mb-3">
           {classe.sous_groupes.map(sg => (
             <div key={sg.id} className="bg-white rounded-xl border border-gray-100 p-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-iss-dark">{sg.libelle}</span>
                 <Badge ton="neutre">{sg.effectif} étudiant{sg.effectif !== 1 ? 's' : ''}</Badge>
-                <button onClick={() => remove.mutate(sg.id, { onSuccess: () => onNotifier('Sous-groupe supprimé') })}
+                <button onClick={() => setASupprimer(sg)} title="Supprimer le sous-groupe"
                         className="ml-auto p-1.5 rounded-lg text-iss-gray hover:bg-red-50 hover:text-red-600 transition-colors">
                   <Trash2 size={13} />
                 </button>
               </div>
-              {matieresTP.length === 0 ? (
-                <p className="text-xs text-iss-gray">
-                  Aucune matière avec TP sur {semestres.join(' / ')} — cochez « comporte des TP »
-                  sur la matière concernée pour l&apos;affecter ici.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {matieresTP.map(m => {
-                    const active = (sg.matieres ?? []).includes(m.id);
-                    return (
-                      <button key={m.id} onClick={() => basculerMatiere(sg, m.id)}
-                              className={`px-2 py-1 rounded-md border text-xs font-semibold transition-all ${
-                                active
-                                  ? 'bg-[#006633] text-white border-[#006633]'
-                                  : 'bg-white text-iss-gray border-gray-200 hover:border-[#006633]'
-                              }`}>
-                        {m.code} <span className="opacity-70">{m.code_semestre}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -349,6 +316,30 @@ function SousGroupes({ classe, onNotifier }: { classe: Classe; onNotifier: (m: s
         </button>
       </div>
       {erreur && <p className="mt-2 text-xs text-red-600">{erreur}</p>}
+
+      {/* La suppression emportait sans un mot les séances du sous-groupe — le
+          patron comme les semaines déjà posées — et renvoyait ses étudiants en
+          classe entière. Rien à l'écran ne le laissait deviner. */}
+      <ConfirmModal
+        open={!!aSupprimer}
+        title="Supprimer le sous-groupe"
+        message={aSupprimer
+          ? `Supprimer ${classe.nom} — ${aSupprimer.libelle} ? `
+            + 'Ses séances de TP seront supprimées, dans la grille type comme dans '
+            + 'les semaines déjà posées. '
+            + (aSupprimer.effectif > 0
+                ? `Ses ${aSupprimer.effectif} étudiant(s) reviendront en classe entière, `
+                  + 'sans sous-groupe. '
+                : "Aucun étudiant n'y est rattaché. ")
+            + 'Les notes et les absences ne sont pas touchées.'
+          : ''}
+        onConfirm={() => aSupprimer && remove.mutate(aSupprimer.id, {
+          onSuccess: () => { onNotifier('Sous-groupe supprimé'); setASupprimer(null); },
+          onError:   (e) => { setErreur(e instanceof Error ? e.message : 'Erreur'); setASupprimer(null); },
+        })}
+        onCancel={() => setASupprimer(null)}
+        loading={remove.isPending}
+      />
     </div>
   );
 }

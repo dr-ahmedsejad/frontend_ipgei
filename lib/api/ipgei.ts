@@ -283,6 +283,8 @@ export const deliberationsApi = {
   /** PV complet. Tant que la délibération n'est pas validée, il porte « projet ». */
   pvPdf:    (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-pdf/`),
   pvExcel:  (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-excel/`),
+  /** Document de séance : un bloc par élève, détail matière par matière. */
+  detailNotes: (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/detail-notes/`),
 };
 
 export const membresJuryApi = {

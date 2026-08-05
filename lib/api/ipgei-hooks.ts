@@ -614,6 +614,7 @@ export function useDeliberationMutations() {
     // Les éditions ne modifient rien : pas d'invalidation à leur suite.
     pvPdf:   useMutation({ mutationFn: deliberationsApi.pvPdf }),
     pvExcel: useMutation({ mutationFn: deliberationsApi.pvExcel }),
+    detailNotes: useMutation({ mutationFn: deliberationsApi.detailNotes }),
   };
 }
 
@@ -957,6 +958,14 @@ export function useDocumentMutations() {
     attestationCnim: useMutation({
       mutationFn: ({ deliberation, inscription }: { deliberation: number; inscription: number }) =>
         documentsApi.attestationCnim(deliberation, inscription),
+      onSuccess:  invalider,
+    }),
+    attestationInscription: useMutation({
+      mutationFn: (inscription: number) => documentsApi.attestationInscription(inscription),
+      onSuccess:  invalider,
+    }),
+    recuPaiement: useMutation({
+      mutationFn: (inscription: number) => documentsApi.recuPaiement(inscription),
       onSuccess:  invalider,
     }),
     decisionsClasse: useMutation({

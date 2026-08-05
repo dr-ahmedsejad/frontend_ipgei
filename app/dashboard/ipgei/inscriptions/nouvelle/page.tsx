@@ -16,7 +16,7 @@ import Stepper from '@/components/ui/Stepper';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
 import { BTN_SECONDAIRE, CARTE, INPUT, SELECT } from '../../_ui';
 import { anneeParDefaut } from '../../_annee';
-import { useClassesSelect, useInscriptionMutations, useSousGroupes } from '@/lib/api/ipgei-hooks';
+import { useClassesSelect, useInscriptionMutations } from '@/lib/api/ipgei-hooks';
 import { useContexteFrais, useGrillesFrais } from '@/lib/api/ipgei-frais';
 import type { NouvelEtudiant } from '@/types/ipgei';
 
@@ -83,12 +83,10 @@ export default function NouvelleInscriptionPage() {
   const [rapport, setRapport]     = useState<RapportImport | null>(null);
   const [identite, setIdentite] = useState<NouvelEtudiant>(IDENTITE_VIDE);
   const [classeId, setClasseId] = useState<number | null>(null);
-  const [sousGroupe, setSousGroupe] = useState<string>('');
   const [numeroOrdre, setNumeroOrdre] = useState<string>('');
   const [erreur, setErreur]     = useState<string | null>(null);
 
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
-  const { data: sousGroupes = [] } = useSousGroupes(classeId);
   const { data: contexte }     = useContexteFrais();
   const { data: tarifs = [] }  = useGrillesFrais();
   const { nouvelle }           = useInscriptionMutations();
@@ -182,7 +180,6 @@ export default function NouvelleInscriptionPage() {
     nouvelle.mutate(
       {
         classe: classeId!,
-        sous_groupe: sousGroupe ? Number(sousGroupe) : null,
         numero_ordre: numeroOrdre ? Number(numeroOrdre) : null,
         nouvel_etudiant: {
           ...identite,
@@ -439,24 +436,12 @@ export default function NouvelleInscriptionPage() {
         {etape === 1 && (
           <>
             <h2 className="font-semibold text-iss-dark">Rattachement</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Champ label="Classe *">
                 <select value={classeId ?? ''} className={SELECT}
-                        onChange={e => {
-                          setClasseId(e.target.value ? Number(e.target.value) : null);
-                          setSousGroupe('');
-                        }}>
+                        onChange={e => setClasseId(e.target.value ? Number(e.target.value) : null)}>
                   <option value="">— Choisir —</option>
                   {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                </select>
-              </Champ>
-              <Champ label="Sous-groupe">
-                <select value={sousGroupe} className={SELECT} disabled={!sousGroupes.length}
-                        onChange={e => setSousGroupe(e.target.value)}>
-                  <option value="">Aucun</option>
-                  {sousGroupes.map(sg => (
-                    <option key={sg.id} value={sg.id}>{sg.libelle}</option>
-                  ))}
                 </select>
               </Champ>
               <Champ label="N° d'ordre">
@@ -468,9 +453,14 @@ export default function NouvelleInscriptionPage() {
             {/* Il n'y a pas d'étape « inscription pédagogique » : la maquette
                 du niveau s'applique entière. Le dire ici évite de chercher où
                 choisir les matières. */}
+            {/* On inscrit dans une CLASSE. Les sous-groupes de TP se
+                constituent ensuite, quand la classe est remplie et qu'on sait
+                combien d'étudiants répartir — les demander ici obligerait à
+                deviner une répartition avant de connaître l'effectif. */}
             <p className="text-xs text-iss-gray">
               Aucune matière à choisir : l&apos;étudiant sera inscrit à toute la maquette
-              de son niveau, sur les deux semestres de l&apos;année.
+              de son niveau, sur les deux semestres de l&apos;année. Le sous-groupe de TP
+              s&apos;affecte plus tard, depuis la liste des inscriptions.
             </p>
           </>
         )}
@@ -485,8 +475,6 @@ export default function NouvelleInscriptionPage() {
               )}
               <Ligne cle="Matricule" valeur={identite.matricule} />
               <Ligne cle="Classe" valeur={classe?.nom ?? '—'} />
-              <Ligne cle="Sous-groupe"
-                     valeur={sousGroupes.find(sg => String(sg.id) === sousGroupe)?.libelle ?? 'Aucun'} />
               <Ligne cle="Année universitaire" valeur={annee} />
               <Ligne
                 cle="Frais d'inscription"

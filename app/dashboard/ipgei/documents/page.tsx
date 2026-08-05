@@ -1,18 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileBadge, FileText, Search } from 'lucide-react';
+import Link from 'next/link';
+import { Download, FileBadge, FilePlus, Search } from 'lucide-react';
 
 import { Pagination } from '@/components/Pagination';
 import {
-  BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
-  Erreur, SELECT, Toast, Vide,
+  BTN_PRIMAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage, Erreur, SELECT,
+  Toast, Vide,
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
-import {
-  useClassesSelect, useDocumentMutations, useDocumentsIPGEI, useInscriptions,
-  useSemestresAll,
-} from '@/lib/api/ipgei-hooks';
+import { useDocumentsIPGEI } from '@/lib/api/ipgei-hooks';
 import { documentsApi } from '@/lib/api/ipgei';
 import { downloadBlob } from '@/lib/downloadBlob';
 import type { TypeDocumentIPGEI } from '@/types/ipgei';
@@ -37,9 +35,8 @@ export default function DocumentsIPGEIPage() {
     type_document: type || undefined,
   });
 
-  const [toast, setToast]   = useState<string | null>(null);
+  const [toast]             = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
-  const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
   const signaler = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
 
   const documents = data?.results ?? [];
@@ -56,13 +53,17 @@ export default function DocumentsIPGEIPage() {
       <EnTetePage
         icone={<FileBadge size={14} className="text-white" />}
         titre="Documents officiels"
-        sousTitre="Relevés, décisions de jury et attestations CNIM — numérotés, scellés et vérifiables en ligne."
+        sousTitre="Registre des pièces émises — numérotées, scellées et vérifiables en ligne."
+        actions={
+          <Link href="/dashboard/ipgei/documents/generer"
+                className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+            <FilePlus size={14} /> Générer un document
+          </Link>
+        }
       />
 
       {erreur && <Erreur erreur={new Error(erreur)} />}
       <Erreur erreur={error} />
-
-      <EmissionReleve annee={annee} onNotifier={notifier} onErreur={signaler} />
 
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
@@ -145,105 +146,3 @@ export default function DocumentsIPGEIPage() {
  * Émission d'un relevé. Les décisions de jury et les attestations CNIM
  * s'émettent depuis l'écran de délibération, où la décision fait foi.
  */
-function EmissionReleve({
-  annee, onNotifier, onErreur,
-}: { annee: string; onNotifier: (m: string) => void; onErreur: (e: unknown) => void }) {
-  const [classe, setClasse]     = useState('');
-  const [recherche, setRecherche] = useState('');
-  const [inscriptionId, setInscriptionId] = useState<number | null>(null);
-  const [semestreId, setSemestreId]       = useState<number | null>(null);
-
-  const { data: classes = [] }   = useClassesSelect({ annee_universitaire: annee, actif: true });
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-  const { data: inscriptionsPage } = useInscriptions({
-    page: 1, annee_universitaire: annee || '__aucune__',
-    classe: classe ? Number(classe) : undefined,
-    search: recherche || undefined, actif: true,
-  });
-
-  const inscriptions = inscriptionsPage?.results ?? [];
-  const inscription  = inscriptions.find(i => i.id === inscriptionId);
-  const semestresDuNiveau = inscription
-    ? semestres.filter(s => s.niveaux.includes(inscription.niveau))
-    : semestres;
-
-  const mutations = useDocumentMutations();
-
-  const emettre = (annuel: boolean) => {
-    if (!inscriptionId) { onErreur(new Error('Choisissez un étudiant.')); return; }
-    const nom = inscription?.etudiant_matricule ?? 'releve';
-    if (annuel) {
-      mutations.releveAnnuel.mutate(inscriptionId, {
-        onSuccess: (b) => { downloadBlob(b, `releve-annuel-${nom}.pdf`); onNotifier('Relevé annuel émis'); },
-        onError:   onErreur,
-      });
-    } else {
-      if (!semestreId) { onErreur(new Error('Choisissez un semestre.')); return; }
-      mutations.releveSemestre.mutate({ inscription: inscriptionId, semestre: semestreId }, {
-        onSuccess: (b) => { downloadBlob(b, `releve-${nom}.pdf`); onNotifier('Relevé de semestre émis'); },
-        onError:   onErreur,
-      });
-    }
-  };
-
-  return (
-    <div className={`${CARTE} p-5`} style={{ borderLeft: '3px solid #006633' }}>
-      <h3 className="text-sm font-bold text-iss-dark mb-1">Émettre un relevé</h3>
-      <p className="text-xs text-iss-gray mb-4">
-        Chaque émission crée un document numéroté au registre, avec son QR de vérification.
-        Les décisions de jury et attestations CNIM s&apos;émettent depuis l&apos;écran de délibération.
-      </p>
-
-      <div className="grid gap-3 sm:grid-cols-3 mb-3">
-        <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe</label>
-          <select value={classe} className={SELECT}
-                  onChange={e => { setClasse(e.target.value); setInscriptionId(null); }}>
-            <option value="">Toutes</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Étudiant</label>
-          <input value={recherche} onChange={e => setRecherche(e.target.value)}
-                 placeholder="Nom ou matricule…"
-                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all" />
-        </div>
-      </div>
-
-      <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100 mb-3">
-        {inscriptions.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-iss-gray">Aucune inscription trouvée.</p>
-        ) : inscriptions.map(i => (
-          <button key={i.id} type="button" onClick={() => { setInscriptionId(i.id); setSemestreId(null); }}
-                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                    inscriptionId === i.id ? 'bg-[#006633]/10 font-semibold text-[#006633]' : 'hover:bg-gray-50'
-                  }`}>
-            {i.etudiant_nom} <span className="text-iss-gray">· {i.etudiant_matricule} · {i.classe_nom}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-end gap-2 flex-wrap">
-        <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semestre</label>
-          <select value={semestreId ?? ''} className={SELECT} style={{ width: 150 }} disabled={!inscription}
-                  onChange={e => setSemestreId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Choisir…</option>
-            {semestresDuNiveau.map(s => <option key={s.id} value={s.id}>{s.code}</option>)}
-          </select>
-        </div>
-        <button onClick={() => emettre(false)}
-                disabled={!inscriptionId || !semestreId || mutations.releveSemestre.isPending}
-                className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-          <FileText size={14} /> Relevé de semestre
-        </button>
-        <button onClick={() => emettre(true)}
-                disabled={!inscriptionId || mutations.releveAnnuel.isPending}
-                className={BTN_SECONDAIRE}>
-          <FileText size={14} /> Relevé annuel
-        </button>
-      </div>
-    </div>
-  );
-}
