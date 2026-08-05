@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Eye, EyeOff, Hash, Lock, RefreshCw, Save, Shuffle } from 'lucide-react';
 
 import {
@@ -13,6 +14,12 @@ import {
   useSemestresAll, useSessions,
 } from '@/lib/api/ipgei-hooks';
 import type { TypeEvaluation } from '@/types/ipgei';
+
+/**
+ * Seul l'examen se corrige sous anonymat : un devoir surveillé se corrige au
+ * fil du semestre, souvent en classe, et l'anonymat n'y a pas de prise.
+ */
+const TYPE_ANONYME: TypeEvaluation = 'exam';
 
 /**
  * Anonymat des copies.
@@ -40,8 +47,8 @@ export default function AnonymatPage() {
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const { data: sessions = [] }  = useSessions(annee);
 
-  // L'anonymat porte sur la campagne normale : c'est elle qui reçoit les DS et
-  // les examens, seules épreuves corrigées sur copie.
+  // L'anonymat porte sur la campagne normale, et sur l'examen seul : c'est la
+  // seule épreuve ramassée sur copie à en-tête détachable.
   const session = useMemo(
     () => sessions.find(s => s.semestre === semestreId && s.type_session === 'normale'),
     [sessions, semestreId],
@@ -231,7 +238,6 @@ function SaisieAnonyme({ semestreId, codeSemestre, ouverte, enCours, onSaisir }:
   const { data: matieres = [] } = useMatieresSelect({ code_semestre: codeSemestre, actif: true });
 
   const [matiere, setMatiere] = useState('');
-  const [type, setType]       = useState<TypeEvaluation>('ds');
   const [epreuve, setEpreuve] = useState('1');
   const [numero, setNumero]   = useState('');
   const [valeur, setValeur]   = useState('');
@@ -240,7 +246,16 @@ function SaisieAnonyme({ semestreId, codeSemestre, ouverte, enCours, onSaisir }:
 
   return (
     <div className={`${CARTE} p-4 space-y-3`}>
-      <h2 className="text-sm font-bold text-iss-dark">Saisie sous numéro</h2>
+      <div className="flex items-center gap-2 flex-wrap">
+        <h2 className="text-sm font-bold text-iss-dark">Saisie sous numéro</h2>
+        {/* Une copie à la fois convient pour un rattrapage isolé ; pour un
+            paquet entier, la feuille de saisie évite autant d'allers-retours
+            qu'il y a d'étudiants. */}
+        <Link href="/dashboard/ipgei/notes/saisie-anonymat"
+              className="ml-auto text-xs font-medium text-[#006633] hover:underline">
+          Saisir tout un paquet →
+        </Link>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-5">
         <div className="sm:col-span-2">
@@ -251,16 +266,11 @@ function SaisieAnonyme({ semestreId, codeSemestre, ouverte, enCours, onSaisir }:
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Épreuve</label>
-          <div className="flex gap-1.5">
-            <select value={type} onChange={e => setType(e.target.value as TypeEvaluation)}
-                    className={SELECT}>
-              <option value="ds">DS</option>
-              <option value="exam">Examen</option>
-            </select>
-            <input value={epreuve} onChange={e => setEpreuve(e.target.value)}
-                   inputMode="numeric" className={INPUT} style={{ width: 56 }} />
-          </div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            N° d&apos;examen
+          </label>
+          <input value={epreuve} onChange={e => setEpreuve(e.target.value)}
+                 inputMode="numeric" className={INPUT} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">
@@ -281,7 +291,7 @@ function SaisieAnonyme({ semestreId, codeSemestre, ouverte, enCours, onSaisir }:
           onClick={() => onSaisir(
             {
               semestre: semestreId, matiere: Number(matiere),
-              numero_anonymat: Number(numero), type_evaluation: type,
+              numero_anonymat: Number(numero), type_evaluation: TYPE_ANONYME,
               numero: Number(epreuve) || 1, valeur: valeur.trim(),
             },
             // Le numéro et la note se vident, la matière et l'épreuve restent :

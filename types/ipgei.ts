@@ -397,6 +397,38 @@ export interface SaisieAnonymeResultat {
   valeur:          string;
 }
 
+/**
+ * Feuille de correction sous anonymat.
+ *
+ * Une ligne ne porte QUE le numéro de copie : ni nom, ni matricule, ni
+ * identifiant d'inscription. Le correcteur qui la lit ne doit pas pouvoir
+ * remonter à l'étudiant, sinon l'anonymat ne protège plus rien.
+ */
+export interface LigneAnonyme {
+  numero_anonymat: number;
+  valeur:          string | null;
+  /** Note arrêtée par une délibération validée : la case est en lecture seule. */
+  verrouillee:     boolean;
+}
+
+export interface GrilleAnonyme {
+  matiere:         Matiere;
+  semestre:        SemestreIPGEI;
+  type_evaluation: TypeEvaluation;
+  numero:          number;
+  saisissable:     boolean;
+  lignes:          LigneAnonyme[];
+}
+
+export interface SaisieAnonymeLot {
+  semestre:        number;
+  matiere:         number;
+  type_evaluation: TypeEvaluation;
+  numero:          number;
+  /** `valeur` nulle efface l'épreuve, comme sur la grille nominative. */
+  lignes:          { numero_anonymat: number; valeur: string | null }[];
+}
+
 /** Rôle au sein du jury — le président arrête la séance, un seul par délibération. */
 export type RoleJuryIPGEI = 'president' | 'directeur' | 'enseignant' | 'secretaire';
 

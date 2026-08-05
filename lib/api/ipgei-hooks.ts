@@ -17,7 +17,7 @@ import {
   niveauxApi,
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
-  type FiltresCollecte, type Params,
+  type FiltresCollecte, type FiltresGrilleAnonyme, type Params,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
 } from './ipgei';
@@ -25,6 +25,7 @@ import type {
   ClasseInput, Deliberation, InscriptionComplete, MatiereInput,
   NiveauCursusInput, Note, RoleJuryIPGEI,
   SaisieAnonyme, SaisieCollective,
+  SaisieAnonymeLot,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
   Signataire, StatutAbsence,
 } from '@/types/ipgei';
@@ -555,6 +556,34 @@ export function useNoteMutations() {
       onSuccess:  invalider,
     }),
   };
+}
+
+/**
+ * Feuille de correction sous anonymat : un numéro par ligne, la note en regard.
+ *
+ * `enabled` sur la matière : sans elle le serveur ne saurait pas quelle épreuve
+ * corriger, et la requête partirait pour rien.
+ */
+export function useGrilleAnonyme(filtres: Partial<FiltresGrilleAnonyme>) {
+  const { semestre, matiere, type_evaluation, numero } = filtres;
+  return useQuery({
+    queryKey: [...ipgeiKeys.notes.all, 'grille-anonyme',
+               semestre ?? 0, matiere ?? 0, type_evaluation ?? 'ds', numero ?? 1] as const,
+    queryFn:  () => notesApi.grilleAnonyme({
+      semestre: semestre as number, matiere: matiere as number,
+      type_evaluation, numero,
+    }),
+    enabled:  !!semestre && !!matiere,
+  });
+}
+
+export function useSaisieAnonymeLot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaisieAnonymeLot) => notesApi.saisieAnonymeLot(input),
+    // Les moyennes changent : toute lecture de notes est périmée.
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ipgeiKeys.notes.all }),
+  });
 }
 
 /**

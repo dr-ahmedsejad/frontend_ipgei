@@ -116,6 +116,7 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
       { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',   module: 'ipgei_notes' },
       { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat', module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
     ],
   },

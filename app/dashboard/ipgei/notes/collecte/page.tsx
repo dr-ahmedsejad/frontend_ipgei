@@ -86,7 +86,11 @@ export default function FicheCollectePage() {
     s => s.semestre === semestreId
       && s.type_session === (rattrapage ? 'rattrapage' : 'normale')) ?? null;
   const { data: anonymats = [] } = useAnonymats(campagne?.id ?? null);
-  const anonymatPret = anonymats.length > 0;
+  // L'anonymat ne vaut que pour l'examen : un DS se corrige au fil du
+  // semestre, souvent en classe, et un TP se note en séance — proposer une
+  // feuille anonyme pour eux donnerait une garantie que rien ne tient.
+  const anonymatPossible = typeNote === 'EXAM' || typeNote === 'RATT';
+  const anonymatPret = anonymatPossible && anonymats.length > 0;
 
   const pret = !!semestreId && !!classeId;
 
@@ -220,13 +224,17 @@ export default function FicheCollectePage() {
             {/* Rien à dire quand les numéros existent : la case parle d'elle-même.
                 L'absence de tirage, elle, doit s'annoncer — sans elle la case
                 grisée resterait inexpliquée. */}
-            {!anonymatPret && (
+            {!anonymatPossible ? (
+              <span className="text-xs text-iss-gray">
+                — réservé à l&apos;examen
+              </span>
+            ) : !anonymatPret && (
               <span className="text-xs text-iss-gray">
                 — aucun numéro tiré pour cette épreuve
               </span>
             )}
           </label>
-          {!anonymatPret && semestreId && (
+          {anonymatPossible && !anonymatPret && semestreId && (
             <p className="mt-1 text-xs text-iss-gray">
               Les numéros se tirent depuis{' '}
               <Link href="/dashboard/ipgei/notes/anonymat"

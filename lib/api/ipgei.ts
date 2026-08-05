@@ -9,7 +9,8 @@ import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete, InscriptionCreee,
-  AnonymatIPGEI, FeuilleEnseignant, SaisieAnonyme, SaisieAnonymeResultat,
+  AnonymatIPGEI, FeuilleEnseignant, GrilleAnonyme, SaisieAnonyme,
+  SaisieAnonymeLot, SaisieAnonymeResultat,
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, MembreJuryIPGEI,
   NiveauCursus, NiveauCursusInput, Note, OccupationCreneau, RoleJuryIPGEI,
   SeanceArchivee, VersionArchive,
@@ -238,6 +239,19 @@ export const notesApi = {
       `${BASE}/notes/saisie-anonyme/`, { method: 'POST', body: input },
     ),
 
+  /**
+   * Feuille de correction d'une épreuve : un numéro par ligne, la note en
+   * regard. Ne porte ni nom, ni matricule, ni identifiant d'inscription.
+   */
+  grilleAnonyme: (f: FiltresGrilleAnonyme) =>
+    apiFetch<GrilleAnonyme>(`${BASE}/notes/grille-anonyme/`, { params: nettoyer(f) }),
+
+  /** Enregistre la feuille entière — tout passe, ou rien. */
+  saisieAnonymeLot: (input: SaisieAnonymeLot) =>
+    apiFetch<{ copies_traitees: number }>(
+      `${BASE}/notes/saisie-anonyme-lot/`, { method: 'POST', body: input },
+    ),
+
   saisieCollective: (input: SaisieCollective) =>
     apiFetch<{ lignes_traitees: number }>(
       `${BASE}/notes/saisie-collective/`, { method: 'POST', body: input },
@@ -289,6 +303,13 @@ export interface FiltresCollecte extends Params {
 export interface DeliberationFilters extends Params {
   page?: number; niveau?: string; annee_universitaire?: string;
   portee?: string; statut?: string; semestre?: number;
+}
+
+export interface FiltresGrilleAnonyme extends Params {
+  semestre:         number;
+  matiere:          number;
+  type_evaluation?: 'ds' | 'exam';
+  numero?:          number;
 }
 
 export const deliberationsApi = {
