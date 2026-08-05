@@ -252,7 +252,38 @@ export const notesApi = {
 
   update: (id: number, input: Partial<Note>) =>
     apiFetch<Note>(`${BASE}/notes/${id}/`, { method: 'PATCH', body: input }),
+
+  /**
+   * Fiche de collecte : la feuille que l'enseignant emporte en salle.
+   * `matiere` omise, le serveur édite le jeu complet du semestre.
+   */
+  ficheCollecte: (f: FiltresCollecte) => {
+    const params: Record<string, string> = {};
+    for (const [cle, valeur] of Object.entries(nettoyer(f))) {
+      params[cle] = String(valeur);
+    }
+    return apiFetchBlob(`${BASE}/notes/fiche-collecte/`, params);
+  },
 };
+
+/**
+ * `RATT` est une épreuve, pas une campagne : elle emporte la seconde session.
+ * Faire choisir les deux revenait à ressaisir la même chose.
+ */
+export type TypeNoteCollecte = 'DS' | 'TP' | 'EXAM' | 'RATT';
+
+export interface FiltresCollecte extends Params {
+  semestre:  number;
+  classe:    number;
+  matiere?:  number;
+  type_note: TypeNoteCollecte;
+  anonymat?: 1 | 0;
+  /**
+   * `sortie` et non `format` : DRF réserve `format` à la négociation de
+   * contenu et répond 404 pour un suffixe qu'aucun renderer ne connaît.
+   */
+  sortie?:   'pdf' | 'excel';
+}
 
 // ── Délibération ─────────────────────────────────────────────────────────────
 export interface DeliberationFilters extends Params {

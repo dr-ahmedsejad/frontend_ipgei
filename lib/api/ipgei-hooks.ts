@@ -16,7 +16,8 @@ import {
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
   niveauxApi,
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
-  type AbsenceFilters, type ClasseFilters, type DeliberationFilters, type Params,
+  type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
+  type FiltresCollecte, type Params,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
 } from './ipgei';
@@ -554,6 +555,18 @@ export function useNoteMutations() {
       onSuccess:  invalider,
     }),
   };
+}
+
+/**
+ * Édition d'une fiche de collecte — un téléchargement, pas une écriture.
+ *
+ * En `useMutation` et non `useQuery` : le document se produit sur demande
+ * expresse, et rien ne doit le régénérer au remontage de l'écran.
+ */
+export function useFicheCollecte() {
+  return useMutation({
+    mutationFn: (filtres: FiltresCollecte) => notesApi.ficheCollecte(filtres),
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
