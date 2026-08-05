@@ -21,11 +21,10 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import FormField from '@/components/ui/FormField';
 import Badge from '@/components/ui/Badge';
 import BilingualInput from '@/components/ui/BilingualInput';
-import FiliereSelect from '@/components/scolarite/FiliereSelect';
 import ReleveNotesView from '@/components/scolarite/ReleveNotesView';
 import { validateUpload } from '@/lib/file-validation';
 import { formatDate } from '@/lib/formatters';
-import type { Etudiant, NiveauEtude, StatutEtudiant } from '@/types/scolarite';
+import type { Etudiant, StatutEtudiant } from '@/types/scolarite';
 import type { InscriptionAdministrative } from '@/types/inscriptions';
 type Tab = 'identite' | 'inscriptions' | 'notes' | 'stages' | 'documents' | 'absences';
 
@@ -55,8 +54,8 @@ export default function EtudiantPage() {
   // Edit state
   const [editNomFr, setEditNomFr]       = useState('');
   const [editNomAr, setEditNomAr]       = useState('');
-  const [editFiliere, setEditFiliere]   = useState<number | null>(null);
-  const [editNiveau, setEditNiveau]     = useState<NiveauEtude>('L1');
+  const [editLieuFr, setEditLieuFr]     = useState('');
+  const [editLieuAr, setEditLieuAr]     = useState('');
   const [editStatut, setEditStatut]     = useState<StatutEtudiant>('actif');
   const [editCni, setEditCni]           = useState('');
   const [editNbac, setEditNbac]         = useState('');
@@ -97,8 +96,8 @@ export default function EtudiantPage() {
       // recompose pour l'éditer d'un seul tenant, sans rien perdre.
       setEditNomFr(nomComplet(e.prenom_fr, e.nom_fr));
       setEditNomAr(nomComplet(e.prenom_ar, e.nom_ar));
-      setEditFiliere(e.filiere);
-      setEditNiveau(e.niveau ?? 'L1');
+      setEditLieuFr(e.lieu_naissance_fr ?? '');
+      setEditLieuAr(e.lieu_naissance_ar ?? '');
       setEditStatut(e.statut);
       setEditCni(e.cni ?? '');
       setEditNbac(e.nbac ?? '');
@@ -177,7 +176,8 @@ export default function EtudiantPage() {
         nom: editNomFr.trim(),
         nom_fr: editNomFr.trim(), nom_ar: editNomAr.trim(),
         prenom_fr: '', prenom_ar: '',
-        filiere: editFiliere, niveau: editNiveau, statut: editStatut,
+        statut: editStatut,
+        lieu_naissance_fr: editLieuFr.trim(), lieu_naissance_ar: editLieuAr.trim(),
         cni: editCni.trim() || null,
         nbac: editNbac.trim() || null,
         telephone: editTelephone.trim(),
@@ -490,14 +490,17 @@ export default function EtudiantPage() {
             valueFr={editNomFr} valueAr={editNomAr}
             onChangeFr={setEditNomFr} onChangeAr={setEditNomAr}
           />
-          <FiliereSelect value={editFiliere} onChange={setEditFiliere} />
+          {/* Ni filière ni niveau LMD : la prépa n'en a pas. Le rattachement
+              d'un étudiant, c'est sa CLASSE, et elle se change depuis son
+              inscription — la poser ici en ferait une seconde vérité. */}
+          <BilingualInput
+            labelFr="Lieu de naissance" labelAr="مكان الميلاد"
+            valueFr={editLieuFr} valueAr={editLieuAr}
+            onChangeFr={setEditLieuFr} onChangeAr={setEditLieuAr}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <FormField as="select" label="Niveau" value={editNiveau}
-              onChange={e => setEditNiveau(e.target.value as NiveauEtude)}>
-              {(['L1','L2','L3','M1','M2','D1','D2','D3'] as NiveauEtude[]).map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </FormField>
+            <FormField label="Date de naissance" type="date" value={editDateNaissance}
+              onChange={e => setEditDateNaissance(e.target.value)} />
             <FormField as="select" label="Statut" value={editStatut}
               onChange={e => setEditStatut(e.target.value as StatutEtudiant)}>
               <option value="actif">Actif</option>
@@ -530,8 +533,6 @@ export default function EtudiantPage() {
               onChange={e => setEditEmail(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Date de naissance" type="date" value={editDateNaissance}
-              onChange={e => setEditDateNaissance(e.target.value)} />
             <FormField label="Nationalité" value={editNationaliteFr}
               onChange={e => setEditNationaliteFr(e.target.value)} />
           </div>

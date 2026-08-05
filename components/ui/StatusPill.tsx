@@ -27,6 +27,14 @@ const STATUT_MAP: Record<string, { label: string; variant: BadgeVariant }> = {
   // Conventions stage
   brouillon:          { label: 'Brouillon',      variant: 'neutral' },
   terminee:           { label: 'Terminée',       variant: 'success' },
+  // Inscriptions IPGEI — décision du jury. `actif` n'y figure pas : le code est
+  // partagé avec le statut du référentiel et avec l'état d'une filière. Le
+  // libellé propre à l'inscription passe par la prop `label`.
+  admis:              { label: 'Admis en 2e année',      variant: 'success' },
+  autorise_cnim:      { label: 'Autorisé CNIM',          variant: 'primary' },
+  redoublant:         { label: 'Redoublant',             variant: 'warning' },
+  reoriente:          { label: 'Réorienté',              variant: 'info'    },
+  abandon:            { label: 'Abandon',                variant: 'neutral' },
   // Étudiants
   actif:              { label: 'Actif',          variant: 'success' },
   suspendu:           { label: 'Suspendu',       variant: 'warning' },
@@ -48,12 +56,15 @@ const VARIANT_STYLES: Record<BadgeVariant, string> = {
 
 interface StatusPillProps {
   statut:    string;
+  /** Libellé imposé — pour un code dont le sens dépend du domaine (`actif`). */
+  label?:    string;
   size?:     'sm' | 'md';
   className?: string;
 }
 
-export default function StatusPill({ statut, size = 'sm', className = '' }: StatusPillProps) {
-  const config = STATUT_MAP[statut] ?? { label: statut, variant: 'neutral' as BadgeVariant };
+export default function StatusPill({ statut, label, size = 'sm', className = '' }: StatusPillProps) {
+  const base   = STATUT_MAP[statut] ?? { label: statut, variant: 'neutral' as BadgeVariant };
+  const config = label ? { ...base, label } : base;
   const sizeClass = size === 'sm' ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
   return (
     <span className={`inline-flex items-center font-semibold rounded-full border ${VARIANT_STYLES[config.variant]} ${sizeClass} ${className}`}>

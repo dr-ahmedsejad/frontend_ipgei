@@ -5,6 +5,15 @@ export type TypeDiplome = 'LP' | 'M' | 'ING' | 'Doctorat';
 export type StatutEtudiant = 'actif' | 'suspendu' | 'diplome' | 'exclu' | 'transfere';
 export type NiveauEtude = 'L1' | 'L2' | 'L3' | 'M1' | 'M2' | 'D1' | 'D2' | 'D3';
 
+/**
+ * Statut d'une inscription en prépa — ce que le jury prononce.
+ *
+ * À ne pas confondre avec `StatutEtudiant`, qui est administratif : un admis
+ * et un redoublant y sont tous deux « actif ».
+ */
+export type StatutInscriptionIPGEI =
+  | 'actif' | 'admis' | 'reoriente' | 'redoublant' | 'autorise_cnim' | 'abandon';
+
 export interface Filiere {
   id:                      number;
   code:                    string;
@@ -160,6 +169,22 @@ export interface Etudiant {
   filiere:             number | null;
   /** Champ write-side (niveau actuel ex. 'L1', 'M2') — optionnel sur GET */
   niveau?:             NiveauEtude | null;
+  /**
+   * Rattachement IPGEI, calculé depuis l'inscription active la plus récente.
+   *
+   * Nul pour un étudiant sans inscription en prépa. `filiere` et le niveau LMD
+   * restent vides sur ces étudiants : c'est la classe qui les situe.
+   */
+  classe_ipgei?: {
+    classe:              string;
+    niveau:              string;
+    sous_groupe:         string | null;
+    annee_universitaire: string;
+    /** Décision du jury : en cours, admis, redoublant… */
+    statut:              StatutInscriptionIPGEI;
+    statut_display:      string;
+    actif:               boolean;
+  } | null;
   /** Champs calculés par le serializer */
   filiere_nom:         string | null;
   filiere_code:        string | null;
