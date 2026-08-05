@@ -68,6 +68,17 @@ export default function AvancementSemestresPage() {
           <div className="text-red-500 bg-red-50 p-4 rounded-lg text-center italic border border-red-200 mt-8">
             Erreur : {error}
           </div>
+        ) : data && !data.labels?.length ? (
+          /* Un graphique vide ne disait pas s'il manquait des matières ou des
+             pointages : on voyait une carte blanche, sans rien à corriger. */
+          <div className="text-center text-gray-500 text-sm mt-16 px-6">
+            <p className="font-semibold text-gray-700">Aucun semestre à afficher</p>
+            <p className="mt-1">
+              Aucune matière n&apos;est rattachée aux semestres{' '}
+              <strong>{sessionSemestre.toLowerCase()}</strong> pour {sessionAnnee}.
+              Vérifiez la maquette dans Évaluations → Matières.
+            </p>
+          </div>
         ) : (
           <div style={{ height: '420px', width: '100%' }}>
             <Bar
