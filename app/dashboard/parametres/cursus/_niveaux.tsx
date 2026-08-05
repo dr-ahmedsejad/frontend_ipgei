@@ -91,9 +91,10 @@ export default function BlocNiveaux({ onNotifier }: { onNotifier: (m: string) =>
                   <td className="px-3 py-2">
                     <span className="font-bold text-iss-dark">{niveau.code}</span>
                     {!niveau.actif && <Badge ton="neutre">Désactivé</Badge>}
-                    {niveau.libelle && (
-                      <span className="block text-xs text-iss-gray">{niveau.libelle}</span>
-                    )}
+                    <span className={`block text-xs ${
+                      niveau.libelle ? 'text-iss-gray' : 'text-amber-700 italic'}`}>
+                      {niveau.libelle || 'Intitulé non renseigné'}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-iss-gray">{niveau.libelle_rang}</td>
                   <td className="px-3 py-2 text-iss-gray">{niveau.codes_semestres.join(' · ')}</td>
@@ -187,9 +188,16 @@ function FormulaireNiveau({ valeurInitiale, enCours, onAnnuler, onValider }: {
                  onChange={e => maj('code', e.target.value.toUpperCase())} />
         </div>
         <div className="lg:col-span-2">
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Intitulé</label>
-          <input value={form.libelle ?? ''} placeholder="ex. MPI — 2e année" className={INPUT}
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Intitulé du cursus
+          </label>
+          <input value={form.libelle ?? ''} className={INPUT}
+                 placeholder="ex. Mathématique Physique Informatique"
                  onChange={e => maj('libelle', e.target.value)} />
+          <p className="text-xs text-iss-gray mt-1">
+            Nom développé, tel qu&apos;il coiffe les relevés et le détail des notes.
+            Laissé vide, seul le code apparaît.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Année *</label>

@@ -130,7 +130,9 @@ export default function ChercherEtudiantPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-iss-dark">
-                      {[e.prenom_fr, e.nom_fr].filter(Boolean).join(' ')}
+                      {/* `nom_fr` porte le nom COMPLET en prépa ; `prenom_fr`
+                          y est vide et laissait une espace en tête. */}
+                      {[e.nom_fr, e.prenom_fr].filter(Boolean).join(' ')}
                       {e.nom_ar && (
                         <span className="ml-2 text-iss-gray font-normal text-xs" dir="rtl">
                           {[e.prenom_ar, e.nom_ar].filter(Boolean).join(' ')}
@@ -139,8 +141,16 @@ export default function ChercherEtudiantPage() {
                     </p>
                     <p className="text-xs text-iss-gray font-mono">
                       {e.matricule}
-                      {(e.inscription_actuelle?.filiere_nom ?? e.filiere_nom) ? ` · ${e.inscription_actuelle?.filiere_nom ?? e.filiere_nom}` : ''}
-                      {(e.inscription_actuelle?.niveau ?? e.niveau_nom) ? ` · ${e.inscription_actuelle?.niveau ?? e.niveau_nom}` : ''}
+                      {/* La classe et l'année d'abord : en prépa, filière et
+                          niveau LMD sont vides et la ligne se réduisait au
+                          seul matricule. */}
+                      {e.classe_ipgei
+                        ? ` · ${e.classe_ipgei.classe} · ${e.classe_ipgei.annee_universitaire}`
+                        : ''}
+                      {!e.classe_ipgei && (e.inscription_actuelle?.filiere_nom ?? e.filiere_nom)
+                        ? ` · ${e.inscription_actuelle?.filiere_nom ?? e.filiere_nom}` : ''}
+                      {!e.classe_ipgei && (e.inscription_actuelle?.niveau ?? e.niveau_nom)
+                        ? ` · ${e.inscription_actuelle?.niveau ?? e.niveau_nom}` : ''}
                     </p>
                   </div>
                   <StatusPill statut={e.statut_effectif ?? e.statut} />

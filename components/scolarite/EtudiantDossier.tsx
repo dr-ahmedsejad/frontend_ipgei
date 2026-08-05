@@ -138,10 +138,16 @@ export default function EtudiantDossier({ etudiant, onClose }: EtudiantDossierPr
   // niveau_nom reflètent la 1re année (tronc commun, ex. LPSTAT L1) → on préfère la
   // dernière inscription admin (ex. SEA L3 2025-2026), avec repli sur les champs plats.
   const insc           = etudiant.inscription_actuelle;
-  const curFiliereNom  = insc?.filiere_nom  ?? etudiant.filiere_nom;
+  // Rattachement de prépa : l'inscription IPGEI ne passe pas par
+  // `inscription_actuelle`, qui est l'inscription administrative du socle.
+  // Sans ce repli, la filière, le niveau et l'ANNÉE restaient vides pour tout
+  // étudiant d'IPGEI — les badges ne s'affichaient simplement pas.
+  const prepa          = etudiant.classe_ipgei;
+  const curFiliereNom  = insc?.filiere_nom  ?? etudiant.filiere_nom  ?? prepa?.classe;
   const curFiliereCode = insc?.filiere_code ?? etudiant.filiere_code;
-  const curNiveau      = insc?.niveau ?? etudiant.niveau ?? etudiant.niveau_nom;
-  const curAnnee       = insc?.annee_universitaire ?? null;
+  const curNiveau      = insc?.niveau ?? etudiant.niveau ?? etudiant.niveau_nom
+                         ?? prepa?.niveau;
+  const curAnnee       = insc?.annee_universitaire ?? prepa?.annee_universitaire ?? null;
   // Département = département ACADÉMIQUE de la filière actuelle (pas la classe legacy).
   const curDept        = insc?.departement_academique_nom ?? etudiant.departement_nom;
 
@@ -326,10 +332,14 @@ export default function EtudiantDossier({ etudiant, onClose }: EtudiantDossierPr
             <section>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Scolarité (inscription actuelle)</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                <InfoCell label="Filière"      value={curFiliereNom} />
+                <InfoCell label={prepa ? 'Classe' : 'Filière'} value={curFiliereNom} />
                 <InfoCell label="Niveau"       value={curNiveau} />
                 <InfoCell label="Année univ."  value={curAnnee} />
-                <InfoCell label="Département académique" value={curDept} />
+                {prepa ? (
+                  <InfoCell label="Sous-groupe de TP" value={prepa.sous_groupe ?? '—'} />
+                ) : (
+                  <InfoCell label="Département académique" value={curDept} />
+                )}
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Statut</p>
                   <StatusPill statut={etudiant.statut_effectif ?? etudiant.statut} size="md" />
