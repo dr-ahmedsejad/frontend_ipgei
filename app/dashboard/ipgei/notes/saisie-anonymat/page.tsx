@@ -65,7 +65,9 @@ export default function SaisieAnonymatPage() {
     if (!grille) return;
     const initial: Record<number, string> = {};
     for (const ligne of grille.lignes) {
-      initial[ligne.numero_anonymat] = ligne.valeur ?? '';
+      // `String(...)` : la case est un champ texte, et une note arrivée sous
+      // forme de nombre y ferait échouer le moindre `.trim()`.
+      initial[ligne.numero_anonymat] = ligne.valeur == null ? '' : String(ligne.valeur);
     }
     setSaisies(initial);
   }, [grille]);
@@ -73,7 +75,7 @@ export default function SaisieAnonymatPage() {
   const initiales = useMemo(() => {
     const valeurs: Record<number, string> = {};
     for (const ligne of grille?.lignes ?? []) {
-      valeurs[ligne.numero_anonymat] = ligne.valeur ?? '';
+      valeurs[ligne.numero_anonymat] = ligne.valeur == null ? '' : String(ligne.valeur);
     }
     return valeurs;
   }, [grille]);
@@ -82,11 +84,11 @@ export default function SaisieAnonymatPage() {
   // entière réécrirait des notes intactes, et daterait à tort leur saisie.
   const modifiees = useMemo(
     () => Object.entries(saisies)
-      .filter(([numero, valeur]) => valeur !== (initiales[Number(numero)] ?? ''))
-      .map(([numero, valeur]) => ({
-        numero_anonymat: Number(numero),
-        valeur: valeur.trim() === '' ? null : valeur.trim(),
-      })),
+      .filter(([numero, valeur]) => String(valeur) !== (initiales[Number(numero)] ?? ''))
+      .map(([numero, valeur]) => {
+        const saisie = String(valeur).trim();
+        return { numero_anonymat: Number(numero), valeur: saisie === '' ? null : saisie };
+      }),
     [saisies, initiales],
   );
 
