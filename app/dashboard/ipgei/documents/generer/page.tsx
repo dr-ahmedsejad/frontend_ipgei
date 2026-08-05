@@ -15,7 +15,7 @@ import {
 import { useAnneeIPGEI } from '../../_annee';
 import {
   useClassesSelect, useDeliberations, useDocumentMutations, useInscriptions,
-  useSemestresAll,
+  useSemestresAll, useSignataires,
 } from '@/lib/api/ipgei-hooks';
 import type { Inscription } from '@/types/ipgei';
 
@@ -51,23 +51,29 @@ interface TypeDocument {
   besoin:    'aucun' | 'semestre' | 'deliberation';
   /** Droit exigé pour l'émettre. */
   module:    string;
+  /**
+   * Pièce signée à la scolarité : on peut y désigner le signataire. Les
+   * documents de jury portent la signature du président, celui des frais celle
+   * du directeur — ni l'un ni l'autre ne relèvent de ce choix.
+   */
+  signee?:   boolean;
 }
 
 const TYPES: TypeDocument[] = [
   {
     cle: 'attestation_inscription', label: "Attestation d'inscription",
     detail: "Scolarité de l'année en cours, avec la maquette des deux semestres.",
-    besoin: 'aucun', module: 'ipgei_documents',
+    besoin: 'aucun', module: 'ipgei_documents', signee: true,
   },
   {
     cle: 'releve_semestre', label: 'Relevé de semestre',
     detail: 'Notes et moyennes du semestre choisi.',
-    besoin: 'semestre', module: 'ipgei_documents',
+    besoin: 'semestre', module: 'ipgei_documents', signee: true,
   },
   {
     cle: 'releve_annuel', label: 'Relevé annuel',
     detail: "Les deux semestres de l'année sur un seul document.",
-    besoin: 'aucun', module: 'ipgei_documents',
+    besoin: 'aucun', module: 'ipgei_documents', signee: true,
   },
   {
     cle: 'decision_deliberation', label: 'Décision de délibération',
@@ -94,6 +100,9 @@ export default function GenererDocumentIPGEIPage() {
   const [type, setType]               = useState<CleDocument | ''>('');
   const [semestreId, setSemestreId]   = useState<number | null>(null);
   const [deliberationId, setDeliberationId] = useState<number | null>(null);
+  // null = le signataire par défaut de l'institution. On ne présélectionne pas
+  // un identifiant : le serveur reste seul juge de qui signe par défaut.
+  const [signataireId, setSignataireId] = useState<number | null>(null);
   const [erreur, setErreur]   = useState<string | null>(null);
   const [emis, setEmis]       = useState<string | null>(null);
 
@@ -118,7 +127,8 @@ export default function GenererDocumentIPGEIPage() {
 
   const reinitialiser = () => {
     setEtape(0); setInscription(null); setType('');
-    setSemestreId(null); setDeliberationId(null); setEmis(null); setErreur(null);
+    setSemestreId(null); setDeliberationId(null); setSignataireId(null);
+    setEmis(null); setErreur(null);
   };
 
   const parametreManquant =
@@ -137,14 +147,19 @@ export default function GenererDocumentIPGEIPage() {
     const echoue = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
     const options = (suffixe: string) => ({ onSuccess: reussi(suffixe), onError: echoue });
 
+    const signataire = signataireId ?? undefined;
+
     switch (choisi.cle) {
       case 'attestation_inscription':
-        return mutations.attestationInscription.mutate(inscription.id, options('attestation'));
+        return mutations.attestationInscription.mutate(
+          { inscription: inscription.id, signataire }, options('attestation'));
       case 'releve_semestre':
         return mutations.releveSemestre.mutate(
-          { inscription: inscription.id, semestre: semestreId as number }, options('releve'));
+          { inscription: inscription.id, semestre: semestreId as number, signataire },
+          options('releve'));
       case 'releve_annuel':
-        return mutations.releveAnnuel.mutate(inscription.id, options('releve-annuel'));
+        return mutations.releveAnnuel.mutate(
+          { inscription: inscription.id, signataire }, options('releve-annuel'));
       case 'decision_deliberation':
         return mutations.decision.mutate(
           { deliberation: deliberationId as number, inscription: inscription.id }, options('decision'));
@@ -198,6 +213,7 @@ export default function GenererDocumentIPGEIPage() {
             inscription={inscription} choisi={choisi}
             semestres={semestresDuNiveau} semestreId={semestreId} onSemestre={setSemestreId}
             deliberations={deliberations} deliberationId={deliberationId} onDeliberation={setDeliberationId}
+            signataireId={signataireId} onSignataire={setSignataireId}
             manquant={!!parametreManquant} enCours={enCours} erreur={erreur}
             onRetour={() => setEtape(1)} onEmettre={emettre}
           />
@@ -343,6 +359,7 @@ function ChoixType({ type, onType, onRetour, onSuivant }: {
 function Parametres({
   inscription, choisi, semestres, semestreId, onSemestre,
   deliberations, deliberationId, onDeliberation,
+  signataireId, onSignataire,
   manquant, enCours, erreur, onRetour, onEmettre,
 }: {
   inscription: Inscription; choisi: TypeDocument;
@@ -350,9 +367,15 @@ function Parametres({
   semestreId: number | null; onSemestre: (v: number | null) => void;
   deliberations: { id: number; libelle: string; niveau: string; portee: string }[];
   deliberationId: number | null; onDeliberation: (v: number | null) => void;
+  signataireId: number | null; onSignataire: (v: number | null) => void;
   manquant: boolean; enCours: boolean; erreur: string | null;
   onRetour: () => void; onEmettre: () => void;
 }) {
+  // Seuls les signataires actifs sont proposés : un titulaire parti reste dans
+  // le registre des documents qu'il a signés, pas dans la liste du jour.
+  const { data: signataires = [] } = useSignataires(true);
+  const defaut = signataires.find(s => s.par_defaut);
+
   return (
     <div className="space-y-4">
       <h2 className="font-semibold text-iss-dark">Paramètres du document</h2>
@@ -404,10 +427,46 @@ function Parametres({
         </div>
       )}
 
-      {choisi.besoin === 'aucun' && (
+      {choisi.besoin === 'aucun' && !choisi.signee && (
         <p className="text-xs text-iss-gray">
           Aucun paramètre supplémentaire : ce document se déduit de l&apos;inscription.
         </p>
+      )}
+
+      {choisi.signee && (
+        <div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Signataire
+          </label>
+          {signataires.length === 0 ? (
+            <p className="text-xs text-iss-gray bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+              Aucun signataire enregistré : le document sortira au titre
+              «&nbsp;Chef service de la Scolarité&nbsp;», sans nom, comme
+              aujourd&apos;hui. Pour désigner quelqu&apos;un, passez par{' '}
+              <Link href="/dashboard/parametres/cursus/signataires"
+                    className="text-[#006633] font-medium hover:underline">
+                Paramétrage → Signataires
+              </Link>.
+            </p>
+          ) : (
+            <>
+              <select value={signataireId ?? ''} className={SELECT}
+                      onChange={e => onSignataire(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">
+                  {defaut ? `Par défaut — ${defaut.nom_fr} (${defaut.titre_fr})`
+                          : 'Par défaut'}
+                </option>
+                {signataires.map(s => (
+                  <option key={s.id} value={s.id}>{s.nom_fr} — {s.titre_fr}</option>
+                ))}
+              </select>
+              <p className="text-xs text-iss-gray mt-1.5">
+                Son nom et sa fonction seront imprimés au-dessus du trait ; la
+                signature reste manuscrite. À changer quand le titulaire est absent.
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}

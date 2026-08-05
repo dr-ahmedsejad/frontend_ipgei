@@ -831,6 +831,29 @@ export interface DocumentIPGEI {
   genere_par:          number | null;
   genere_par_nom:      string;
   a_pdf:               boolean;
+  /** Signataire recopié à l'émission — le registre garde qui a signé quoi. */
+  signataire_nom:      string;
+  signataire_titre:    string;
+}
+
+/**
+ * Personne habilitée à signer relevés et attestations.
+ *
+ * Aucune image de signature : elle reste manuscrite. Ce qui varie, ce sont le
+ * nom et la fonction imprimés au-dessus du trait, pour qu'un suppléant puisse
+ * signer sous son propre nom quand le titulaire est absent.
+ */
+export interface Signataire {
+  id:         number;
+  institution: number;
+  nom_fr:     string;
+  nom_ar:     string;
+  titre_fr:   string;
+  titre_ar:   string;
+  par_defaut: boolean;
+  actif:      boolean;
+  ordre:      number;
+  libelle:    string;
 }
 
 // ── Tableau de bord ──────────────────────────────────────────────────────────

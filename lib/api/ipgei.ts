@@ -16,7 +16,7 @@ import type {
   ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
   ReleveSemestre, ResultatDuplication, ResumeIPGEI, SaisieCollective,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
-  SousGroupeTP,
+  Signataire, SousGroupeTP,
   StatistiquesDeliberation, StatutAbsence, TypeDocumentIPGEI,
 } from '@/types/ipgei';
 
@@ -425,6 +425,18 @@ export const permutationsProfApi = {
 };
 
 export const permutationsEtudiantApi = {
+  /** Formulaire papier vierge, à remplir et signer. */
+  formulaire: (annee?: string) => apiFetchBlob(
+    `${BASE}/permutations-etudiant/formulaire/${annee ? `?annee=${annee}` : ''}`),
+  /**
+   * Enregistre ET applique le mouvement. La demande arrive signée sur papier :
+   * le circuit accord → validation redemanderait par écran ce qui l'est déjà.
+   */
+  appliquerMaintenant: (input: {
+    inscription: number; classe_cible: number; inscription_b?: number | null;
+    sous_groupe_cible?: number | null; motif?: string;
+  }) => apiFetch<PermutationEtudiant>(
+    `${BASE}/permutations-etudiant/appliquer-maintenant/`, { method: 'POST', body: input }),
   list:   (f: Params = {}) => apiFetchPaginated<PermutationEtudiant>(`${BASE}/permutations-etudiant/`, nettoyer(f)),
   create: (input: {
     inscription: number; classe_cible: number; sous_groupe_cible?: number | null;
@@ -464,17 +476,21 @@ function emettreDocument(chemin: string, body: Record<string, unknown>): Promise
 export const documentsApi = {
   list: (f: DocumentFilters = {}) => apiFetchPaginated<DocumentIPGEI>(`${BASE}/documents/`, nettoyer(f)),
 
-  releveSemestre: (inscription: number, semestre: number) =>
-    emettreDocument('releve-semestre', { inscription, semestre }),
-  releveAnnuel:   (inscription: number) =>
-    emettreDocument('releve-annuel', { inscription }),
+  /**
+   * `signataire` n'est utile que sur les pièces signées à la scolarité :
+   * omis, le serveur retient le signataire par défaut de l'institution.
+   */
+  releveSemestre: (inscription: number, semestre: number, signataire?: number) =>
+    emettreDocument('releve-semestre', nettoyer({ inscription, semestre, signataire })),
+  releveAnnuel:   (inscription: number, signataire?: number) =>
+    emettreDocument('releve-annuel', nettoyer({ inscription, signataire })),
   decision:       (deliberation: number, inscription: number) =>
     emettreDocument('decision-deliberation', { deliberation, inscription }),
   attestationCnim:(deliberation: number, inscription: number) =>
     emettreDocument('attestation-cnim', { deliberation, inscription }),
   /** Attestation de scolarité de l'année en cours, maquette comprise. */
-  attestationInscription: (inscription: number) =>
-    emettreDocument('attestation-inscription', { inscription }),
+  attestationInscription: (inscription: number, signataire?: number) =>
+    emettreDocument('attestation-inscription', nettoyer({ inscription, signataire })),
   /** Reçu des frais — refusé tant que le paiement n'est pas enregistré. */
   recuPaiement:   (inscription: number) =>
     emettreDocument('recu-paiement', { inscription }),
@@ -485,6 +501,22 @@ export const documentsApi = {
     ),
 
   telecharger: (id: number) => apiFetchBlob(`${BASE}/documents/${id}/telecharger/`),
+};
+
+// ── Signataires ──────────────────────────────────────────────────────────────
+/**
+ * Qui signe les documents. Aucune image : la signature reste manuscrite, seuls
+ * le nom et la fonction imprimés au-dessus du trait changent — de quoi faire
+ * signer un suppléant quand le chef de scolarité est absent.
+ */
+export const signatairesApi = {
+  list:   (f: { actif?: boolean } = {}) =>
+    apiFetch<Signataire[]>(`${BASE}/signataires/`, { params: nettoyer(f) }),
+  create: (input: Partial<Signataire>) =>
+    apiFetch<Signataire>(`${BASE}/signataires/`, { method: 'POST', body: input }),
+  update: (id: number, input: Partial<Signataire>) =>
+    apiFetch<Signataire>(`${BASE}/signataires/${id}/`, { method: 'PATCH', body: input }),
+  remove: (id: number) => apiFetch<void>(`${BASE}/signataires/${id}/`, { method: 'DELETE' }),
 };
 
 // ── Tableau de bord ──────────────────────────────────────────────────────────

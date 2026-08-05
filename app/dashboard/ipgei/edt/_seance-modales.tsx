@@ -213,7 +213,10 @@ export function ModalePermutation({
         ...(tranche ? {} : { action_directe: false }) },
       {
         onSuccess: (r: { seances_impactees?: number }) => onFait(tranche
-          ? `Permutation appliquée — ${r?.seances_impactees ?? 0} séance(s) touchée(s)`
+          ? (() => {
+              const n = r?.seances_impactees ?? 0;
+              return `Permutation appliquée — ${n} séance${n > 1 ? 's' : ''} touchée${n > 1 ? 's' : ''}`;
+            })()
           : 'Demande de permutation envoyée'),
         onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },

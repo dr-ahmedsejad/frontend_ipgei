@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import {
   ArrowLeft, CalendarDays, CalendarRange, ChevronRight, Clock, GraduationCap,
-  Layers, SlidersHorizontal,
+  Layers, PenLine, SlidersHorizontal,
 } from 'lucide-react';
 
 import { CARTE, EnTetePage } from '@/app/dashboard/ipgei/_ui';
 import { useAnneeIPGEI } from '@/app/dashboard/ipgei/_annee';
 import {
-  useNiveauxCursus, useParametresIPGEI, useSemestresAll,
+  useNiveauxCursus, useParametresIPGEI, useSemestresAll, useSignataires,
 } from '@/lib/api/ipgei-hooks';
 
 /**
@@ -31,7 +31,9 @@ export default function ParametresIPGEIPage() {
   const { data: niveaux = [] }   = useNiveauxCursus();
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const { data: parametres }     = useParametresIPGEI();
+  const { data: signataires = [] } = useSignataires(true);
 
+  const defaut   = signataires.find(s => s.par_defaut);
   const actifs   = niveaux.filter(n => n.actif).length;
   const ouverts  = semestres.filter(s => !s.est_cloture).length;
   const reprises = semestres.reduce((n, s) => n + (s.nb_semaines_generees ?? 0), 0);
@@ -60,6 +62,15 @@ export default function ParametresIPGEIPage() {
       titre: 'Règles de délibération',
       texte: 'Seuil de validation, plafond de rattrapage, droit au redoublement.',
       etat:  parametres ? `Seuil ${Number(parametres.seuil_validation).toFixed(2)} / 20` : '—',
+    },
+    {
+      href:  '/dashboard/parametres/cursus/signataires',
+      icone: PenLine,
+      titre: 'Signataires des documents',
+      texte: 'Qui signe relevés et attestations quand le titulaire est absent.',
+      etat:  signataires.length
+        ? (defaut ? `Par défaut : ${defaut.nom_fr}` : `${signataires.length} habilité(s)`)
+        : 'Aucun — titre seul, sans nom',
     },
     {
       href:  '/dashboard/parametres/semaines?retour=cursus',

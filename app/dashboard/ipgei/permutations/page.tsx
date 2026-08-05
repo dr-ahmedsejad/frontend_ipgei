@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import {
-  ArrowRight, CalendarDays, CheckCircle2, PlayCircle, Plus, Repeat, ThumbsUp,
+  ArrowRight, CalendarDays, CheckCircle2, Download, Loader2, PlayCircle, Plus,
+  Repeat, ThumbsUp,
   X, XCircle,
 } from 'lucide-react';
 
 import { Pagination } from '@/components/Pagination';
+import { downloadBlob } from '@/lib/downloadBlob';
 import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
   Erreur, INPUT, SELECT, Toast, Vide, tonStatutPermutation,
@@ -47,7 +49,7 @@ export default function PermutationsPage() {
       <EnTetePage
         icone={<Repeat size={14} className="text-white" />}
         titre="Permutations"
-        sousTitre="Circuit demande → accord → validation du directeur, ou décision directe."
+        sousTitre="Enseignants : demande, accord, validation. Étudiants : décision directe, sur formulaire signé."
       />
 
       <div className="flex gap-2 flex-wrap items-center">
@@ -157,9 +159,16 @@ function ListeProf({
                                        onNotifier={onNotifier} onErreur={onErreur} />)}
           </div>
         )}
-        {(data?.pages ?? 1) > 1 && (
-          <div className="px-5 pb-4">
-            <Pagination page={page} pages={data?.pages ?? 1} count={data?.count ?? 0} onPage={setPage} />
+        {items.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center
+                          justify-between gap-3 flex-wrap">
+            <span className="text-xs text-iss-gray">
+              {data?.count ?? 0} au total
+            </span>
+            {(data?.pages ?? 1) > 1 && (
+              <Pagination page={page} pages={data?.pages ?? 1}
+                          count={data?.count ?? 0} onPage={setPage} />
+            )}
           </div>
         )}
       </div>
@@ -194,50 +203,60 @@ function LigneProf({
 
   return (
     <div className="px-5 py-4">
+      {/* Même structure que la ligne étudiant : l'échange d'abord, le contexte
+          ensuite, le statut à droite. Les badges ouvraient la ligne et
+          repoussaient le contenu au troisième rang. */}
       <div className="flex items-start gap-3 flex-wrap">
-        <div className="flex-1 min-w-[260px]">
-          <div className="flex items-center gap-2 flex-wrap mb-2">
-            <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
-            {p.action_directe && <Badge ton="violet">Action directe</Badge>}
-            <span className="text-xs text-iss-gray">
-              {a?.classe_nom} · {a?.jour_libelle} {a?.creneau_libelle}
-            </span>
-          </div>
-
-          {/* Quand l'échange prend effet, et jusqu'à quand. « Portée : 4
-              semaines » ne disait rien d'utilisable pour couvrir un cours :
-              il fallait rouvrir le calendrier pour savoir de quelles dates
-              il s'agissait. */}
-          <p className="text-xs mb-2 px-2 py-1 rounded-lg inline-flex items-center gap-1.5"
-             style={{ background: 'rgba(124,58,237,0.07)', color: '#5b21b6' }}>
-            <CalendarDays size={12} />
-            <span className="font-semibold">{periode(a, b, p.nb_semaines)}</span>
+        <div className="flex-1 min-w-[280px]">
+          <p className="text-xs text-iss-gray">
+            {a?.classe_nom} · {a?.jour_libelle} {a?.creneau_libelle}
           </p>
 
-          <div className="flex items-center gap-2 text-sm flex-wrap">
-            <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+          <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
+            <div className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200">
               <span className="font-bold text-iss-dark">{a?.matiere_code}</span>
-              <span className="text-iss-gray"> · {a?.prof_nom || '—'} · {a?.salle_nom || '—'}</span>
+              <span className="text-iss-gray"> · {a?.prof_nom || '—'}</span>
             </div>
-            <ArrowRight size={14} className="text-iss-gray" />
-            <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+            <Repeat size={14} className="text-[#7c3aed] flex-shrink-0" />
+            <div className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200">
               <span className="font-bold text-iss-dark">{b?.matiere_code}</span>
-              <span className="text-iss-gray"> · {b?.prof_nom || '—'} · {b?.salle_nom || '—'}</span>
+              <span className="text-iss-gray"> · {b?.prof_nom || '—'}</span>
             </div>
           </div>
 
-          {p.motif && <p className="text-xs text-iss-gray mt-2 italic">Motif : {p.motif}</p>}
-          {p.motif_refus && <p className="text-xs text-red-600 mt-1">Refus : {p.motif_refus}</p>}
-          {p.statut === 'appliquee' && (
-            <p className="text-xs text-emerald-700 mt-1">
-              {p.seances_impactees} séance(s) permutée(s) — la charge suit l&apos;enseignant effectif.
-            </p>
-          )}
+          {/* Quand l'échange prend effet. « Portée : 4 semaines » ne disait
+              rien d'utilisable pour couvrir un cours. */}
+          <p className="mt-1.5 text-xs text-iss-gray inline-flex items-center gap-1.5">
+            <CalendarDays size={12} className="text-[#7c3aed]" />
+            {periode(a, b, p.nb_semaines)}
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
+          {p.action_directe && <Badge ton="violet">Action directe</Badge>}
         </div>
 
         <ActionsCircuit statut={p.statut} mutations={mutations} id={p.id}
                         onNotifier={onNotifier} onErreur={onErreur} />
       </div>
+
+      {(p.motif || p.motif_refus || p.statut === 'appliquee') && (
+        <div className="mt-2.5 pt-2.5 border-t border-gray-100 text-xs space-y-1">
+          {p.motif && <p className="text-iss-gray">Motif : {p.motif}</p>}
+          {p.motif_refus && <p className="text-red-600">Refus : {p.motif_refus}</p>}
+          {p.statut === 'appliquee' && (
+            // `{'  '}` explicite : une expression suivie d'un retour à la
+            // ligne perd son espace au rendu, et le nombre se collait au mot.
+            <p className="text-emerald-700">
+              {p.seances_impactees}{' '}
+              séance{p.seances_impactees > 1 ? 's' : ''}{' '}
+              permutée{p.seances_impactees > 1 ? 's' : ''}. La charge et le
+              pointage suivent l&apos;enseignant effectif.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -259,7 +278,20 @@ function ListeEtudiant({
     <>
       <Erreur erreur={error} />
 
-      <div className="flex justify-end">
+      {/* La demande se fait sur papier, signée ; l'application ne fait que
+          l'enregistrer. Le formulaire est donc à portée du même écran. */}
+      <div className="flex justify-end gap-2 flex-wrap">
+        <button onClick={() => mutations.formulaire.mutate(undefined, {
+                  onSuccess: (b) => downloadBlob(b, 'demande-changement-de-classe.pdf'),
+                  onError: onErreur,
+                })}
+                disabled={mutations.formulaire.isPending}
+                className={BTN_SECONDAIRE}>
+          {mutations.formulaire.isPending
+            ? <Loader2 size={14} className="animate-spin" />
+            : <Download size={14} />}
+          {mutations.formulaire.isPending ? 'Édition…' : 'Formulaire de demande'}
+        </button>
         <button onClick={() => setFormOuvert(true)} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
           <Plus size={14} /> Changement de classe
         </button>
@@ -269,7 +301,7 @@ function ListeEtudiant({
         <FormulaireChangementClasse
           onFerme={() => setFormOuvert(false)}
           onCree={(m) => { setFormOuvert(false); onNotifier(m); }}
-          create={mutations.create}
+          create={mutations.appliquerMaintenant}
         />
       )}
 
@@ -282,9 +314,16 @@ function ListeEtudiant({
                                            onNotifier={onNotifier} onErreur={onErreur} />)}
           </div>
         )}
-        {(data?.pages ?? 1) > 1 && (
-          <div className="px-5 pb-4">
-            <Pagination page={page} pages={data?.pages ?? 1} count={data?.count ?? 0} onPage={setPage} />
+        {items.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center
+                          justify-between gap-3 flex-wrap">
+            <span className="text-xs text-iss-gray">
+              {data?.count ?? 0} au total
+            </span>
+            {(data?.pages ?? 1) > 1 && (
+              <Pagination page={page} pages={data?.pages ?? 1}
+                          count={data?.count ?? 0} onPage={setPage} />
+            )}
           </div>
         )}
       </div>
@@ -299,51 +338,64 @@ function LigneEtudiant({
   mutations: ReturnType<typeof usePermutationEtudiantMutations>;
   onNotifier: (m: string) => void; onErreur: (e: unknown) => void;
 }) {
+  const applique = p.statut === 'appliquee';
+
   return (
-    <div className="px-5 py-4 flex items-start gap-3 flex-wrap">
-      <div className="flex-1 min-w-[260px]">
-        <div className="flex items-center gap-2 flex-wrap mb-1.5">
-          <span className="text-sm font-bold text-iss-dark">{p.etudiant_nom}</span>
-          <span className="text-xs text-iss-gray">{p.etudiant_matricule}</span>
+    <div className="px-5 py-4">
+      {/* Le mouvement d'abord, en une ligne : qui, d'où, vers où. Le reste —
+          statut, motif, mention de conservation — vient après, en second plan.
+          Tout était auparavant empilé au même poids. */}
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="flex-1 min-w-[280px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-iss-dark">{p.etudiant_nom}</span>
+            <span className="text-xs text-iss-gray font-mono">{p.etudiant_matricule}</span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
+            <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 font-semibold">
+              {p.classe_source_nom}
+            </span>
+            {p.est_echange
+              ? <Repeat size={14} className="text-[#7c3aed] flex-shrink-0" />
+              : <ArrowRight size={14} className="text-iss-gray flex-shrink-0" />}
+            <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 font-semibold">
+              {p.classe_cible_nom}
+            </span>
+          </div>
+
+          {/* Un échange engage deux élèves : le second doit se lire ici, sinon
+              la ligne laisse croire à un simple transfert. */}
+          {p.est_echange && (
+            <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
+              <span className="text-sm font-bold text-iss-dark">{p.etudiant_b_nom}</span>
+              <span className="text-xs text-iss-gray font-mono">{p.etudiant_b_matricule}</span>
+              <span className="text-xs text-iss-gray">— en sens inverse</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5">
           <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
           {p.est_echange && <Badge ton="violet">Échange</Badge>}
-          {p.action_directe && <Badge ton="violet">Action directe</Badge>}
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
-            {p.classe_source_nom}
-          </span>
-          {p.est_echange
-            ? <Repeat size={14} className="text-[#7c3aed]" />
-            : <ArrowRight size={14} className="text-iss-gray" />}
-          <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
-            {p.classe_cible_nom}
-          </span>
-        </div>
-
-        {/* Un échange engage deux élèves : le second doit se lire ici, sinon
-            la ligne laisse croire à un simple transfert. */}
-        {p.est_echange && (
-          <p className="text-xs text-iss-gray mt-1.5">
-            En échange avec{' '}
-            <span className="font-semibold text-iss-dark">{p.etudiant_b_nom}</span>
-            {p.etudiant_b_matricule && ` · ${p.etudiant_b_matricule}`}
-          </p>
-        )}
-
-        {p.motif && <p className="text-xs text-iss-gray mt-2 italic">Motif : {p.motif}</p>}
-        {p.motif_refus && <p className="text-xs text-red-600 mt-1">Refus : {p.motif_refus}</p>}
-        {p.statut === 'appliquee' && (
-          <p className="text-xs text-emerald-700 mt-1">
-            {p.est_echange ? 'Échange effectué' : 'Re-rattachement effectué'} — notes et
-            absences conservées.
-          </p>
-        )}
+        <ActionsCircuit statut={p.statut} mutations={mutations} id={p.id}
+                        onNotifier={onNotifier} onErreur={onErreur} />
       </div>
 
-      <ActionsCircuit statut={p.statut} mutations={mutations} id={p.id}
-                      onNotifier={onNotifier} onErreur={onErreur} />
+      {(p.motif || p.motif_refus || applique) && (
+        <div className="mt-2.5 pt-2.5 border-t border-gray-100 text-xs space-y-1">
+          {p.motif && <p className="text-iss-gray">Motif : {p.motif}</p>}
+          {p.motif_refus && <p className="text-red-600">Refus : {p.motif_refus}</p>}
+          {applique && (
+            <p className="text-emerald-700">
+              {p.est_echange ? 'Échange effectué' : 'Transfert effectué'} — notes,
+              absences et historique conservés.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -363,7 +415,6 @@ function FormulaireChangementClasse({
   // d'accueil a de la place et que personne n'en sort.
   const [contrepartieId, setContrepartieId] = useState<number | null>(null);
   const [motif, setMotif]     = useState('');
-  const [directe, setDirecte] = useState(false);
   const [erreur, setErreur]   = useState<string | null>(null);
 
   const { data: inscriptionsPage } = useInscriptions({
@@ -398,12 +449,12 @@ function FormulaireChangementClasse({
       {
         inscription: inscriptionId, classe_cible: classeCible,
         inscription_b: contrepartieId, sous_groupe_cible: sousGroupeCible,
-        motif, action_directe: directe,
+        motif,
       } as never,
       {
-        onSuccess: () => onCree(directe
-          ? `${contrepartieId ? 'Échange' : 'Changement'} validé — à appliquer depuis la liste`
-          : 'Demande enregistrée'),
+        onSuccess: () => onCree(contrepartieId
+          ? 'Permutation effectuée'
+          : 'Transfert effectué'),
         onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },
     );
@@ -413,9 +464,10 @@ function FormulaireChangementClasse({
     <div className={`${CARTE} p-6`} style={{ borderLeft: '3px solid #006633' }}>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-iss-dark">Permutation d&apos;étudiants</h3>
+          <h3 className="text-sm font-semibold text-iss-dark">Changement de classe</h3>
           <p className="text-xs text-iss-gray">
-            Les inscriptions sont déplacées, jamais recréées : notes, absences et
+            Appliqué immédiatement, sur présentation du formulaire signé. Les
+            inscriptions sont déplacées, jamais recréées : notes, absences et
             historique suivent chaque étudiant dans sa nouvelle classe.
           </p>
         </div>
@@ -535,23 +587,16 @@ function FormulaireChangementClasse({
         </div>
       </div>
 
-      <label className="flex items-start gap-2 text-sm text-iss-dark cursor-pointer mt-3">
-        <input type="checkbox" checked={directe} onChange={e => setDirecte(e.target.checked)}
-               className="w-4 h-4 mt-0.5 accent-[#006633]" />
-        <span>
-          Action directe du directeur
-          <span className="block text-xs text-iss-gray">
-            Sinon, la demande passe par l&apos;accord des deux classes puis la validation du directeur.
-          </span>
-        </span>
-      </label>
 
       {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
 
       <div className="flex gap-2 mt-5">
         <button onClick={enregistrer} disabled={create.isPending}
                 className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-          {directe ? 'Changer de classe' : 'Demander le changement'}
+          {create.isPending && <Loader2 size={14} className="animate-spin" />}
+          {create.isPending
+            ? 'Application…'
+            : contrepartieId ? 'Permuter' : 'Transférer'}
         </button>
         <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
       </div>

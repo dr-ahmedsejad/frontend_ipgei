@@ -15,7 +15,7 @@ import {
   parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
   niveauxApi,
-  semainesApi, semestresApi, sessionsApi, sousGroupesApi, tableauBordApi,
+  semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters, type Params,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
@@ -25,7 +25,7 @@ import type {
   NiveauCursusInput, Note, RoleJuryIPGEI,
   SaisieAnonyme, SaisieCollective,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
-  StatutAbsence,
+  Signataire, StatutAbsence,
 } from '@/types/ipgei';
 import { NIVEAUX } from '@/types/ipgei';
 
@@ -83,6 +83,7 @@ export const ipgeiKeys = {
 
   absences:      domaine<AbsenceFilters>('absences'),
   documents:     domaine<DocumentFilters>('documents'),
+  signataires:   (actif?: boolean) => [...racine, 'signataires', actif ?? null] as const,
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -920,6 +921,12 @@ export function usePermutationEtudiantMutations() {
 
   return {
     create:    useMutation({ mutationFn: permutationsEtudiantApi.create,    onSuccess: invalider }),
+    // Le mouvement s'applique d'un geste : la demande est déjà signée sur
+    // papier, et le circuit ne ferait que la ressaisir.
+    appliquerMaintenant: useMutation({
+      mutationFn: permutationsEtudiantApi.appliquerMaintenant, onSuccess: invalider,
+    }),
+    formulaire: useMutation({ mutationFn: permutationsEtudiantApi.formulaire }),
     accorder:  useMutation({ mutationFn: permutationsEtudiantApi.accorder,  onSuccess: invalider }),
     valider:   useMutation({ mutationFn: permutationsEtudiantApi.valider,   onSuccess: invalider }),
     appliquer: useMutation({ mutationFn: permutationsEtudiantApi.appliquer, onSuccess: invalider }),
@@ -948,13 +955,18 @@ export function useDocumentMutations() {
   const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.documents.all });
 
   return {
+    // `signataire` : qui signe la pièce. Omis, le serveur retient le
+    // signataire par défaut de l'institution — le comportement d'avant.
     releveSemestre: useMutation({
-      mutationFn: ({ inscription, semestre }: { inscription: number; semestre: number }) =>
-        documentsApi.releveSemestre(inscription, semestre),
+      mutationFn: ({ inscription, semestre, signataire }:
+                   { inscription: number; semestre: number; signataire?: number }) =>
+        documentsApi.releveSemestre(inscription, semestre, signataire),
       onSuccess:  invalider,
     }),
     releveAnnuel: useMutation({
-      mutationFn: (inscription: number) => documentsApi.releveAnnuel(inscription),
+      mutationFn: ({ inscription, signataire }:
+                   { inscription: number; signataire?: number }) =>
+        documentsApi.releveAnnuel(inscription, signataire),
       onSuccess:  invalider,
     }),
     decision: useMutation({
@@ -968,7 +980,9 @@ export function useDocumentMutations() {
       onSuccess:  invalider,
     }),
     attestationInscription: useMutation({
-      mutationFn: (inscription: number) => documentsApi.attestationInscription(inscription),
+      mutationFn: ({ inscription, signataire }:
+                   { inscription: number; signataire?: number }) =>
+        documentsApi.attestationInscription(inscription, signataire),
       onSuccess:  invalider,
     }),
     recuPaiement: useMutation({
@@ -978,6 +992,46 @@ export function useDocumentMutations() {
     decisionsClasse: useMutation({
       mutationFn: ({ deliberation, classe }: { deliberation: number; classe?: number }) =>
         documentsApi.decisionsClasse(deliberation, classe),
+      onSuccess:  invalider,
+    }),
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Signataires
+// ═════════════════════════════════════════════════════════════════════════════
+/**
+ * Habilités à signer les documents officiels.
+ *
+ * Lu à la génération pour proposer qui signe, et au paramétrage pour tenir la
+ * liste. La signature reste manuscrite : seul le bloc imprimé change.
+ */
+export function useSignataires(actif?: boolean) {
+  return useQuery({
+    queryKey: ipgeiKeys.signataires(actif),
+    queryFn:  () => signatairesApi.list(actif === undefined ? {} : { actif }),
+  });
+}
+
+export function useSignataireMutations() {
+  const qc = useQueryClient();
+  // Poser un signataire par défaut en retire un autre : toute la liste bouge.
+  const invalider = () => qc.invalidateQueries({
+    predicate: q => q.queryKey[1] === 'signataires',
+  });
+
+  return {
+    creer: useMutation({
+      mutationFn: (input: Partial<Signataire>) => signatairesApi.create(input),
+      onSuccess:  invalider,
+    }),
+    modifier: useMutation({
+      mutationFn: ({ id, ...input }: Partial<Signataire> & { id: number }) =>
+        signatairesApi.update(id, input),
+      onSuccess:  invalider,
+    }),
+    desactiver: useMutation({
+      mutationFn: (id: number) => signatairesApi.remove(id),
       onSuccess:  invalider,
     }),
   };
