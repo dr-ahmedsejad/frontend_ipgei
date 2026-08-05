@@ -300,6 +300,8 @@ export interface FiltresCollecte extends Params {
 }
 
 // ── Délibération ─────────────────────────────────────────────────────────────
+export type TriDetailNotes = 'rang' | 'matricule' | 'moyenne';
+
 export interface DeliberationFilters extends Params {
   page?: number; niveau?: string; annee_universitaire?: string;
   portee?: string; statut?: string; semestre?: number;
@@ -342,7 +344,13 @@ export const deliberationsApi = {
   pvPdf:    (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-pdf/`),
   pvExcel:  (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/pv-excel/`),
   /** Document de séance : un bloc par élève, détail matière par matière. */
-  detailNotes: (id: number) => apiFetchBlob(`${BASE}/deliberations/${id}/detail-notes/`),
+  /**
+   * `tri` commande l'ordre des blocs du document de séance : par classement
+   * pour délibérer du haut vers le bas, par matricule pour retrouver un
+   * dossier qu'on présente au jury, par moyenne pour les cas limites.
+   */
+  detailNotes: (id: number, tri: TriDetailNotes = 'rang') =>
+    apiFetchBlob(`${BASE}/deliberations/${id}/detail-notes/`, { tri }),
 };
 
 export const membresJuryApi = {

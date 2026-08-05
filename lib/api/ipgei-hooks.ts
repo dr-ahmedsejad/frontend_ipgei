@@ -18,6 +18,7 @@ import {
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
   type FiltresCollecte, type FiltresGrilleAnonyme, type Params,
+  type TriDetailNotes,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
 } from './ipgei';
@@ -664,7 +665,10 @@ export function useDeliberationMutations() {
     // Les éditions ne modifient rien : pas d'invalidation à leur suite.
     pvPdf:   useMutation({ mutationFn: deliberationsApi.pvPdf }),
     pvExcel: useMutation({ mutationFn: deliberationsApi.pvExcel }),
-    detailNotes: useMutation({ mutationFn: deliberationsApi.detailNotes }),
+    detailNotes: useMutation({
+      mutationFn: ({ id, tri }: { id: number; tri?: TriDetailNotes }) =>
+        deliberationsApi.detailNotes(id, tri),
+    }),
   };
 }
 

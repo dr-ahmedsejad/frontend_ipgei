@@ -1,6 +1,8 @@
 'use client';
 
 import { use, useState } from 'react';
+
+import type { TriDetailNotes } from '@/lib/api/ipgei';
 import Link from 'next/link';
 import {
   ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText, Lock,
@@ -33,6 +35,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
   const [erreur, setErreur] = useState<string | null>(null);
   const [aValider, setAValider] = useState(false);
   const [aDevalider, setADevalider] = useState(false);
+  const [triDetail, setTriDetail] = useState<TriDetailNotes>('rang');
 
   // Dévalider remet en cause des décisions notifiées : le backend le réserve à
   // un administrateur, l'écran n'a pas à proposer un bouton voué au 403.
@@ -141,14 +144,29 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                 fondent. Réservé aux jurys de semestre — une délibération
                 annuelle porte deux maquettes, qu'on ne peut pas juxtaposer. */}
             {deliberation.portee === 'semestre' && (
-              <button onClick={() => detailNotes.mutate(deliberationId, {
-                        onSuccess: (b) => downloadBlob(b, `detail-notes-${nomPv}.pdf`),
-                        onError: signaler,
-                      })}
-                      disabled={detailNotes.isPending} className={BTN_SECONDAIRE}>
-                <ListChecks size={14} />
-                {detailNotes.isPending ? 'Édition…' : 'Détail des notes'}
-              </button>
+              /* Le jury ne parcourt pas toujours la promotion de la même
+                 façon : par classement pour délibérer du haut vers le bas, par
+                 matricule pour retrouver un dossier qu'on lui présente, par
+                 moyenne pour examiner les cas limites. L'ordre voyage avec la
+                 demande, et s'imprime sur le bandeau du document. */
+              <div className="inline-flex items-center gap-1.5">
+                <select value={triDetail} className={SELECT} style={{ width: 132 }}
+                        onChange={e => setTriDetail(e.target.value as TriDetailNotes)}>
+                  <option value="rang">Par classement</option>
+                  <option value="matricule">Par matricule</option>
+                  <option value="moyenne">Par moyenne</option>
+                </select>
+                <button onClick={() => detailNotes.mutate(
+                          { id: deliberationId, tri: triDetail },
+                          {
+                            onSuccess: (b) => downloadBlob(b, `detail-notes-${nomPv}-${triDetail}.pdf`),
+                            onError: signaler,
+                          })}
+                        disabled={detailNotes.isPending} className={BTN_SECONDAIRE}>
+                  <ListChecks size={14} />
+                  {detailNotes.isPending ? 'Édition…' : 'Détail des notes'}
+                </button>
+              </div>
             )}
             {verrouillee && estAdmin && (
               <button onClick={() => setADevalider(true)} className={BTN_SECONDAIRE}>
