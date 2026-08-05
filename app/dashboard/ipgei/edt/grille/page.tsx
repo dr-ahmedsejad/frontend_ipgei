@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Ban, CalendarRange, CheckCircle, ChevronLeft, ChevronRight, CopyPlus,
+  CalendarRange, CheckCircle, ChevronLeft, ChevronRight, CopyPlus,
   Loader2, Lock, Repeat, Save, Trash2, X,
 } from 'lucide-react';
 
@@ -13,6 +13,7 @@ import {
 } from '../../_ui';
 import { anneeParDefaut, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
+import { semaineAProposer } from '../_semaines';
 import {
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU, STYLE_ENTETE_JOUR,
   STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
@@ -27,7 +28,7 @@ import {
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
 import { type NiveauIPGEI, type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
 import {
-  ModaleEditionSeance, ModalePermutation,
+  ModalePermutation,
 } from '../_seance-modales';
 import { BandeauCoherence } from '../_consultation';
 
@@ -56,6 +57,17 @@ const VIDE: Emplacement = {
 const cle = (jour: number, creneau: number, sousGroupe: string) =>
   `${jour}__${creneau}__${sousGroupe}`;
 
+/**
+ * Bouton d'action dans une case de grille.
+ *
+ * `p-1.5` porte la cible à environ 26 px de côté autour d'une icône de 13 —
+ * l'icône nue offrait 11 px, sous le seuil où l'on vise sans y penser. Le fond
+ * au survol montre l'étendue réelle de la zone, ce qui manquait tout autant :
+ * on ne savait pas où finissait un bouton et où commençait le suivant.
+ */
+const BOUTON_CASE =
+  'p-1.5 rounded-lg text-iss-gray transition-colors flex items-center gap-1';
+
 export default function GrilleTypePage() {
   const qc = useQueryClient();
 
@@ -76,6 +88,14 @@ export default function GrilleTypePage() {
    * plutôt que deux écrans.
    */
   const [periodeId, setPeriodeId] = useState<number | null>(null);
+  /**
+   * Une semaine a-t-elle déjà été proposée pour la classe affichée ?
+   *
+   * Sans ce garde-fou, revenir au patron serait aussitôt défait par la
+   * proposition — on ne pourrait plus l'ouvrir du tout. On propose une fois
+   * par classe, ensuite le choix est celui de l'utilisateur.
+   */
+  const classeProposee = useRef<number | null>(null);
 
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
   const classe = classes.find(c => c.id === classeId);
@@ -101,6 +121,16 @@ export default function GrilleTypePage() {
     () => semaines.filter(s => s.type_semaine === 'cours'),
     [semaines],
   );
+  // Ouvrir sur la semaine du jour plutôt que sur le patron : c'est l'emploi du
+  // temps réel qu'on vient consulter, le patron ne se retouche qu'à la
+  // préparation du semestre. Il reste à un choix du sélecteur.
+  useEffect(() => {
+    if (!classeId || semainesCours.length === 0) return;
+    if (classeProposee.current === classeId) return;
+    classeProposee.current = classeId;
+    setPeriodeId(semaineAProposer(semainesCours)?.id ?? null);
+  }, [classeId, semainesCours]);
+
   const enModeSemaine = periodeId !== null;
   const semaine = semainesCours.find(s => s.id === periodeId);
 
@@ -142,7 +172,6 @@ export default function GrilleTypePage() {
    * d'être remplie.
    */
   const [vue, setVue] = useState<string>('');
-  const [seanceEditee, setSeanceEditee]   = useState<SeanceReelle | null>(null);
   // Séance dont on veut permuter l'enseignant. Les échanges possibles se
   // choisissent dans la fenêtre : le serveur n'accepte que deux séances de la
   // même classe et du même créneau, la liste est donc connue d'avance et rien
@@ -794,22 +823,24 @@ export default function GrilleTypePage() {
                                   pas d'objet sur le patron : on n'annule ni ne
                                   permute un modèle, et on ne fait pas l'appel
                                   sur une case théorique. */}
-                              {enModeSemaine && cellule.idOrigine && (
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  {(() => {
+                              {/* Les actions étaient trois icônes nues de 11 px
+                                  séparées de 6 px : la zone cliquable se
+                                  confondait avec le dessin, et « Vider » —
+                                  destructeur — jouxtait « Permuter ». Chacune
+                                  a désormais sa surface, et la destruction est
+                                  mise à l'écart, à droite, derrière un trait. */}
+                              {((enModeSemaine && cellule.idOrigine)
+                                || ((cellule.matiereId || speciale) && !estHerite)) && (
+                                <div className="flex items-center gap-0.5 mt-1 pt-1 border-t border-gray-200/70">
+                                  {enModeSemaine && cellule.idOrigine && (() => {
                                     const reelle = seancesSemaine.find(s => s.id === cellule.idOrigine);
                                     if (!reelle) return null;
                                     return (
                                       <>
-                                        <button onClick={() => setSeanceEditee(reelle)}
-                                                title="Annuler la séance ou reporter sur N semaines"
-                                                className="text-iss-gray hover:text-red-600 transition-colors">
-                                          <Ban size={11} />
-                                        </button>
                                         <button onClick={() => setPermutation(reelle)}
                                                 title="Permuter les enseignants"
-                                                className="text-iss-gray hover:text-[#7c3aed] transition-colors">
-                                          <Repeat size={11} />
+                                                className={BOUTON_CASE + ' hover:bg-violet-50 hover:text-[#7c3aed]'}>
+                                          <Repeat size={13} />
                                         </button>
                                         {cellule.annulee && (
                                           <span style={{ fontSize: 9, fontWeight: 700, color: '#b91c1c' }}>
@@ -819,18 +850,20 @@ export default function GrilleTypePage() {
                                       </>
                                     );
                                   })()}
-                                </div>
-                              )}
 
-                              {(cellule.matiereId || speciale) && !estHerite && (
-                                <button onClick={() => viderCase(k)}
-                                        title={vue
-                                          ? "Retirer cette séance : le sous-groupe reprendra celle de la classe"
-                                          : "Vider la case"}
-                                        className="flex items-center gap-1 text-iss-gray hover:text-red-600 transition-colors"
-                                        style={{ fontSize: 9 }}>
-                                  <Trash2 size={9} /> {vue ? 'Reprendre la classe' : 'Vider'}
-                                </button>
+                                  {(cellule.matiereId || speciale) && !estHerite && (
+                                    <button onClick={() => viderCase(k)}
+                                            title={vue
+                                              ? "Retirer cette séance : le sous-groupe reprendra celle de la classe"
+                                              : 'Vider la case'}
+                                            className={BOUTON_CASE
+                                              + ' ml-auto pl-2 border-l border-gray-200/70 rounded-l-none'
+                                              + ' hover:bg-red-50 hover:text-red-600'}>
+                                      <Trash2 size={13} />
+                                      {vue && <span className="text-[9px] font-semibold">Classe</span>}
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>
@@ -864,13 +897,6 @@ export default function GrilleTypePage() {
         />
       )}
 
-      {seanceEditee && (
-        <ModaleEditionSeance
-          seance={seanceEditee} profs={profs} salles={salles}
-          onFerme={() => setSeanceEditee(null)}
-          onFait={(m) => { setSeanceEditee(null); notifier(m); }}
-        />
-      )}
       {permutation && (
         <ModalePermutation
           depart={permutation} candidats={candidats}

@@ -164,8 +164,10 @@ export function CarteSeance({
         )}
       </button>
 
+      {/* `gap-1` sépare les cibles : collées, deux boutons de 26 px se lisent
+          comme un seul de 52. */}
       {actions && (
-        <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {actions}
         </div>
       )}

@@ -10,6 +10,7 @@ import {
 } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
+import { semaineAProposer } from '../_semaines';
 import {
   useClassesSelect, useEdtSemaine, useSemaines, useSemestresAll,
 } from '@/lib/api/ipgei-hooks';
@@ -56,9 +57,7 @@ export default function EdtSemainePage() {
   useEffect(() => {
     if (semainesCours.length === 0) { setSemaineId(null); return; }
     if (semaineId && semainesCours.some(s => s.id === semaineId)) return;
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const courante = semainesCours.find(s => s.date_debut <= aujourdhui && aujourdhui <= s.date_fin);
-    setSemaineId((courante ?? semainesCours[0]).id);
+    setSemaineId(semaineAProposer(semainesCours)?.id ?? null);
   }, [semainesCours, semaineId]);
 
   const { jours, creneaux, salles, profs } = useReferentielsEDT();
@@ -212,14 +211,21 @@ export default function EdtSemainePage() {
                                       onClick={() => setSeanceEditee(s)}
                                       actions={
                                         <>
+                                          {/* Icônes nues de 11 px collées l'une
+                                              à l'autre : on visait le dessin,
+                                              pas une cible. */}
                                           <button onClick={() => setSeanceAppel(s)} title="Feuille d'appel"
-                                                  className="p-0.5 rounded bg-white/90 text-iss-gray hover:text-[#006633]">
-                                            <UserX size={11} />
+                                                  className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200
+                                                             text-iss-gray hover:bg-[#006633] hover:text-white
+                                                             hover:border-[#006633] transition-colors">
+                                            <UserX size={13} />
                                           </button>
                                           <button onClick={() => setPermutation(s)}
                                                   title="Permuter les enseignants"
-                                                  className="p-0.5 rounded bg-white/90 text-iss-gray hover:text-violet-700">
-                                            <Repeat size={11} />
+                                                  className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200
+                                                             text-iss-gray hover:bg-[#7c3aed] hover:text-white
+                                                             hover:border-[#7c3aed] transition-colors">
+                                            <Repeat size={13} />
                                           </button>
                                         </>
                                       }
