@@ -34,11 +34,11 @@ import type { TypeNoteCollecte } from '@/lib/api/ipgei';
  * Faire choisir les deux revenait à ressaisir la même chose, et laissait
  * demander un « DS de rattrapage » qui n'existe pas.
  */
-const TYPES: { cle: TypeNoteCollecte; label: string; detail: string }[] = [
+const TYPES: { cle: TypeNoteCollecte; label: string; detail?: string }[] = [
   { cle: 'DS',   label: 'Devoir surveillé',      detail: 'Contrôles du semestre' },
-  { cle: 'TP',   label: 'Travaux pratiques',     detail: 'Matières à TP notés' },
+  { cle: 'TP',   label: 'Travaux pratiques' },
   { cle: 'EXAM', label: 'Examen final',          detail: 'Épreuve de fin de semestre' },
-  { cle: 'RATT', label: 'Examen de rattrapage',  detail: 'Seuls les étudiants sous le seuil' },
+  { cle: 'RATT', label: 'Examen de rattrapage' },
 ];
 
 export default function FicheCollectePage() {
@@ -199,7 +199,7 @@ export default function FicheCollectePage() {
                        onChange={() => { setTypeNote(t.cle); setMatiereId(null); }}
                        className="accent-[#006633]" />
                 <span className="text-sm text-iss-dark">{t.label}</span>
-                <span className="text-xs text-iss-gray">— {t.detail}</span>
+                {t.detail && <span className="text-xs text-iss-gray">— {t.detail}</span>}
               </label>
             ))}
           </div>
@@ -218,11 +218,14 @@ export default function FicheCollectePage() {
                    checked={anonymat && anonymatPret} disabled={!anonymatPret}
                    onChange={e => setAnonymat(e.target.checked)} />
             Copies anonymes
-            <span className="text-xs text-iss-gray">
-              {anonymatPret
-                ? '— la fiche ne portera que les numéros'
-                : '— aucun numéro tiré pour cette épreuve'}
-            </span>
+            {/* Rien à dire quand les numéros existent : la case parle d'elle-même.
+                L'absence de tirage, elle, doit s'annoncer — sans elle la case
+                grisée resterait inexpliquée. */}
+            {!anonymatPret && (
+              <span className="text-xs text-iss-gray">
+                — aucun numéro tiré pour cette épreuve
+              </span>
+            )}
           </label>
           {!anonymatPret && semestreId && (
             <p className="mt-1 text-xs text-iss-gray">
