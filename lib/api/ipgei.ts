@@ -127,9 +127,15 @@ export interface InscriptionFilters extends Params {
   page?: number; search?: string; classe?: number; annee_universitaire?: string;
   statut?: string; actif?: boolean; sous_groupe?: number;
   'classe__niveau'?: string;
+  /** `true` = les inscrits encore dans la classe d'attente de leur niveau. */
+  en_attente?: boolean;
 }
 
 export const inscriptionsApi = {
+  /** Sort un inscrit de la classe d'attente pour le poser dans une classe. */
+  affecter: (id: number, classe: number) =>
+    apiFetch<Inscription>(`${BASE}/inscriptions/${id}/affecter/`,
+      { method: 'POST', body: { classe } }),
   list:     (f: InscriptionFilters = {}) => apiFetchPaginated<Inscription>(`${BASE}/inscriptions/`, nettoyer(f)),
   all:      (f: InscriptionFilters = {}) => apiFetch<Inscription[]>(`${BASE}/inscriptions/all/`, { params: nettoyer(f) }),
   retrieve: (id: number) => apiFetch<Inscription>(`${BASE}/inscriptions/${id}/`),

@@ -16,7 +16,9 @@ import Stepper from '@/components/ui/Stepper';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
 import { BTN_SECONDAIRE, CARTE, INPUT, SELECT } from '../../_ui';
 import { anneeParDefaut } from '../../_annee';
-import { useClassesSelect, useInscriptionMutations } from '@/lib/api/ipgei-hooks';
+import {
+  useClassesSelect, useInscriptionMutations, useOptionsNiveaux,
+} from '@/lib/api/ipgei-hooks';
 import { useContexteFrais, useGrillesFrais } from '@/lib/api/ipgei-frais';
 import type { NouvelEtudiant } from '@/types/ipgei';
 
@@ -82,11 +84,17 @@ export default function NouvelleInscriptionPage() {
   const [fichier, setFichier]     = useState<File | null>(null);
   const [rapport, setRapport]     = useState<RapportImport | null>(null);
   const [identite, setIdentite] = useState<NouvelEtudiant>(IDENTITE_VIDE);
+  const [niveau, setNiveau]     = useState('');
   const [classeId, setClasseId] = useState<number | null>(null);
-  const [numeroOrdre, setNumeroOrdre] = useState<string>('');
   const [erreur, setErreur]     = useState<string | null>(null);
 
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
+  const optionsNiveaux = useOptionsNiveaux();
+  // La classe reste facultative : à la rentrée on ignore encore combien de
+  // classes ouvrir. Sans elle, l'inscrit rejoint la classe d'attente de son
+  // niveau — il reçoit sa maquette et ses frais, il lui manque un groupe.
+  const classesDuNiveau = classes.filter(
+    c => c.niveau === niveau && !c.est_conteneur);
   const { data: contexte }     = useContexteFrais();
   const { data: tarifs = [] }  = useGrillesFrais();
   const { nouvelle }           = useInscriptionMutations();
@@ -171,7 +179,7 @@ export default function NouvelleInscriptionPage() {
       if (!identite.matricule.trim()) { setErreur('Le matricule est requis.'); return; }
       if (!identite.nom.trim())       { setErreur('Le nom complet est requis.'); return; }
     }
-    if (etape === 1 && !classeId) { setErreur('Choisissez une classe.'); return; }
+    if (etape === 1 && !niveau) { setErreur('Choisissez un niveau.'); return; }
     setEtape(e => e + 1);
   };
 
@@ -179,8 +187,11 @@ export default function NouvelleInscriptionPage() {
     setErreur(null);
     nouvelle.mutate(
       {
-        classe: classeId!,
-        numero_ordre: numeroOrdre ? Number(numeroOrdre) : null,
+        // Sans classe, le serveur pose l'inscrit dans la classe d'attente du
+        // niveau — il est inscrit, il lui manque un groupe.
+        classe: classeId,
+        niveau,
+        annee_universitaire: annee,
         nouvel_etudiant: {
           ...identite,
           matricule: identite.matricule.trim(),
@@ -437,16 +448,23 @@ export default function NouvelleInscriptionPage() {
           <>
             <h2 className="font-semibold text-iss-dark">Rattachement</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Champ label="Classe *">
-                <select value={classeId ?? ''} className={SELECT}
-                        onChange={e => setClasseId(e.target.value ? Number(e.target.value) : null)}>
+              <Champ label="Niveau *">
+                <select value={niveau} className={SELECT}
+                        onChange={e => { setNiveau(e.target.value); setClasseId(null); }}>
                   <option value="">— Choisir —</option>
-                  {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  {optionsNiveaux.map(n => (
+                    <option key={n.value} value={n.value}>{n.label}</option>
+                  ))}
                 </select>
               </Champ>
-              <Champ label="N° d'ordre">
-                <input type="number" value={numeroOrdre} className={INPUT}
-                       onChange={e => setNumeroOrdre(e.target.value)} />
+              <Champ label="Classe">
+                <select value={classeId ?? ''} className={SELECT} disabled={!niveau}
+                        onChange={e => setClasseId(e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">
+                    {niveau ? 'À affecter plus tard' : "Choisissez d'abord un niveau"}
+                  </option>
+                  {classesDuNiveau.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                </select>
               </Champ>
             </div>
 
@@ -474,7 +492,9 @@ export default function NouvelleInscriptionPage() {
                 <Ligne cle="Nom (AR)" valeur={identite.nom_ar} />
               )}
               <Ligne cle="Matricule" valeur={identite.matricule} />
-              <Ligne cle="Classe" valeur={classe?.nom ?? '—'} />
+              <Ligne cle="Niveau" valeur={niveau || '—'} />
+              <Ligne cle="Classe"
+                     valeur={classe?.nom ?? "À affecter — l'inscrit rejoint la classe d'attente"} />
               <Ligne cle="Année universitaire" valeur={annee} />
               <Ligne
                 cle="Frais d'inscription"

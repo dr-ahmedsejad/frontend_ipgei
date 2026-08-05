@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import {
-  ArrowRight, CheckCircle2, PlayCircle, Plus, Repeat, ThumbsUp, X, XCircle,
+  ArrowRight, CalendarDays, CheckCircle2, PlayCircle, Plus, Repeat, ThumbsUp,
+  X, XCircle,
 } from 'lucide-react';
 
 import { Pagination } from '@/components/Pagination';
@@ -16,7 +17,9 @@ import {
   usePermutationProfMutations, usePermutationsEtudiant, usePermutationsProf,
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
-import type { PermutationEtudiant, PermutationProf, StatutPermutation } from '@/types/ipgei';
+import type {
+  PermutationEtudiant, PermutationProf, SeanceReelle, StatutPermutation,
+} from '@/types/ipgei';
 
 type Onglet = 'prof' | 'etudiant';
 
@@ -164,6 +167,21 @@ function ListeProf({
   );
 }
 
+/**
+ * Période couverte par un échange, en dates plutôt qu'en nombre de semaines.
+ *
+ * « Portée : 4 semaines » ne dit rien d'utilisable pour couvrir un cours : il
+ * fallait rouvrir le calendrier pour savoir de quelles dates il s'agissait.
+ */
+function periode(a?: SeanceReelle, b?: SeanceReelle, nb = 1): string {
+  const jour = (s?: SeanceReelle) =>
+    (s?.date ? new Date(s.date).toLocaleDateString('fr-FR') : null);
+  const debut = jour(a) ?? jour(b);
+  if (!debut) return `Portée : ${nb} semaine${nb > 1 ? 's' : ''}`;
+  if (nb <= 1) return `Le ${debut}`;
+  return `À partir du ${debut}, sur ${nb} semaines de cours`;
+}
+
 function LigneProf({
   permutation: p, mutations, onNotifier, onErreur,
 }: {
@@ -183,9 +201,18 @@ function LigneProf({
             {p.action_directe && <Badge ton="violet">Action directe</Badge>}
             <span className="text-xs text-iss-gray">
               {a?.classe_nom} · {a?.jour_libelle} {a?.creneau_libelle}
-              {' · '}portée {p.nb_semaines} semaine{p.nb_semaines > 1 ? 's' : ''}
             </span>
           </div>
+
+          {/* Quand l'échange prend effet, et jusqu'à quand. « Portée : 4
+              semaines » ne disait rien d'utilisable pour couvrir un cours :
+              il fallait rouvrir le calendrier pour savoir de quelles dates
+              il s'agissait. */}
+          <p className="text-xs mb-2 px-2 py-1 rounded-lg inline-flex items-center gap-1.5"
+             style={{ background: 'rgba(124,58,237,0.07)', color: '#5b21b6' }}>
+            <CalendarDays size={12} />
+            <span className="font-semibold">{periode(a, b, p.nb_semaines)}</span>
+          </p>
 
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
@@ -279,6 +306,7 @@ function LigneEtudiant({
           <span className="text-sm font-bold text-iss-dark">{p.etudiant_nom}</span>
           <span className="text-xs text-iss-gray">{p.etudiant_matricule}</span>
           <Badge ton={tonStatutPermutation(p.statut)}>{p.statut_display}</Badge>
+          {p.est_echange && <Badge ton="violet">Échange</Badge>}
           {p.action_directe && <Badge ton="violet">Action directe</Badge>}
         </div>
 
@@ -286,17 +314,30 @@ function LigneEtudiant({
           <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
             {p.classe_source_nom}
           </span>
-          <ArrowRight size={14} className="text-iss-gray" />
+          {p.est_echange
+            ? <Repeat size={14} className="text-[#7c3aed]" />
+            : <ArrowRight size={14} className="text-iss-gray" />}
           <span className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100 font-semibold">
             {p.classe_cible_nom}
           </span>
         </div>
 
+        {/* Un échange engage deux élèves : le second doit se lire ici, sinon
+            la ligne laisse croire à un simple transfert. */}
+        {p.est_echange && (
+          <p className="text-xs text-iss-gray mt-1.5">
+            En échange avec{' '}
+            <span className="font-semibold text-iss-dark">{p.etudiant_b_nom}</span>
+            {p.etudiant_b_matricule && ` · ${p.etudiant_b_matricule}`}
+          </p>
+        )}
+
         {p.motif && <p className="text-xs text-iss-gray mt-2 italic">Motif : {p.motif}</p>}
         {p.motif_refus && <p className="text-xs text-red-600 mt-1">Refus : {p.motif_refus}</p>}
         {p.statut === 'appliquee' && (
           <p className="text-xs text-emerald-700 mt-1">
-            Re-rattachement effectué — notes et absences conservées.
+            {p.est_echange ? 'Échange effectué' : 'Re-rattachement effectué'} — notes et
+            absences conservées.
           </p>
         )}
       </div>
@@ -318,6 +359,9 @@ function FormulaireChangementClasse({
   const [inscriptionId, setInscriptionId] = useState<number | null>(null);
   const [classeCible, setClasseCible]     = useState<number | null>(null);
   const [sousGroupeCible, setSousGroupeCible] = useState<number | null>(null);
+  // Contrepartie de l'échange. Nulle = transfert simple, quand la classe
+  // d'accueil a de la place et que personne n'en sort.
+  const [contrepartieId, setContrepartieId] = useState<number | null>(null);
   const [motif, setMotif]     = useState('');
   const [directe, setDirecte] = useState(false);
   const [erreur, setErreur]   = useState<string | null>(null);
@@ -336,6 +380,16 @@ function FormulaireChangementClasse({
   );
   const { data: sousGroupes = [] } = useSousGroupes(classeCible);
 
+  // Candidats à l'échange : les inscrits de la classe d'accueil. C'est le
+  // serveur qui l'exige — une contrepartie venue d'ailleurs ne libérerait
+  // aucune place là où il faut.
+  const { data: candidatsPage } = useInscriptions({
+    page: 1, annee_universitaire: annee || '__aucune__',
+    classe: classeCible ?? undefined, actif: true,
+  });
+  const candidats = (candidatsPage?.results ?? []).filter(i => i.id !== inscriptionId);
+  const contrepartie = candidats.find(i => i.id === contrepartieId);
+
   const enregistrer = () => {
     if (!inscriptionId) { setErreur('Choisissez un étudiant.'); return; }
     if (!classeCible)   { setErreur('Choisissez la classe d\'accueil.'); return; }
@@ -343,11 +397,12 @@ function FormulaireChangementClasse({
     create.mutate(
       {
         inscription: inscriptionId, classe_cible: classeCible,
-        sous_groupe_cible: sousGroupeCible, motif, action_directe: directe,
+        inscription_b: contrepartieId, sous_groupe_cible: sousGroupeCible,
+        motif, action_directe: directe,
       } as never,
       {
         onSuccess: () => onCree(directe
-          ? 'Changement validé — à appliquer depuis la liste'
+          ? `${contrepartieId ? 'Échange' : 'Changement'} validé — à appliquer depuis la liste`
           : 'Demande enregistrée'),
         onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },
@@ -358,9 +413,10 @@ function FormulaireChangementClasse({
     <div className={`${CARTE} p-6`} style={{ borderLeft: '3px solid #006633' }}>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-iss-dark">Changement de classe</h3>
+          <h3 className="text-sm font-semibold text-iss-dark">Permutation d&apos;étudiants</h3>
           <p className="text-xs text-iss-gray">
-            L&apos;inscription est déplacée : notes, absences et historique suivent l&apos;étudiant.
+            Les inscriptions sont déplacées, jamais recréées : notes, absences et
+            historique suivent chaque étudiant dans sa nouvelle classe.
           </p>
         </div>
         <button onClick={onFerme} className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
@@ -377,7 +433,8 @@ function FormulaireChangementClasse({
             <p className="px-3 py-4 text-sm text-iss-gray">Aucune inscription trouvée.</p>
           ) : inscriptions.map(i => (
             <button key={i.id} type="button"
-                    onClick={() => { setInscriptionId(i.id); setClasseCible(null); setSousGroupeCible(null); }}
+                    onClick={() => { setInscriptionId(i.id); setClasseCible(null);
+                                     setSousGroupeCible(null); setContrepartieId(null); }}
                     className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                       inscriptionId === i.id ? 'bg-[#006633]/10 font-semibold text-[#006633]' : 'hover:bg-gray-50'
                     }`}>
@@ -391,7 +448,8 @@ function FormulaireChangementClasse({
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe d&apos;accueil</label>
           <select value={classeCible ?? ''} className={SELECT} disabled={!inscription}
-                  onChange={e => { setClasseCible(e.target.value ? Number(e.target.value) : null); setSousGroupeCible(null); }}>
+                  onChange={e => { setClasseCible(e.target.value ? Number(e.target.value) : null);
+                                   setSousGroupeCible(null); setContrepartieId(null); }}>
             <option value="">{inscription ? 'Choisir…' : 'Choisissez d\'abord un étudiant'}</option>
             {cibles.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
@@ -410,6 +468,66 @@ function FormulaireChangementClasse({
             {sousGroupes.map(sg => <option key={sg.id} value={sg.id}>{sg.libelle}</option>)}
           </select>
         </div>
+        {/* Une classe pleine ne peut accueillir qu'en libérant une place :
+            l'échange est la forme courante. Le transfert simple reste
+            possible quand la classe d'accueil a de la place. */}
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Étudiant échangé
+            <span className="font-normal text-iss-gray"> — de {inscription?.classe_nom ?? 'sa classe'} vers celle-ci</span>
+          </label>
+          {!classeCible ? (
+            <p className="text-xs text-iss-gray px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50">
+              Choisissez d&apos;abord la classe d&apos;accueil.
+            </p>
+          ) : candidats.length === 0 ? (
+            <p className="text-xs text-amber-700 px-3 py-2.5 rounded-xl border border-amber-100 bg-amber-50">
+              Aucun inscrit dans cette classe : seul un transfert simple est possible.
+            </p>
+          ) : (
+            <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100">
+              <button type="button" onClick={() => setContrepartieId(null)}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        contrepartieId === null
+                          ? 'bg-[#006633]/10 font-semibold text-[#006633]' : 'hover:bg-gray-50'
+                      }`}>
+                Aucun — transfert simple
+                <span className="text-iss-gray"> · l&apos;étudiant rejoint la classe sans contrepartie</span>
+              </button>
+              {candidats.map(i => (
+                <button key={i.id} type="button" onClick={() => setContrepartieId(i.id)}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                          contrepartieId === i.id
+                            ? 'bg-[#006633]/10 font-semibold text-[#006633]' : 'hover:bg-gray-50'
+                        }`}>
+                  {i.etudiant_nom}
+                  <span className="text-iss-gray"> · {i.etudiant_matricule}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ce que l'opération produit, avant de la demander. */}
+        {inscription && classeCible && (
+          <div className="sm:col-span-2 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
+            <p>
+              <span className="font-semibold text-iss-dark">{inscription.etudiant_nom}</span>
+              <span className="text-iss-gray"> {inscription.classe_nom} → </span>
+              <span className="font-semibold text-iss-dark">
+                {cibles.find(c => c.id === classeCible)?.nom}
+              </span>
+            </p>
+            {contrepartie && (
+              <p className="mt-0.5">
+                <span className="font-semibold text-iss-dark">{contrepartie.etudiant_nom}</span>
+                <span className="text-iss-gray"> {contrepartie.classe_nom} → </span>
+                <span className="font-semibold text-iss-dark">{inscription.classe_nom}</span>
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="sm:col-span-2">
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Motif</label>
           <input value={motif} className={INPUT} placeholder="Rééquilibrage d'effectifs, demande familiale…"

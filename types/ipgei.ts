@@ -207,6 +207,8 @@ export interface Classe {
 }
 
 export interface ClasseSelect {
+  /** Classe d'attente d'un niveau : ni planifiée, ni cible d'affectation. */
+  est_conteneur:       boolean;
   id:                  number;
   nom:                 string;
   niveau:              NiveauIPGEI;
@@ -239,6 +241,8 @@ export interface Inscription {
   annee_universitaire:  string;
   numero_ordre:         number | null;
   niveau:               NiveauIPGEI;
+  /** Vrai tant que l'inscrit est dans la classe d'attente de son niveau. */
+  en_attente_affectation: boolean;
   statut:               StatutInscription;
   statut_display:       string;
   nb_redoublements:     number;
@@ -715,6 +719,12 @@ export interface PermutationEtudiant {
   inscription:        number;
   etudiant_nom:       string;
   etudiant_matricule: string;
+  /** Contrepartie de l'échange — nulle sur un transfert simple. */
+  inscription_b:        number | null;
+  etudiant_b_nom:       string;
+  etudiant_b_matricule: string;
+  est_echange:          boolean;
+  sous_groupe_cible_b:  number | null;
   classe_source:      number;
   classe_source_nom:  string;
   classe_cible:       number;

@@ -376,6 +376,13 @@ export function useInscriptionMutations() {
 
   return {
     create: useMutation({ mutationFn: inscriptionsApi.create, onSuccess: invalider }),
+    // L'affectation change la classe : le département de l'étudiant suit, donc
+    // les listes d'appel aussi. On invalide large.
+    affecter: useMutation({
+      mutationFn: ({ id, classe }: { id: number; classe: number }) =>
+        inscriptionsApi.affecter(id, classe),
+      onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+    }),
     // Inscription complète : c'est le chemin normal d'une rentrée, l'étudiant
     // pouvant être créé au passage.
     nouvelle: useMutation({
