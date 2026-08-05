@@ -34,10 +34,10 @@ import type { TypeNoteCollecte } from '@/lib/api/ipgei';
  * Faire choisir les deux revenait à ressaisir la même chose, et laissait
  * demander un « DS de rattrapage » qui n'existe pas.
  */
-const TYPES: { cle: TypeNoteCollecte; label: string; detail?: string }[] = [
-  { cle: 'DS',   label: 'Devoir surveillé',      detail: 'Contrôles du semestre' },
+const TYPES: { cle: TypeNoteCollecte; label: string }[] = [
+  { cle: 'DS',   label: 'Devoir surveillé' },
   { cle: 'TP',   label: 'Travaux pratiques' },
-  { cle: 'EXAM', label: 'Examen final',          detail: 'Épreuve de fin de semestre' },
+  { cle: 'EXAM', label: 'Examen final' },
   { cle: 'RATT', label: 'Examen de rattrapage' },
 ];
 
@@ -199,7 +199,6 @@ export default function FicheCollectePage() {
                        onChange={() => { setTypeNote(t.cle); setMatiereId(null); }}
                        className="accent-[#006633]" />
                 <span className="text-sm text-iss-dark">{t.label}</span>
-                {t.detail && <span className="text-xs text-iss-gray">— {t.detail}</span>}
               </label>
             ))}
           </div>
