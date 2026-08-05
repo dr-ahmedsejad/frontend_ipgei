@@ -545,6 +545,13 @@ export interface Deliberation {
   institution:         number | null;
   libelle:             string;
   niveau:              NiveauIPGEI;
+  /**
+   * Classe délibérée — le jury siège classe par classe, et le rang qu'il
+   * arrête est le rang DANS la classe. `null` sur les jurys tenus avant la
+   * règle, qui portaient tout un niveau.
+   */
+  classe:              number | null;
+  classe_nom:          string;
   annee_universitaire: string;
   portee:              PorteeDeliberation;
   semestre:            number | null;

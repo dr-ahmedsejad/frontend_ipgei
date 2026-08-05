@@ -12,7 +12,8 @@ import {
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
 import {
-  useDeliberationMutations, useDeliberations, useParametresIPGEI, useSemestresAll, useOptionsNiveaux,
+  useClassesSelect, useDeliberationMutations, useDeliberations, useParametresIPGEI,
+  useSemestresAll, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { type Deliberation, type NiveauIPGEI, type PorteeDeliberation,
 } from '@/types/ipgei';
@@ -93,9 +94,15 @@ export default function DeliberationsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-iss-dark">
-                      {d.libelle || `${d.niveau} — ${d.portee === 'semestre' ? d.semestre_code : 'année'}`}
+                      {d.libelle
+                        || `${d.classe_nom || d.niveau} — ${d.portee === 'semestre' ? d.semestre_code : 'année'}`}
                     </span>
                     <Badge ton={d.niveau === 'MPSI' ? 'bleu' : 'violet'}>{d.niveau}</Badge>
+                    {/* Un jury tenu avant la règle porte tout un niveau : le
+                        dire évite de croire à une classe oubliée. */}
+                    <Badge ton={d.classe_nom ? 'neutre' : 'ambre'}>
+                      {d.classe_nom || 'niveau entier'}
+                    </Badge>
                     <Badge ton={TON_STATUT[d.statut]}>{d.statut_display}</Badge>
                   </div>
                   <p className="text-xs text-iss-gray mt-0.5">
@@ -154,8 +161,12 @@ function FormulaireDeliberation({
   const optionsNiveaux = useOptionsNiveaux();
   const { data: params } = useParametresIPGEI();
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
+  const { data: classes = [] } = useClassesSelect({
+    annee_universitaire: annee, actif: true,
+  });
 
   const [niveau, setNiveau]   = useState<NiveauIPGEI>('MPSI');
+  const [classe, setClasse]   = useState<number | null>(null);
   const [portee, setPortee]   = useState<PorteeDeliberation>('annuelle');
   const [semestre, setSemestre] = useState<number | null>(null);
   const [libelle, setLibelle] = useState('');
@@ -164,6 +175,10 @@ function FormulaireDeliberation({
   const [erreur, setErreur]   = useState<string | null>(null);
 
   const semestresDuNiveau = semestres.filter(s => s.niveaux.includes(niveau));
+  // Le jury siège classe par classe. La classe d'attente en est exclue : ses
+  // inscrits n'ont pas encore de classe, il n'y a rien à y délibérer.
+  const classesDuNiveau = classes.filter(
+    c => c.niveau === niveau && !c.est_conteneur);
 
   // Le seuil proposé suit la portée, comme le fait le serveur à la création.
   const seuilDefaut = portee === 'semestre' && params?.seuil_validation_semestre
@@ -171,13 +186,17 @@ function FormulaireDeliberation({
     : params?.seuil_validation;
 
   const enregistrer = () => {
+    if (!classe) {
+      setErreur('Le jury siège classe par classe : indiquez la classe délibérée.');
+      return;
+    }
     if (portee === 'semestre' && !semestre) {
       setErreur('Une délibération de semestre doit cibler un semestre.');
       return;
     }
     setErreur(null);
     create.mutate({
-      niveau, portee,
+      niveau, classe, portee,
       semestre: portee === 'semestre' ? semestre : null,
       annee_universitaire: annee,
       libelle: libelle.trim(),
@@ -204,9 +223,25 @@ function FormulaireDeliberation({
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Niveau</label>
           <select value={niveau} className={SELECT}
-                  onChange={e => { setNiveau(e.target.value as NiveauIPGEI); setSemestre(null); }}>
+                  onChange={e => { setNiveau(e.target.value as NiveauIPGEI);
+                                   setClasse(null); setSemestre(null); }}>
             {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
           </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Classe <span className="text-red-600">*</span>
+          </label>
+          <select value={classe ?? ''} className={SELECT}
+                  onChange={e => setClasse(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">Choisir…</option>
+            {classesDuNiveau.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+          {classesDuNiveau.length === 0 && (
+            <p className="mt-1 text-xs text-amber-700">
+              Aucune classe de {niveau} ouverte en {annee}.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Portée</label>
