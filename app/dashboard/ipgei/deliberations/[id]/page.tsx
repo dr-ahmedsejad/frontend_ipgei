@@ -19,6 +19,8 @@ import {
   useJuryMutations, useLignesDeliberation, useMembresJury, useStatistiquesDeliberation,
 } from '@/lib/api/ipgei-hooks';
 import { useComptesList } from '@/lib/api/comptes-hooks';
+import { etatDeliberation, resumeEtat } from '../_etat';
+import { formatDateTime } from '@/lib/formatters';
 import { getStoredUser } from '@/lib/auth';
 import { downloadBlob } from '@/lib/downloadBlob';
 import {
@@ -125,6 +127,10 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
             <Badge ton={verrouillee ? 'vert' : deliberation.statut === 'calculee' ? 'bleu' : 'neutre'}>
               {deliberation.statut_display}
             </Badge>
+            {/* Quand le tableau ci-dessous a été établi. L'heure compte : on
+                recalcule plusieurs fois dans une séance, et sans elle on ne
+                sait pas si l'on regarde l'avant ou l'après-dernier essai. */}
+            {' · '}{resumeEtat(deliberation)}
           </>
         }
         actions={
@@ -240,7 +246,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
           <Lock size={14} className="text-[#006633]" />
           <p className="text-xs text-iss-gray">
             Jury validé{deliberation.validee_par_nom && ` par ${deliberation.validee_par_nom}`}
-            {deliberation.date_validation && ` le ${new Date(deliberation.date_validation).toLocaleDateString('fr-FR')}`}.
+            {deliberation.date_validation && ` le ${formatDateTime(deliberation.date_validation)}`}.
             Les notes concernées sont verrouillées et les décisions sont reportées sur les inscriptions.
           </p>
         </div>
@@ -253,7 +259,8 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
           <Tuile label={deliberation.classe ? 'Moyenne de la classe' : 'Moyenne de promotion'}
                  valeur={fmtNote(stats.moyenne_promo)} />
           <Tuile label="Meilleure moyenne" valeur={fmtNote(stats.meilleure)} />
-          <Tuile label="Plus faible" valeur={fmtNote(stats.plus_faible)} />
+          <Tuile label={etatDeliberation(deliberation).libelle}
+                 valeur={etatDeliberation(deliberation).date || '—'} />
         </div>
       )}
 

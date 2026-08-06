@@ -11,6 +11,7 @@ import {
   Erreur, INPUT, SELECT, Toast, Vide,
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
+import { resumeEtat } from './_etat';
 import {
   useClassesSelect, useDeliberationMutations, useDeliberations, useParametresIPGEI,
   useSemestresAll, useOptionsNiveaux,
@@ -119,7 +120,7 @@ export default function DeliberationsPage() {
                     {d.annee_universitaire} · seuil {Number(d.seuil_validation).toFixed(2)}
                     {d.plafond_rattrapage && ` · rattrapage plafonné à ${Number(d.plafond_rattrapage).toFixed(2)}`}
                     {' · '}{d.nb_lignes} étudiant{d.nb_lignes !== 1 ? 's' : ''}
-                    {d.date_validation && ` · validée le ${new Date(d.date_validation).toLocaleDateString('fr-FR')}`}
+                    {' · '}{resumeEtat(d)}
                   </p>
                 </div>
 
