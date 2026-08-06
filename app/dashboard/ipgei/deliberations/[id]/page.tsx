@@ -507,6 +507,19 @@ function SectionPassage({ deliberationId, onNotifier, onErreur }: {
             ouverte(s) en {bilan.annee_cible}
             {bilan.deja_inscrits > 0 && `, ${bilan.deja_inscrits} déjà inscrit(s)`}.
           </p>
+          {/* Ouvrir l'année est un acte discret — un libellé, sans dates ni
+              tarif — mais il ne doit pas être silencieux : c'est en la
+              découvrant après coup qu'on se demande d'où elle sort. */}
+          {bilan.annee_ouverte && (
+            <p className="text-amber-700">
+              L&apos;année {bilan.annee_cible} vient d&apos;être ouverte au
+              registre. Complétez ses dates et sa grille tarifaire dans{' '}
+              <Link href="/dashboard/parametres/annees"
+                    className="font-medium hover:underline">
+                Paramètres → Années
+              </Link>.
+            </p>
+          )}
           {bilan.sans_tarif > 0 && (
             <p className="text-amber-700">
               {bilan.sans_tarif} inscription(s) à 0 : la grille tarifaire de{' '}

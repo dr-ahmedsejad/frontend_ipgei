@@ -462,6 +462,11 @@ export interface BilanPassage {
   refuses:       { etudiant: string; motif: string }[];
   /** Inscriptions ouvertes à 0 : la grille tarifaire de l'année visée manque. */
   sans_tarif:    number;
+  /**
+   * `true` si l'année cible vient d'être ouverte au registre par ce passage.
+   * Le dire évite de la découvrir après coup et de se demander d'où elle sort.
+   */
+  annee_ouverte: boolean;
 }
 
 /** Rôle au sein du jury — le président arrête la séance, un seul par délibération. */
