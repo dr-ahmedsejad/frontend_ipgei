@@ -304,6 +304,8 @@ export type TriDetailNotes = 'rang' | 'matricule' | 'moyenne';
 
 export interface DeliberationFilters extends Params {
   page?: number; niveau?: string; annee_universitaire?: string;
+  /** Le jury siège classe par classe : c'est le filtre utile. */
+  classe?: number;
   portee?: string; statut?: string; semestre?: number;
 }
 

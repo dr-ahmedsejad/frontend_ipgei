@@ -21,16 +21,24 @@ import { type Deliberation, type NiveauIPGEI, type PorteeDeliberation,
 const TON_STATUT = { brouillon: 'neutre', calculee: 'bleu', validee: 'vert' } as const;
 
 export default function DeliberationsPage() {
-  const optionsNiveaux = useOptionsNiveaux();
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const [page, setPage]     = useState(1);
-  const [niveau, setNiveau] = useState('');
+  const [classe, setClasse] = useState('');
   const [statut, setStatut] = useState('');
 
   const { data, isLoading, error } = useDeliberations({
     page, annee_universitaire: annee || '__aucune__',
-    niveau: niveau || undefined, statut: statut || undefined,
+    classe: classe ? Number(classe) : undefined,
+    statut: statut || undefined,
   });
+
+  // Le jury siège classe par classe : c'est par classe qu'on cherche le sien.
+  // Le filtre par niveau, qui tenait ce rôle, renvoyait les deux classes d'une
+  // même promotion — soit tout ce que l'écran affiche déjà.
+  const { data: classes = [] } = useClassesSelect({
+    annee_universitaire: annee, actif: true,
+  });
+  const classesReelles = classes.filter(c => !c.est_conteneur);
   const { create, remove } = useDeliberationMutations();
 
   const [formOuvert, setFormOuvert] = useState(false);
@@ -61,17 +69,19 @@ export default function DeliberationsPage() {
                 className={SELECT} style={{ width: 150 }}>
           {options.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select value={niveau} onChange={e => { setNiveau(e.target.value); setPage(1); }}
-                className={SELECT} style={{ width: 170 }}>
-          <option value="">Tous les niveaux</option>
-          {optionsNiveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+        <select value={classe} onChange={e => { setClasse(e.target.value); setPage(1); }}
+                className={SELECT} style={{ width: 190 }}>
+          <option value="">Toutes les classes</option>
+          {classesReelles.map(c => (
+            <option key={c.id} value={c.id}>{c.nom}</option>
+          ))}
         </select>
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
                 className={SELECT} style={{ width: 160 }}>
           <option value="">Tous les statuts</option>
-          <option value="brouillon">Brouillon</option>
-          <option value="calculee">Calculée</option>
-          <option value="validee">Validée</option>
+          <option value="brouillon">Brouillon — à calculer</option>
+          <option value="calculee">Calculée — à valider</option>
+          <option value="validee">Validée — verrouillée</option>
         </select>
       </div>
 
