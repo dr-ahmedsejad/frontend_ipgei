@@ -323,9 +323,15 @@ export const deliberationsApi = {
     apiFetch<Deliberation>(`${BASE}/deliberations/${id}/`, { method: 'PATCH', body: input }),
   remove:   (id: number) => apiFetch<void>(`${BASE}/deliberations/${id}/`, { method: 'DELETE' }),
 
-  calculer: (id: number) =>
+  /**
+   * (Re)calcule le jury. `seuil` posé, le seuil est d'abord modifié sur la
+   * délibération PUIS le calcul relancé — en une requête : deux laisseraient,
+   * entre les deux, un seuil qui ne correspond plus aux décisions affichées.
+   */
+  calculer: (id: number, seuil?: string) =>
     apiFetch<{ lignes: number; deliberation: Deliberation }>(
-      `${BASE}/deliberations/${id}/calculer/`, { method: 'POST' },
+      `${BASE}/deliberations/${id}/calculer/`,
+      { method: 'POST', body: seuil ? { seuil_validation: seuil } : {} },
     ),
   valider:  (id: number) => apiFetch<Deliberation>(`${BASE}/deliberations/${id}/valider/`, { method: 'POST' }),
   /** Retire la validation : restaure les inscriptions, déverrouille les notes. Admin. */

@@ -652,7 +652,13 @@ export function useDeliberationMutations() {
       onSuccess:  invalider,
     }),
     remove:   useMutation({ mutationFn: deliberationsApi.remove,   onSuccess: invalider }),
-    calculer: useMutation({ mutationFn: deliberationsApi.calculer, onSuccess: invalider }),
+    // Le seuil accompagne le calcul : le jury essaie une valeur et voit le
+    // résultat, sans passer par un formulaire d'édition séparé.
+    calculer: useMutation({
+      mutationFn: ({ id, seuil }: { id: number; seuil?: string }) =>
+        deliberationsApi.calculer(id, seuil),
+      onSuccess: invalider,
+    }),
     valider:  useMutation({ mutationFn: deliberationsApi.valider,  onSuccess: invaliderTout }),
     // Dévalider touche autant de choses que valider : mêmes invalidations.
     devalider: useMutation({ mutationFn: deliberationsApi.devalider, onSuccess: invaliderTout }),

@@ -53,6 +53,10 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
   const [aValider, setAValider] = useState(false);
   const [aDevalider, setADevalider] = useState(false);
   const [triDetail, setTriDetail] = useState<TriDetailNotes>('rang');
+  // Seuil d'essai : le jury veut voir ce que donnerait 9,50 avant d'en décider.
+  // Vide tant qu'il n'y touche pas — on n'envoie alors rien, et le seuil figé
+  // à la création reste celui du calcul.
+  const [seuilEssai, setSeuilEssai] = useState('');
 
   // Dévalider remet en cause des décisions notifiées : le backend le réserve à
   // un administrateur, l'écran n'a pas à proposer un bouton voué au 403.
@@ -110,7 +114,8 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
       <EnTetePage
         icone={<Scale size={14} className="text-white" />}
         titre={deliberation.libelle
-          || `${deliberation.niveau} — ${deliberation.portee === 'semestre' ? deliberation.semestre_code : 'année'}`}
+          || `${deliberation.classe_nom || deliberation.niveau} — `
+             + `${deliberation.portee === 'semestre' ? deliberation.semestre_code : 'année'}`}
         sousTitre={
           <>
             {deliberation.annee_universitaire} · seuil {Number(deliberation.seuil_validation).toFixed(2)}
@@ -125,15 +130,38 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         actions={
           <>
             {!verrouillee && (
-              <button onClick={() => calculer.mutate(deliberationId, {
-                        onSuccess: (r) => notifier(`${r.lignes} étudiant(s) recalculé(s)`),
-                        onError: signaler,
-                      })}
-                      disabled={calculer.isPending}
-                      className={BTN_SECONDAIRE}>
-                <IconeBouton enCours={calculer.isPending} Icone={Calculator} />
-                {calculer.isPending ? 'Calcul…' : 'Calculer'}
-              </button>
+              <div className="inline-flex items-center gap-1.5">
+                {/* Le seuil se règle À CÔTÉ du bouton, pas dans un formulaire
+                    séparé : on essaie une valeur, on calcule, on lit le
+                    résultat — et l'on recommence si besoin. */}
+                <label className="text-xs text-iss-gray" htmlFor="seuil-essai">
+                  Seuil
+                </label>
+                <input
+                  id="seuil-essai"
+                  value={seuilEssai}
+                  onChange={e => setSeuilEssai(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={Number(deliberation.seuil_validation).toFixed(2)}
+                  title="Laisser vide pour garder le seuil actuel"
+                  className={INPUT} style={{ width: 68, textAlign: 'center' }}
+                />
+                <button onClick={() => calculer.mutate(
+                          { id: deliberationId, seuil: seuilEssai.trim() || undefined },
+                          {
+                            onSuccess: (r) => {
+                              setSeuilEssai('');
+                              notifier(`${r.lignes} étudiant(s) recalculé(s) au seuil `
+                                + `${Number(r.deliberation.seuil_validation).toFixed(2)}`);
+                            },
+                            onError: signaler,
+                          })}
+                        disabled={calculer.isPending}
+                        className={BTN_SECONDAIRE}>
+                  <IconeBouton enCours={calculer.isPending} Icone={Calculator} />
+                  {calculer.isPending ? 'Calcul…' : 'Calculer'}
+                </button>
+              </div>
             )}
             {!verrouillee && deliberation.statut === 'calculee' && (
               <button onClick={() => setAValider(true)} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
@@ -164,7 +192,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                 fondent. Réservé aux jurys de semestre — une délibération
                 annuelle porte deux maquettes, qu'on ne peut pas juxtaposer. */}
             {deliberation.portee === 'semestre' && (
-              /* Le jury ne parcourt pas toujours la promotion de la même
+              /* Le jury ne parcourt pas toujours la classe de la même
                  façon : par classement pour délibérer du haut vers le bas, par
                  matricule pour retrouver un dossier qu'on lui présente, par
                  moyenne pour examiner les cas limites. L'ordre voyage avec la
@@ -222,7 +250,8 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Tuile label="Effectif" valeur={stats.effectif}
                  detail={`${stats.notes_saisies} avec moyenne`} />
-          <Tuile label="Moyenne de promotion" valeur={fmtNote(stats.moyenne_promo)} />
+          <Tuile label={deliberation.classe ? 'Moyenne de la classe' : 'Moyenne de promotion'}
+                 valeur={fmtNote(stats.moyenne_promo)} />
           <Tuile label="Meilleure moyenne" valeur={fmtNote(stats.meilleure)} />
           <Tuile label="Plus faible" valeur={fmtNote(stats.plus_faible)} />
         </div>
@@ -241,13 +270,18 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap">
-        <select value={classeFiltre} onChange={e => setClasseFiltre(e.target.value)}
-                className={SELECT} style={{ width: 200 }}>
-          <option value="">Toutes les classes du niveau</option>
-          {classesDuNiveau.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-        </select>
-      </div>
+      {/* Le filtre de classe ne s'affiche que pour les jurys tenus AVANT que
+          la délibération ne soit rattachée à une classe : eux couvrent tout un
+          niveau. Sur un jury de classe, il n'aurait qu'une valeur possible. */}
+      {!deliberation.classe && (
+        <div className="flex gap-2 flex-wrap">
+          <select value={classeFiltre} onChange={e => setClasseFiltre(e.target.value)}
+                  className={SELECT} style={{ width: 200 }}>
+            <option value="">Toutes les classes du niveau</option>
+            {classesDuNiveau.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+        </div>
+      )}
 
       <div className={`${CARTE} overflow-hidden`}>
         {chargeLignes ? <Chargement /> : lignes.length === 0 ? (
@@ -259,7 +293,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                 <tr className="text-left text-xs font-semibold text-iss-gray uppercase tracking-wide border-b border-gray-100">
                   <th className="px-4 py-3 w-14 text-center">Rang</th>
                   <th className="px-4 py-3">Étudiant</th>
-                  <th className="px-4 py-3">Classe</th>
+                  {!deliberation.classe && <th className="px-4 py-3">Classe</th>}
                   <th className="px-4 py-3 text-center">Moyenne</th>
                   <th className="px-4 py-3">Proposition</th>
                   <th className="px-4 py-3">Décision du jury</th>
@@ -274,6 +308,7 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
                     deliberationId={deliberationId}
                     decisions={decisions}
                     verrouillee={verrouillee}
+                    afficherClasse={!deliberation.classe}
                     seuil={Number(deliberation.seuil_validation)}
                     onAjuster={ajusterLigne}
                     onNotifier={notifier}
@@ -473,12 +508,15 @@ function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
 }
 
 function LigneJury({
-  ligne, deliberationId, decisions, verrouillee, seuil, onAjuster, onNotifier, onErreur, documents,
+  ligne, deliberationId, decisions, verrouillee, afficherClasse, seuil, onAjuster,
+  onNotifier, onErreur, documents,
 }: {
   ligne: LigneDeliberation;
   deliberationId: number;
   decisions: { value: string; label: string }[];
   verrouillee: boolean;
+  /** Faux sur un jury de classe : la colonne y répéterait la même valeur. */
+  afficherClasse: boolean;
   seuil: number;
   onAjuster: { mutate: (v: never, o?: object) => void; isPending: boolean };
   onNotifier: (m: string) => void;
@@ -519,7 +557,9 @@ function LigneJury({
           {ligne.nb_redoublements > 0 && ` · ${ligne.nb_redoublements} redoublement(s)`}
         </div>
       </td>
-      <td className="px-4 py-3 text-iss-gray whitespace-nowrap">{ligne.classe_nom}</td>
+      {afficherClasse && (
+        <td className="px-4 py-3 text-iss-gray whitespace-nowrap">{ligne.classe_nom}</td>
+      )}
       <td className={`px-4 py-3 text-center font-bold ${sousSeuil ? 'text-red-600' : 'text-[#006633]'}`}>
         {fmtNote(ligne.moyenne_generale)}
       </td>
