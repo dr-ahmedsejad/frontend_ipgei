@@ -135,6 +135,17 @@ export interface InscriptionFilters extends Params {
 
 export const inscriptionsApi = {
   /**
+   * Déplace plusieurs inscrits d'une classe vers une autre, en une fois.
+   * Tout passe ou rien : une répartition à moitié appliquée laisserait deux
+   * classes fausses.
+   */
+  repartir: (mouvements: { inscription: number; classe: number }[], motif?: string) =>
+    apiFetch<{ deplacees: number; mouvements: { etudiant: string; vers: string }[] }>(
+      `${BASE}/inscriptions/repartir/`,
+      { method: 'POST', body: { mouvements, ...(motif ? { motif } : {}) } },
+    ),
+
+  /**
    * Repose le tarif de la grille sur les inscriptions d'une année.
    *
    * Le montant est figé à la création : c'est ce qui garde un reçu exact quand

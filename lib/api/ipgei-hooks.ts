@@ -370,6 +370,22 @@ export function useAbsencesEtudiant(inscription: number | null, semestre?: numbe
   });
 }
 
+/**
+ * Répartition d'inscrits entre classes.
+ *
+ * Invalide TOUT le module : le mouvement touche les effectifs, les listes
+ * d'appel et l'emploi du temps, pas seulement la liste des inscriptions.
+ */
+export function useRepartition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ mouvements, motif }: {
+      mouvements: { inscription: number; classe: number }[]; motif?: string;
+    }) => inscriptionsApi.repartir(mouvements, motif),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+  });
+}
+
 export function useRecalculFrais() {
   const qc = useQueryClient();
   return useMutation({
