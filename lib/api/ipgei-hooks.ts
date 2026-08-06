@@ -626,6 +626,15 @@ export function useLignesDeliberation(id: number | null | undefined, classe?: nu
   });
 }
 
+/** Aperçu du passage : qui repart, vers quel niveau, qui est déjà inscrit. */
+export function useApercuPassage(id: number | null | undefined, actif = true) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.deliberations.all, 'passage', id ?? 0] as const,
+    queryFn:  () => deliberationsApi.passageApercu(id as number),
+    enabled:  id != null && actif,
+  });
+}
+
 export function useStatistiquesDeliberation(id: number | null | undefined) {
   return useQuery({
     queryKey: ipgeiKeys.statsDelib(id ?? 0),
@@ -660,6 +669,13 @@ export function useDeliberationMutations() {
       onSuccess: invalider,
     }),
     valider:  useMutation({ mutationFn: deliberationsApi.valider,  onSuccess: invaliderTout }),
+    // Le passage crée des inscriptions sur une AUTRE année : c'est tout le
+    // module qui se périme, pas seulement les délibérations.
+    passage: useMutation({
+      mutationFn: ({ id, niveau }: { id: number; niveau?: string }) =>
+        deliberationsApi.passage(id, niveau),
+      onSuccess: invaliderTout,
+    }),
     // Dévalider touche autant de choses que valider : mêmes invalidations.
     devalider: useMutation({ mutationFn: deliberationsApi.devalider, onSuccess: invaliderTout }),
     ajusterLigne: useMutation({

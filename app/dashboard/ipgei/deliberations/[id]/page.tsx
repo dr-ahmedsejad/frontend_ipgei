@@ -5,8 +5,8 @@ import { use, useState } from 'react';
 import type { TriDetailNotes } from '@/lib/api/ipgei';
 import Link from 'next/link';
 import {
-  ArrowLeft, Calculator, CheckCircle2, FileBadge, FileSignature, FileText,
-  ListChecks, Loader2, Lock, Scale, Table2, Undo2, UserPlus, Users, X,
+  ArrowLeft, ArrowUpCircle, Calculator, CheckCircle2, FileBadge, FileSignature,
+  FileText, ListChecks, Loader2, Lock, Scale, Table2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -15,8 +15,9 @@ import {
   Erreur, INPUT, SELECT, Toast, Tuile, Vide, fmtNote, tonDecision,
 } from '../../_ui';
 import {
-  useClassesSelect, useDeliberation, useDeliberationMutations, useDocumentMutations,
-  useJuryMutations, useLignesDeliberation, useMembresJury, useStatistiquesDeliberation,
+  useApercuPassage, useClassesSelect, useDeliberation, useDeliberationMutations,
+  useDocumentMutations, useJuryMutations, useLignesDeliberation, useMembresJury,
+  useStatistiquesDeliberation,
 } from '@/lib/api/ipgei-hooks';
 import { useComptesList } from '@/lib/api/comptes-hooks';
 import { etatDeliberation, resumeEtat } from '../_etat';
@@ -24,7 +25,7 @@ import { formatDateTime } from '@/lib/formatters';
 import { getStoredUser } from '@/lib/auth';
 import { downloadBlob } from '@/lib/downloadBlob';
 import {
-  DECISIONS_PAR_NIVEAU, type LigneDeliberation,
+  DECISIONS_PAR_NIVEAU, type BilanPassage, type LigneDeliberation,
   type RoleJuryIPGEI,
 } from '@/types/ipgei';
 
@@ -252,6 +253,14 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
         </div>
       )}
 
+      {verrouillee && deliberation.portee === 'annuelle' && (
+        <SectionPassage
+          deliberationId={deliberationId}
+          onNotifier={notifier}
+          onErreur={signaler}
+        />
+      )}
+
       {stats && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Tuile label="Effectif" valeur={stats.effectif}
@@ -399,6 +408,122 @@ const ROLES: { value: RoleJuryIPGEI; label: string }[] = [
  * qu'après validation — signer un projet reviendrait à approuver ce qui peut
  * encore changer.
  */
+/**
+ * Passage en année supérieure.
+ *
+ * Le jury prononce, le passage exécute : il ouvre l'année suivante aux
+ * étudiants admis, dans la CLASSE D'ATTENTE du niveau visé — à ce moment on
+ * ignore encore combien de classes ouvrir. L'écran « Affectation aux classes »
+ * les répartit ensuite.
+ *
+ * Rejouable sans risque : un étudiant déjà inscrit sur l'année cible est
+ * compté et laissé tel quel. C'est ce qui permet de relancer après avoir
+ * corrigé un cas, sans redouter les doublons.
+ */
+function SectionPassage({ deliberationId, onNotifier, onErreur }: {
+  deliberationId: number;
+  onNotifier:     (m: string) => void;
+  onErreur:       (e: unknown) => void;
+}) {
+  const { data: apercu, isLoading } = useApercuPassage(deliberationId);
+  const { passage } = useDeliberationMutations();
+  const [bilan, setBilan] = useState<BilanPassage | null>(null);
+
+  if (isLoading || !apercu) return null;
+
+  const candidats = apercu.candidats;
+  const restants  = candidats.filter(c => !c.deja_inscrit);
+  // Plusieurs niveaux partagent parfois le rang visé — MP et un éventuel autre
+  // second cycle. Le serveur refuse alors de deviner ; l'écran doit trancher.
+  const ambigus = restants.filter(c => c.niveaux.length > 1);
+  const niveaux = [...new Set(restants.flatMap(c => c.niveaux))];
+
+  if (candidats.length === 0) {
+    return (
+      <div className={`${CARTE} px-4 py-3`} style={{ borderLeft: '3px solid #d97706' }}>
+        <p className="text-xs text-iss-gray">
+          Aucun étudiant ne repart : le jury n&apos;a prononcé ni admission ni
+          redoublement.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${CARTE} p-4 space-y-3`} style={{ borderLeft: '3px solid #006633' }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <ArrowUpCircle size={15} className="text-[#006633]" />
+        <h2 className="text-sm font-bold text-iss-dark">
+          Passage en {apercu.annee_cible}
+        </h2>
+        <Badge ton="bleu">{restants.length} à inscrire</Badge>
+        {candidats.length !== restants.length && (
+          <Badge ton="vert">
+            {candidats.length - restants.length} déjà inscrit(s)
+          </Badge>
+        )}
+        <button
+          onClick={() => passage.mutate(
+            { id: deliberationId, niveau: niveaux.length === 1 ? niveaux[0] : undefined },
+            {
+              onSuccess: (r) => {
+                setBilan(r);
+                onNotifier(`${r.inscriptions} inscription(s) ouverte(s) en ${r.annee_cible}`);
+              },
+              onError: onErreur,
+            },
+          )}
+          disabled={passage.isPending || restants.length === 0 || ambigus.length > 0}
+          className={`${BTN_PRIMAIRE} ml-auto`} style={{ background: DEGRADE }}>
+          <IconeBouton enCours={passage.isPending} Icone={ArrowUpCircle} />
+          {passage.isPending ? 'Inscription…' : `Inscrire en ${apercu.annee_cible}`}
+        </button>
+      </div>
+
+      <p className="text-xs text-iss-gray">
+        Les inscriptions s&apos;ouvrent dans la classe d&apos;attente
+        {niveaux.length === 1 ? ` de ${niveaux[0]}` : ' du niveau visé'} : à ce
+        moment on ignore encore combien de classes ouvrir.{' '}
+        <Link href="/dashboard/ipgei/inscriptions/affectation"
+              className="text-[#006633] font-medium hover:underline">
+          Affectation aux classes
+        </Link>{' '}
+        les répartit ensuite. Notes et absences de l&apos;année écoulée restent
+        intactes.
+      </p>
+
+      {ambigus.length > 0 && (
+        <p className="text-xs text-amber-700">
+          {ambigus.length} étudiant(s) peuvent viser plusieurs niveaux
+          ({[...new Set(ambigus.flatMap(c => c.niveaux))].join(', ')}) : le
+          passage automatique ne devine pas lequel.
+        </p>
+      )}
+
+      {bilan && (
+        <div className="text-xs text-iss-gray space-y-1 border-t border-gray-100 pt-2">
+          <p>
+            <b className="text-iss-dark">{bilan.inscriptions}</b> inscription(s)
+            ouverte(s) en {bilan.annee_cible}
+            {bilan.deja_inscrits > 0 && `, ${bilan.deja_inscrits} déjà inscrit(s)`}.
+          </p>
+          {bilan.sans_tarif > 0 && (
+            <p className="text-amber-700">
+              {bilan.sans_tarif} inscription(s) à 0 : la grille tarifaire de{' '}
+              {bilan.annee_cible} n&apos;est pas renseignée.
+            </p>
+          )}
+          {bilan.refuses.map(r => (
+            <p key={r.etudiant} className="text-red-600">
+              {r.etudiant} : {r.motif}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionJury({ deliberationId, validee, onNotifier, onErreur }: {
   deliberationId: number;
   validee:        boolean;

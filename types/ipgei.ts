@@ -429,6 +429,41 @@ export interface SaisieAnonymeLot {
   lignes:          { numero_anonymat: number; valeur: string | null }[];
 }
 
+/**
+ * Passage en année supérieure.
+ *
+ * Le jury prononce, le passage exécute : il crée les inscriptions de l'année
+ * suivante dans la CLASSE D'ATTENTE du niveau visé — on ignore encore combien
+ * de classes ouvrir —, et l'écran d'affectation les répartit ensuite.
+ */
+export interface CandidatPassage {
+  inscription:        number;
+  etudiant_nom:       string;
+  etudiant_matricule: string;
+  /** `monte` : admis, il change de niveau. `redouble` : il reste au sien. */
+  suite:              'monte' | 'redouble';
+  /** Niveaux actifs du rang visé. Plusieurs = il faut trancher. */
+  niveaux:            string[];
+  deja_inscrit:       boolean;
+}
+
+export interface ApercuPassage {
+  annee_cible: string;
+  validee:     boolean;
+  annuelle:    boolean;
+  candidats:   CandidatPassage[];
+}
+
+export interface BilanPassage {
+  annee_cible:   string;
+  inscriptions:  number;
+  deja_inscrits: number;
+  crees:         { etudiant: string; niveau: string; suite: string; montant: string }[];
+  refuses:       { etudiant: string; motif: string }[];
+  /** Inscriptions ouvertes à 0 : la grille tarifaire de l'année visée manque. */
+  sans_tarif:    number;
+}
+
 /** Rôle au sein du jury — le président arrête la séance, un seul par délibération. */
 export type RoleJuryIPGEI = 'president' | 'directeur' | 'enseignant' | 'secretaire';
 

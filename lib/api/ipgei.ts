@@ -9,6 +9,7 @@ import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete, InscriptionCreee,
+  ApercuPassage, BilanPassage,
   AnonymatIPGEI, FeuilleEnseignant, GrilleAnonyme, SaisieAnonyme,
   SaisieAnonymeLot, SaisieAnonymeResultat,
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, MembreJuryIPGEI,
@@ -336,6 +337,18 @@ export const deliberationsApi = {
       { method: 'POST', body: seuil ? { seuil_validation: seuil } : {} },
     ),
   valider:  (id: number) => apiFetch<Deliberation>(`${BASE}/deliberations/${id}/valider/`, { method: 'POST' }),
+
+  /** Qui repart l'an prochain, et vers quel niveau — avant d'agir. */
+  passageApercu: (id: number) =>
+    apiFetch<ApercuPassage>(`${BASE}/deliberations/${id}/passage/`),
+
+  /**
+   * Ouvre l'année suivante aux étudiants que le jury a fait repartir.
+   * `niveau` tranche quand plusieurs niveaux partagent le rang visé.
+   */
+  passage: (id: number, niveau?: string) =>
+    apiFetch<BilanPassage>(`${BASE}/deliberations/${id}/passage/`,
+      { method: 'POST', body: niveau ? { niveau } : {} }),
   /** Retire la validation : restaure les inscriptions, déverrouille les notes. Admin. */
   devalider: (id: number) =>
     apiFetch<Deliberation>(`${BASE}/deliberations/${id}/devalider/`, { method: 'POST' }),
