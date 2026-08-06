@@ -594,15 +594,18 @@ function LigneJury({
         )}
       </td>
       <td className="px-4 py-3">
-        {ligne.est_ajustee || motif ? (
-          verrouillee ? (
-            <span className="text-xs text-iss-gray italic">{ligne.motif_ajustement || '—'}</span>
-          ) : (
-            <input value={motif} onChange={e => setMotif(e.target.value)} onBlur={enregistrerMotif}
-                   placeholder="Motif obligatoire" className={INPUT} style={{ minWidth: 180 }} />
-          )
+        {/* Le champ n'apparaissait qu'une fois la décision déjà écartée de la
+            proposition. Or c'est AVANT de trancher qu'on écrit pourquoi : il
+            fallait changer la décision, attendre le serveur, puis revenir sur
+            la ligne pour justifier. Il est désormais toujours saisissable tant
+            que le jury n'est pas validé. */}
+        {verrouillee ? (
+          <span className="text-xs text-iss-gray italic">{ligne.motif_ajustement || '—'}</span>
         ) : (
-          <span className="text-xs text-iss-gray">—</span>
+          <input value={motif} onChange={e => setMotif(e.target.value)} onBlur={enregistrerMotif}
+                 placeholder={ligne.est_ajustee ? 'Motif obligatoire' : 'Motif si dérogation'}
+                 title="Enregistré en quittant le champ"
+                 className={INPUT} style={{ minWidth: 180 }} />
         )}
       </td>
       <td className="px-4 py-3">
