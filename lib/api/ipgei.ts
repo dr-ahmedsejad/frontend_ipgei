@@ -134,6 +134,19 @@ export interface InscriptionFilters extends Params {
 }
 
 export const inscriptionsApi = {
+  /**
+   * Repose le tarif de la grille sur les inscriptions d'une année.
+   *
+   * Le montant est figé à la création : c'est ce qui garde un reçu exact quand
+   * la grille change en cours d'année. Renseignée APRÈS coup, elle laissait des
+   * dossiers à zéro sans que rien ne les rattrape.
+   */
+  recalculerFrais: (annee: string, classe?: number) =>
+    apiFetch<{ annee_universitaire: string; mises_a_jour: number;
+               deja_payees: number; inchangees: number }>(
+      `${BASE}/inscriptions/recalculer-frais/`,
+      { method: 'POST', body: nettoyer({ annee_universitaire: annee, classe }) },
+    ),
   /** Sort un inscrit de la classe d'attente pour le poser dans une classe. */
   affecter: (id: number, classe: number) =>
     apiFetch<Inscription>(`${BASE}/inscriptions/${id}/affecter/`,

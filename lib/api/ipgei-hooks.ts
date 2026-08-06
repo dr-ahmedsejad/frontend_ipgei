@@ -370,6 +370,15 @@ export function useAbsencesEtudiant(inscription: number | null, semestre?: numbe
   });
 }
 
+export function useRecalculFrais() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ annee, classe }: { annee: string; classe?: number }) =>
+      inscriptionsApi.recalculerFrais(annee, classe),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.inscriptions.all }),
+  });
+}
+
 export function useInscriptionMutations() {
   const qc = useQueryClient();
   const invalider = () => {

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  FileText, History, Pencil, Plus, Receipt, Search, Trash2, UserCheck, Wallet, X,
+  Coins, FileText, History, Pencil, Plus, Receipt, Search, Trash2, UserCheck,
+  Wallet, X,
 } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -15,7 +16,7 @@ import {
 import { useAnneeIPGEI } from '../_annee';
 import {
   useClassesSelect, useHistoriqueClasses, useInscriptionMutations, useInscriptions,
-  useSousGroupes,
+  useRecalculFrais, useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { documentsApi } from '@/lib/api/ipgei';
 import { listEtudiants } from '@/lib/api/absences';
@@ -77,6 +78,7 @@ export default function InscriptionsIPGEIPage() {
     statut: statut || undefined,
   });
   const { nouvelle, update, remove } = useInscriptionMutations();
+  const recalculFrais = useRecalculFrais();
 
   const [formOuvert, setFormOuvert] = useState(false);
   const [edition, setEdition]       = useState<Inscription | null>(null);
@@ -121,10 +123,34 @@ export default function InscriptionsIPGEIPage() {
         titre="Inscriptions"
         sousTitre={`${total} inscription${total !== 1 ? 's' : ''} pour ${annee || '—'}.`}
         actions={
-          <button onClick={() => { setEdition(null); setFormOuvert(true); }}
-                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            <Plus size={14} /> Inscrire un étudiant
-          </button>
+          <>
+            {/* Les frais sont figés à la création : c'est ce qui garde un reçu
+                exact quand la grille change en cours d'année. Mais renseignée
+                après coup — le cas d'un passage ouvert avant que les tarifs ne
+                soient fixés —, elle laisse des dossiers à zéro que rien ne
+                rattrape. D'où ce bouton, plutôt qu'un recalcul automatique qui
+                réécrirait des montants déjà encaissés. */}
+            <button
+              onClick={() => recalculFrais.mutate({ annee }, {
+                onSuccess: (r) => notifier(
+                  r.mises_a_jour > 0
+                    ? `${r.mises_a_jour} montant(s) mis à jour`
+                    : 'Tous les montants suivent déjà la grille'
+                  + (r.deja_payees ? ` — ${r.deja_payees} déjà payée(s), intacte(s)` : ''),
+                ),
+                onError: (e) => setErreurDoc(e instanceof Error ? e.message : 'Erreur'),
+              })}
+              disabled={recalculFrais.isPending || !annee}
+              title="Reposer le tarif de la grille sur les inscriptions non payées"
+              className={BTN_SECONDAIRE}>
+              <Coins size={14} />
+              {recalculFrais.isPending ? 'Recalcul…' : 'Recalculer les frais'}
+            </button>
+            <button onClick={() => { setEdition(null); setFormOuvert(true); }}
+                    className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+              <Plus size={14} /> Inscrire un étudiant
+            </button>
+          </>
         }
       />
 
