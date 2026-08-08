@@ -151,6 +151,8 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/ipgei/documents/generer', label: 'Générer un document',
         module: 'ipgei_documents', action: 'modifier' },
+      { href: '/dashboard/ipgei/documents/lot',     label: 'Éditer par groupe',
+        module: 'ipgei_documents', action: 'modifier' },
       { href: '/dashboard/ipgei/documents',         label: 'Registre des documents',
         module: 'ipgei_documents' },
     ],

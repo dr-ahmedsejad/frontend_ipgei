@@ -4,7 +4,10 @@
  * Aucune page n'appelle `apiFetch` directement : elle passe par ces méthodes,
  * puis par les hooks TanStack Query de `ipgei-hooks.ts`.
  */
-import { apiFetch, apiFetchBlob, apiFetchBlobPost, apiFetchPaginated } from '@/lib/api';
+import {
+  apiFetch, apiFetchBlob, apiFetchBlobPost, apiFetchBlobPostAvecEntetes,
+  apiFetchPaginated,
+} from '@/lib/api';
 import type {
   AbsenceSeance, Classe, ClasseInput, ClasseSelect, Deliberation, DocumentIPGEI,
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
@@ -578,7 +581,40 @@ function emettreDocument(chemin: string, body: Record<string, unknown>): Promise
   return apiFetchBlobPost(`${BASE}/documents/${chemin}/`, body);
 }
 
+export interface BilanLot {
+  blob:    Blob;
+  edites:  number;
+  total:   number;
+  erreurs: { etudiant: string; nom: string; motif: string }[];
+}
+
 export const documentsApi = {
+  /**
+   * Édite un document pour toute une classe, fusionné en un seul PDF.
+   *
+   * Le bilan voyage dans les EN-TÊTES : le corps est le PDF lui-même, et
+   * l'écran doit pouvoir annoncer « 39 sur 40 » sans seconde requête.
+   */
+  genererLot: async (input: {
+    type_document: string; classe: number; semestre?: number;
+  }): Promise<BilanLot> => {
+    const { blob, headers } = await apiFetchBlobPostAvecEntetes(
+      `${BASE}/documents/generer-lot/`, input);
+    let erreurs: BilanLot['erreurs'] = [];
+    try {
+      erreurs = JSON.parse(headers.get('X-Erreurs') || '[]');
+    } catch {
+      // Un en-tête illisible ne doit pas emporter le téléchargement : le PDF
+      // est là, c'est l'essentiel.
+    }
+    return {
+      blob,
+      edites: Number(headers.get('X-Edites') || 0),
+      total:  Number(headers.get('X-Total') || 0),
+      erreurs,
+    };
+  },
+
   list: (f: DocumentFilters = {}) => apiFetchPaginated<DocumentIPGEI>(`${BASE}/documents/`, nettoyer(f)),
 
   /**

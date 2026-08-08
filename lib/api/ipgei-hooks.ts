@@ -1043,6 +1043,21 @@ export function useDocumentsIPGEI(filters: DocumentFilters = {}) {
   });
 }
 
+/**
+ * Édition par groupe : un PDF, tous les élèves d'une classe.
+ *
+ * Invalide la liste des documents : chaque élève y gagne une pièce numérotée,
+ * et le registre doit les montrer sans qu'on ait à recharger l'écran.
+ */
+export function useDocumentLot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { type_document: string; classe: number; semestre?: number }) =>
+      documentsApi.genererLot(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.documents.all }),
+  });
+}
+
 export function useDocumentMutations() {
   const qc = useQueryClient();
   const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.documents.all });

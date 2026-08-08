@@ -329,6 +329,58 @@ export async function apiFetchBlobPost(
   }
 }
 
+/**
+ * Même chose qu'`apiFetchBlobPost`, mais rend AUSSI les en-têtes.
+ *
+ * Une édition par lot renvoie le PDF dans le corps et son bilan — combien de
+ * pièces produites, lesquelles ont échoué — dans les en-têtes. Sans eux,
+ * l'écran devrait redemander au serveur ce qu'il vient de lui répondre.
+ */
+export async function apiFetchBlobPostAvecEntetes(
+  path: string,
+  body: unknown = {},
+): Promise<{ blob: Blob; headers: Headers }> {
+  const url = `${API}${path}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (typeof document !== 'undefined') {
+    const csrfMatch = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    if (csrfMatch) headers['X-CSRFToken'] = decodeURIComponent(csrfMatch[1]);
+  }
+  const init: RequestInit = {
+    method: 'POST', credentials: 'include', headers, body: JSON.stringify(body),
+  };
+
+  const { markDownloadStart, markDownloadEnd } = await import('./downloadBlob');
+  markDownloadStart();
+
+  try {
+    let res = await fetch(url, init);
+    if (res.status === 401) {
+      const refreshed = await _refreshToken();
+      if (refreshed) {
+        res = await fetch(url, init);
+      } else {
+        _forceLogout(window.location.pathname);
+        throw new Error('Session expirée.');
+      }
+    }
+    if (!res.ok) {
+      let msg = `Erreur ${res.status}`;
+      try {
+        const j = await res.json();
+        msg = j.detail ?? j.message
+          ?? (Array.isArray(j) ? j.join(' ') : null)
+          ?? Object.values(j).flat().join(' ')
+          ?? msg;
+      } catch { /* réponse non-JSON : on garde le message générique */ }
+      throw new Error(msg);
+    }
+    return { blob: await res.blob(), headers: res.headers };
+  } finally {
+    markDownloadEnd();
+  }
+}
+
 /** Normalise les réponses paginées ET les tableaux bruts (compatibilité NoPagination). */
 export async function apiFetchPaginated<T>(
   path: string,
