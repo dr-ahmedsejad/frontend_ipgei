@@ -39,17 +39,17 @@ export default function Sidebar({
             barre repliée fait 80 px de large — il y tient sans la déborder.
             `width`/`height` suivent la classe : ils donnent son ratio à
             next/image, et les laisser en arrière rendrait l'image floue. */}
-        <div className="rounded-xl flex items-center justify-center font-extrabold text-white text-sm shrink-0 overflow-hidden relative"
+        <div className="rounded-xl flex items-center justify-center font-extrabold text-white text-base shrink-0 overflow-hidden relative"
           style={{
-            width: 52, height: 52,
+            width: 64, height: 64,
             ...(!safeImageSrc(logoUrl)
               ? { background: 'linear-gradient(135deg, #004d24, #006633)' } : {}),
           }}>
           {(() => {
             const safe = safeImageSrc(logoUrl);
             return safe
-              ? <Image src={safe} alt="logo" width={104} height={104}
-                       className="object-contain" style={{ width: 52, height: 52 }} unoptimized />
+              ? <Image src={safe} alt="logo" width={128} height={128}
+                       className="object-contain" style={{ width: 64, height: 64 }} unoptimized />
               : (sigle?.slice(0, 3) ?? 'ISS');
           })()}
         </div>
