@@ -174,9 +174,9 @@ function LoginForm() {
       {/* La colonne part du HAUT, à toutes les largeurs. Elle était centrée
           verticalement : l'espace au-dessus du logo valait alors celui du
           dessous et grandissait avec la hauteur de l'écran — aucune marge à
-          réduire, c'était le centrage. Reste un retrait franc, 32 px, le même
-          que celui qui borde la colonne. */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-start items-center px-5 sm:px-8 lg:px-12 pt-6 sm:pt-8 lg:pt-8 pb-8 lg:pb-12 relative bg-gray-50/30">
+          réduire, c'était le centrage. Il ne reste qu'un filet, 8 à 16 px : le
+          logo touche presque le haut du panneau. */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-start items-center px-5 sm:px-8 lg:px-12 pt-2 sm:pt-3 lg:pt-4 pb-8 lg:pb-12 relative bg-gray-50/30">
         
         <div className="w-full max-w-sm sm:max-w-md">
           
