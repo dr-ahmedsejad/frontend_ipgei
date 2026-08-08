@@ -597,6 +597,8 @@ export const documentsApi = {
    */
   genererLot: async (input: {
     type_document: string; classe: number; semestre?: number;
+    /** Un seul signataire pour toute la fournée : elles se signent d'une main. */
+    signataire?: number;
   }): Promise<BilanLot> => {
     const { blob, headers } = await apiFetchBlobPostAvecEntetes(
       `${BASE}/documents/generer-lot/`, input);

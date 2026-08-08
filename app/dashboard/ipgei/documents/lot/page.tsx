@@ -9,7 +9,9 @@ import {
   BTN_PRIMAIRE, Badge, CARTE, DEGRADE, EnTetePage, Erreur, SELECT, Toast,
 } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
-import { useClassesSelect, useDocumentLot, useSemestresAll } from '@/lib/api/ipgei-hooks';
+import {
+  useClassesSelect, useDocumentLot, useSemestresAll, useSignataires,
+} from '@/lib/api/ipgei-hooks';
 import type { BilanLot } from '@/lib/api/ipgei';
 
 /**
@@ -36,6 +38,9 @@ export default function DocumentsEnLotPage() {
   const [type,      setType]      = useState<string>('ipgei_releve_semestre');
   const [classeId,  setClasseId]  = useState<number | null>(null);
   const [semestreId, setSemestreId] = useState<number | null>(null);
+  // `null` = le signataire par défaut de l'institution. On ne présélectionne
+  // personne : le choix n'a lieu d'être que si le titulaire est absent.
+  const [signataireId, setSignataireId] = useState<number | null>(null);
   const [bilan,     setBilan]     = useState<BilanLot | null>(null);
   const [toast,     setToast]     = useState<string | null>(null);
   const [erreur,    setErreur]    = useState<string | null>(null);
@@ -44,6 +49,8 @@ export default function DocumentsEnLotPage() {
     annee_universitaire: annee, actif: true,
   });
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
+  const { data: signataires = [] } = useSignataires(true);
+  const defaut = signataires.find(s => s.par_defaut) ?? null;
   const editer = useDocumentLot();
 
   const classe = classes.find(c => c.id === classeId) ?? null;
@@ -67,6 +74,7 @@ export default function DocumentsEnLotPage() {
       {
         type_document: type, classe: classeId,
         semestre: semestreRequis ? semestreId ?? undefined : undefined,
+        signataire: signataireId ?? undefined,
       },
       {
         onSuccess: (r) => {
@@ -151,6 +159,42 @@ export default function DocumentsEnLotPage() {
           </div>
         )}
 
+        <div>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Signataire
+          </label>
+          {signataires.length === 0 ? (
+            <p className="text-xs text-iss-gray bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+              Aucun signataire enregistré : les documents sortiront au titre
+              «&nbsp;Chef service de la Scolarité&nbsp;», sans nom. Pour
+              désigner quelqu&apos;un, passez par{' '}
+              <Link href="/dashboard/parametres/cursus/signataires"
+                    className="text-[#006633] font-medium hover:underline">
+                Paramétrage → Signataires
+              </Link>.
+            </p>
+          ) : (
+            <>
+              <select value={signataireId ?? ''} className={SELECT}
+                      onChange={e => setSignataireId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">
+                  {defaut ? `Par défaut — ${defaut.nom_fr} (${defaut.titre_fr})`
+                          : 'Par défaut'}
+                </option>
+                {signataires.map(s => (
+                  <option key={s.id} value={s.id}>{s.nom_fr} — {s.titre_fr}</option>
+                ))}
+              </select>
+              {/* Un seul signataire pour toute la fournée : quarante pièces
+                  sorties d'un même tirage se signent de la même main. */}
+              <p className="text-xs text-iss-gray mt-1.5">
+                Il signera les {classe ? classe.nom : 'documents'} de cette
+                fournée — un seul nom pour toutes les pièces.
+              </p>
+            </>
+          )}
+        </div>
+
         {erreur && <Erreur erreur={new Error(erreur)} />}
 
         <button onClick={telecharger} disabled={!pret || editer.isPending}
@@ -160,12 +204,6 @@ export default function DocumentsEnLotPage() {
             : <><Download size={14} /> Éditer pour {classe?.nom ?? 'la classe'}</>}
         </button>
 
-        <p className="text-xs text-iss-gray">
-          Chaque élève reçoit SON document au registre — numéro de série,
-          empreinte et QR de vérification. Le PDF les rassemble pour
-          l&apos;impression, rien de plus. Une nouvelle édition délivre de
-          nouveaux numéros : chaque tirage est tracé.
-        </p>
       </div>
 
       {bilan && (

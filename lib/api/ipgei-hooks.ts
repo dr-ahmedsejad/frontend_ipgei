@@ -1052,8 +1052,9 @@ export function useDocumentsIPGEI(filters: DocumentFilters = {}) {
 export function useDocumentLot() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { type_document: string; classe: number; semestre?: number }) =>
-      documentsApi.genererLot(input),
+    mutationFn: (input: {
+      type_document: string; classe: number; semestre?: number; signataire?: number;
+    }) => documentsApi.genererLot(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.documents.all }),
   });
 }
