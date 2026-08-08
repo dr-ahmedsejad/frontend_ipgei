@@ -235,6 +235,41 @@ export async function apiUpload<T = unknown>(
 }
 
 /** Télécharge une ressource binaire (PDF, etc.) avec les mêmes cookies/refresh JWT qu'apiFetch. */
+/**
+ * Le motif d'un refus, tel qu'on peut le montrer à l'utilisateur.
+ *
+ * Le backend enveloppe ses erreurs : `{status, error|errors, request_id}`.
+ * Aplatir cette enveloppe telle quelle donnait « 400 <le vrai message>
+ * d0d8edc2 » — le code HTTP et la référence de log encadrant une phrase qui,
+ * elle, se suffisait. On ne garde que le message ; `request_id` sert au
+ * support, pas à l'écran.
+ */
+function motifDuRefus(donnees: unknown, statut: number): string {
+  const secours = `Erreur ${statut}`;
+  if (!donnees || typeof donnees !== 'object') return secours;
+  const d = donnees as Record<string, unknown>;
+
+  const premierTexte = (valeur: unknown): string | null => {
+    if (typeof valeur === 'string') return valeur;
+    if (Array.isArray(valeur)) {
+      for (const v of valeur) {
+        const t = premierTexte(v);
+        if (t) return t;
+      }
+      return null;
+    }
+    if (valeur && typeof valeur === 'object') {
+      // Erreurs par champ : on rend les messages, jamais les noms de champs.
+      const messages = Object.values(valeur as Record<string, unknown>)
+        .map(premierTexte).filter(Boolean);
+      return messages.length ? messages.join(' ') : null;
+    }
+    return null;
+  };
+
+  return premierTexte(d.error ?? d.detail ?? d.message ?? d.errors) ?? secours;
+}
+
 export async function apiFetchBlob(path: string, params?: Record<string, string>): Promise<Blob> {
   let url = `${API}${path}`;
   if (params && Object.keys(params).length > 0) {
@@ -264,7 +299,7 @@ export async function apiFetchBlob(path: string, params?: Record<string, string>
 
     if (!res.ok) {
       let msg = `Erreur ${res.status}`;
-      try { const j = await res.json(); msg = j.detail ?? j.message ?? msg; } catch { /* ignore */ }
+      try { msg = motifDuRefus(await res.json(), res.status); } catch { /* ignore */ }
       throw new Error(msg);
     }
     return await res.blob();
@@ -312,15 +347,10 @@ export async function apiFetchBlobPost(
 
     if (!res.ok) {
       let msg = `Erreur ${res.status}`;
-      try {
-        const j = await res.json();
-        // DRF renvoie soit {detail}, soit {champ: [msg]} : on aplatit pour que
-        // l'utilisateur voie la vraie cause du refus, pas un « Erreur 400 ».
-        msg = j.detail ?? j.message
-          ?? (Array.isArray(j) ? j.join(' ') : null)
-          ?? Object.values(j).flat().join(' ')
-          ?? msg;
-      } catch { /* réponse non-JSON : on garde le message générique */ }
+      // On veut la vraie cause du refus, pas un « Erreur 400 » — mais le seul
+      // motif, sans le code ni la référence de log qui l'encadrent.
+      try { msg = motifDuRefus(await res.json(), res.status); }
+      catch { /* réponse non-JSON : on garde le message générique */ }
       throw new Error(msg);
     }
     return await res.blob();
@@ -366,13 +396,8 @@ export async function apiFetchBlobPostAvecEntetes(
     }
     if (!res.ok) {
       let msg = `Erreur ${res.status}`;
-      try {
-        const j = await res.json();
-        msg = j.detail ?? j.message
-          ?? (Array.isArray(j) ? j.join(' ') : null)
-          ?? Object.values(j).flat().join(' ')
-          ?? msg;
-      } catch { /* réponse non-JSON : on garde le message générique */ }
+      try { msg = motifDuRefus(await res.json(), res.status); }
+      catch { /* réponse non-JSON : on garde le message générique */ }
       throw new Error(msg);
     }
     return { blob: await res.blob(), headers: res.headers };
