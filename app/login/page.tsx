@@ -171,7 +171,12 @@ function LoginForm() {
       {/* ========================================================= */}
       {/* PANNEAU DROIT : Formulaire de connexion                   */}
       {/* ========================================================= */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-5 sm:p-8 lg:p-12 relative bg-gray-50/30">
+      {/* Le panneau centrait sa colonne verticalement : l'espace au-dessus du
+          logo valait donc celui du dessous, et grandissait avec la hauteur de
+          l'écran. Sur grand écran, la colonne part désormais du haut avec un
+          retrait mesuré ; en dessous de `lg`, où la place manque, elle reste
+          centrée. */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center lg:justify-start items-center p-5 sm:p-8 lg:px-12 lg:pt-14 lg:pb-12 relative bg-gray-50/30">
         
         <div className="w-full max-w-sm sm:max-w-md">
           
