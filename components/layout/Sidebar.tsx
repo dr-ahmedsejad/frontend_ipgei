@@ -34,12 +34,22 @@ export default function Sidebar({
     }`}>
       {/* Logo */}
       <div className={`flex items-center ${hideText ? 'justify-center px-0' : 'gap-3 px-5'} py-4 border-b border-gray-100 shrink-0 transition-all`}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white text-xs shrink-0 overflow-hidden relative"
-          style={!safeImageSrc(logoUrl) ? { background: 'linear-gradient(135deg, #004d24, #006633)' } : undefined}>
+        {/* 52 px au lieu de 36 : le logo est la marque de l'établissement sur
+            chaque écran, et il se lisait moins bien que le texte à côté. La
+            barre repliée fait 80 px de large — il y tient sans la déborder.
+            `width`/`height` suivent la classe : ils donnent son ratio à
+            next/image, et les laisser en arrière rendrait l'image floue. */}
+        <div className="rounded-xl flex items-center justify-center font-extrabold text-white text-sm shrink-0 overflow-hidden relative"
+          style={{
+            width: 52, height: 52,
+            ...(!safeImageSrc(logoUrl)
+              ? { background: 'linear-gradient(135deg, #004d24, #006633)' } : {}),
+          }}>
           {(() => {
             const safe = safeImageSrc(logoUrl);
             return safe
-              ? <Image src={safe} alt="logo" width={36} height={36} className="w-9 h-9 object-contain" unoptimized />
+              ? <Image src={safe} alt="logo" width={104} height={104}
+                       className="object-contain" style={{ width: 52, height: 52 }} unoptimized />
               : (sigle?.slice(0, 3) ?? 'ISS');
           })()}
         </div>
