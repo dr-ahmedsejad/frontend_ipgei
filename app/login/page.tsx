@@ -180,15 +180,18 @@ function LoginForm() {
             {(() => {
               const safe = safeImageSrc(institution?.logo_url);
               return safe ? (
+                /* `width`/`height` servent de ratio à next/image ; la hauteur
+                   réelle vient de la classe. Les deux doivent grandir ensemble,
+                   sinon l'image est calculée petite puis étirée, et sort floue. */
                 <Image src={safe} alt={institution?.nom_fr || 'Logo'}
-                  width={64} height={64} unoptimized
-                  className="h-14 sm:h-16 w-auto object-contain mb-5 sm:mb-6 drop-shadow-sm" />
+                  width={160} height={160} unoptimized
+                  className="h-24 sm:h-28 w-auto object-contain mb-5 sm:mb-6 drop-shadow-sm" />
               ) : null;
             })()}
             {!safeImageSrc(institution?.logo_url) && (
-              <div className="h-14 sm:h-16 w-14 sm:w-16 rounded-2xl flex items-center justify-center mb-5 sm:mb-6"
+              <div className="h-24 sm:h-28 w-24 sm:w-28 rounded-2xl flex items-center justify-center mb-5 sm:mb-6"
                    style={{ background: 'linear-gradient(135deg, #006633, #008844)' }}>
-                <span className="text-white font-bold text-lg">{institution?.acronyme ?? '…'}</span>
+                <span className="text-white font-bold text-2xl">{institution?.acronyme ?? '…'}</span>
               </div>
             )}
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Espace d'authentification</h2>
