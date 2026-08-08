@@ -181,7 +181,7 @@ function LoginForm() {
         <div className="w-full max-w-sm sm:max-w-md">
           
           {/* Logo institution dynamique centré */}
-          <div className="flex flex-col items-center mb-8 sm:mb-10 text-center">
+          <div className="flex flex-col items-center mb-5 sm:mb-6 text-center">
             {(() => {
               const safe = safeImageSrc(institution?.logo_url);
               return safe ? (
