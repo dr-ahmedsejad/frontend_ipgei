@@ -6,7 +6,7 @@
  * les grilles de notes. Aucune page ne pose de queryKey à la main.
  */
 import {
-  keepPreviousData, useMutation, useQuery, useQueryClient,
+  keepPreviousData, useMutation, useQueries, useQuery, useQueryClient,
 } from '@tanstack/react-query';
 
 import {
@@ -351,6 +351,38 @@ export function useReleveAnnuel(inscription: number | null) {
     queryKey: [...ipgeiKeys.inscriptions.detail(inscription ?? 0), 'releve-annuel'],
     queryFn:  () => inscriptionsApi.releveAnnuel(inscription as number),
     enabled:  inscription != null,
+  });
+}
+
+/**
+ * Tout le parcours d'un étudiant : ses inscriptions année par année.
+ *
+ * Sans filtre d'année, volontairement — un relevé annuel ne porte que les
+ * semestres de SON année, et consulter un deuxième année sur S3/S4 laissait
+ * croire que S1 et S2 n'existaient pas. Ils sont dans l'inscription de l'année
+ * précédente.
+ */
+export function useParcoursEtudiant(matricule: string | null) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.inscriptions.all, 'parcours', matricule ?? ''] as const,
+    queryFn:  () => inscriptionsApi.all({ search: matricule as string }),
+    enabled:  !!matricule,
+  });
+}
+
+/**
+ * Les relevés annuels de plusieurs inscriptions, en parallèle.
+ *
+ * `useQueries` et non une boucle de `useReleveAnnuel` : le nombre d'années
+ * varie d'un étudiant à l'autre, et appeler un hook dans une boucle romprait
+ * l'ordre des hooks au premier changement de sélection.
+ */
+export function useRelevesAnnuels(inscriptions: number[]) {
+  return useQueries({
+    queries: inscriptions.map(id => ({
+      queryKey: [...ipgeiKeys.inscriptions.detail(id), 'releve-annuel'],
+      queryFn:  () => inscriptionsApi.releveAnnuel(id),
+    })),
   });
 }
 

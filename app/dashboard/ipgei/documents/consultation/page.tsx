@@ -8,7 +8,7 @@ import { Badge, CARTE, Chargement, Erreur, SELECT } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import ChoixInscription from '../_choix-inscription';
 import ReleveNotesVue from '../_releve-notes-vue';
-import { useReleveAnnuel } from '@/lib/api/ipgei-hooks';
+import { useParcoursEtudiant, useRelevesAnnuels } from '@/lib/api/ipgei-hooks';
 import type { Inscription } from '@/types/ipgei';
 
 /**
@@ -27,7 +27,21 @@ export default function ConsultationNotesPage() {
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const [inscription, setInscription] = useState<Inscription | null>(null);
 
-  const { data: releve, isLoading, error } = useReleveAnnuel(inscription?.id ?? null);
+  /**
+   * Toutes les années de l'étudiant, pas seulement celle où on l'a trouvé.
+   *
+   * Un relevé annuel ne porte que les semestres de SON année : consulter un
+   * deuxième année n'affichait que S3 et S4, et laissait croire que S1 et S2
+   * n'existaient pas. Ils sont dans l'inscription de l'année précédente.
+   */
+  const { data: parcours = [], isLoading: chargeParcours, error } =
+    useParcoursEtudiant(inscription?.etudiant_matricule ?? null);
+
+  // Du plus récent au plus ancien : on consulte d'abord l'année en cours.
+  const annees = [...parcours].sort(
+    (a, b) => b.annee_universitaire.localeCompare(a.annee_universitaire));
+  const releves = useRelevesAnnuels(annees.map(i => i.id));
+  const chargement = chargeParcours || releves.some(r => r.isLoading);
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -65,26 +79,38 @@ export default function ConsultationNotesPage() {
         <div className={`${CARTE} p-5`}>
           <Erreur erreur={error} />
 
-          {isLoading ? <Chargement texte="Lecture du relevé…" /> : releve && (
+          {chargement ? <Chargement texte="Lecture du parcours…" /> : (
             <>
               <div className="mb-4 pb-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-iss-dark">{releve.etudiant.nom}</span>
-                <span className="font-mono text-xs text-iss-gray">
-                  {releve.etudiant.matricule}
+                <span className="font-semibold text-iss-dark">
+                  {inscription.etudiant_nom}
                 </span>
-                <span className="text-xs text-iss-gray">· {releve.classe}</span>
-                <span className="ml-auto flex items-center gap-3 text-xs">
-                  <span className="text-iss-gray">Moyenne annuelle</span>
-                  <span className="font-bold text-iss-dark tabular-nums">
-                    {releve.moyenne === null ? '—' : Number(releve.moyenne).toFixed(2)}/20
-                  </span>
-                  <Badge ton={releve.valide ? 'vert' : 'rouge'}>
-                    {releve.valide ? 'Année validée' : 'Sous le seuil'}
-                  </Badge>
+                <span className="font-mono text-xs text-iss-gray">
+                  {inscription.etudiant_matricule}
+                </span>
+                <span className="text-xs text-iss-gray">
+                  · {annees.length} année{annees.length > 1 ? 's' : ''} au dossier
                 </span>
               </div>
 
-              <ReleveNotesVue releve={releve} seuil={releve.seuil} />
+              {/* Une section par année, de la plus récente à la plus ancienne :
+                  c'est ainsi qu'on relit un parcours, et c'est l'ordre du
+                  relevé SIGA. */}
+              {releves.map((r, index) => r.data && (
+                <div key={annees[index].id} className="mb-6 last:mb-0">
+                  <div className="flex items-center gap-3 text-xs mb-2">
+                    <span className="text-iss-gray">Moyenne annuelle</span>
+                    <span className="font-bold text-iss-dark tabular-nums">
+                      {r.data.moyenne === null
+                        ? '—' : Number(r.data.moyenne).toFixed(2)}/20
+                    </span>
+                    <Badge ton={r.data.valide ? 'vert' : 'rouge'}>
+                      {r.data.valide ? 'Année validée' : 'Sous le seuil'}
+                    </Badge>
+                  </div>
+                  <ReleveNotesVue releve={r.data} seuil={r.data.seuil} />
+                </div>
+              ))}
 
               {/* La consultation ne délivre rien : quand une pièce est
                   réellement due, on passe par l'émission, qui la numérote et
