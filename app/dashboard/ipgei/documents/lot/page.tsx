@@ -10,7 +10,7 @@ import {
 } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import {
-  useClassesSelect, useDocumentLot, useSemestresAll, useSignataires,
+  useClassesSelect, useDocumentLot, useNiveauxCursus, useSemestresAll, useSignataires,
 } from '@/lib/api/ipgei-hooks';
 import type { BilanLot } from '@/lib/api/ipgei';
 
@@ -52,13 +52,33 @@ export default function DocumentsEnLotPage() {
   const { data: classes = [] } = useClassesSelect({
     annee_universitaire: annee, actif: true,
   });
+  const { data: niveaux = [] } = useNiveauxCursus(true);
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const { data: signataires = [] } = useSignataires(true);
   const defaut = signataires.find(s => s.par_defaut) ?? null;
   const editer = useDocumentLot();
 
   const classe = classes.find(c => c.id === classeId) ?? null;
-  const reelles = useMemo(() => classes.filter(c => !c.est_conteneur), [classes]);
+
+  // Les niveaux dont le jury peut autoriser à concourir. Lu dans le
+  // référentiel et non écrit en dur : « MP » n'est pas la règle, la règle est
+  // « le niveau qui prononce cette décision-là ». Un niveau ajouté au cursus
+  // suit sans qu'on retouche cet écran. À défaut de liste explicite, le rang
+  // tranche — le CNIM est une décision de deuxième année.
+  const niveauxCnim = useMemo(
+    () => new Set(niveaux
+      .filter(n => (n.decisions_possibles?.length
+        ? n.decisions_possibles.includes('autorise_cnim')
+        : n.rang >= 2))
+      .map(n => n.code)),
+    [niveaux],
+  );
+
+  const reelles = useMemo(
+    () => classes.filter(c => !c.est_conteneur
+      && (type !== 'ipgei_attestation_cnim' || niveauxCnim.has(c.niveau))),
+    [classes, type, niveauxCnim],
+  );
   // Un semestre appartient à une année d'étude : seuls ceux du niveau de la
   // classe ont un sens ici.
   const semestresOuverts = useMemo(
@@ -128,7 +148,17 @@ export default function DocumentsEnLotPage() {
             {TYPES.map(t => (
               <label key={t.cle} className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="type" value={t.cle} checked={type === t.cle}
-                       onChange={() => { setType(t.cle); setBilan(null); }}
+                       onChange={() => {
+                         setType(t.cle); setBilan(null);
+                         // La classe choisie peut ne plus être proposable sous le
+                         // nouveau type — une première année pour le CNIM. La
+                         // laisser en place enverrait une classe absente de la
+                         // liste, et l'écran refuserait sans qu'on voie pourquoi.
+                         if (t.cle === 'ipgei_attestation_cnim' && classe
+                             && !niveauxCnim.has(classe.niveau)) {
+                           setClasseId(null); setSemestreId(null);
+                         }
+                       }}
                        className="accent-[#006633]" />
                 <span className="text-sm text-iss-dark">{t.label}</span>
               </label>
@@ -146,6 +176,15 @@ export default function DocumentsEnLotPage() {
             <option value="">— Choisir —</option>
             {reelles.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
+          {type === 'ipgei_attestation_cnim' && (
+            <p className="text-xs text-iss-gray mt-1.5">
+              {reelles.length
+                ? "Seules les classes de deuxième année : c'est là que le jury "
+                  + 'autorise à concourir.'
+                : `Aucune classe de deuxième année en ${annee}. L'autorisation `
+                  + 'de concourir se prononce en fin de deuxième année.'}
+            </p>
+          )}
         </div>
 
         {semestreRequis && (
