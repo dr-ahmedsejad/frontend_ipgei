@@ -246,7 +246,7 @@ export default function GenererDocumentIPGEIPage() {
 // ── Étape 0 ──────────────────────────────────────────────────────────────────
 function ChoixEtudiant({ annee, choisi, onChoisir, onSuivant }: {
   annee: string; choisi: Inscription | null;
-  onChoisir: (i: Inscription) => void; onSuivant: () => void;
+  onChoisir: (i: Inscription | null) => void; onSuivant: () => void;
 }) {
   // La liste elle-même est partagée avec la consultation des notes : deux
   // copies auraient fini par ne plus filtrer de la même façon. Seule l'étape

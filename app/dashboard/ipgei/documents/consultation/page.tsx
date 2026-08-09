@@ -58,8 +58,7 @@ export default function ConsultationNotesPage() {
       </div>
 
       <div className={`${CARTE} p-4`}>
-        <ChoixInscription annee={annee} choisi={inscription} onChoisir={setInscription}
-                          titre="Étudiant (matricule ou nom)" />
+        <ChoixInscription annee={annee} choisi={inscription} onChoisir={setInscription} />
       </div>
 
       {inscription && (

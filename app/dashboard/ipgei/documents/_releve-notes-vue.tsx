@@ -66,7 +66,7 @@ export default function ReleveNotesVue({ releve, seuil }: {
                   <span className="font-bold text-iss-dark tabular-nums">{total}</span>
                   {moyenne !== null && (
                     <Badge ton={moyenne >= barre ? 'vert' : 'rouge'}>
-                      {moyenne >= barre ? 'Acquis' : 'Non acquis'}
+                      {moyenne >= barre ? 'Acquis' : 'Sous le seuil'}
                     </Badge>
                   )}
                 </div>
@@ -124,11 +124,15 @@ export default function ReleveNotesVue({ releve, seuil }: {
                               {fmt(retenue)}
                             </td>
                             <td className="p-2 text-center">
+                              {/* Des mots, pas des codes : « V » et « NV »
+                                  demandent une légende, et l'IPGEI écrit
+                                  partout ailleurs « Validée », « Admis »,
+                                  « Redoublant ». */}
                               {valeur === null
                                 ? <span className="text-iss-gray/40">—</span>
                                 : valeur >= barre
-                                  ? <Badge ton="vert">V</Badge>
-                                  : <Badge ton="ambre">NV</Badge>}
+                                  ? <Badge ton="vert">Acquise</Badge>
+                                  : <Badge ton="ambre">Sous le seuil</Badge>}
                             </td>
                           </tr>
                         );
