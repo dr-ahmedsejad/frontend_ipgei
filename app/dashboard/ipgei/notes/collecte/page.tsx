@@ -2,18 +2,21 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft, Download, FileSpreadsheet, FileText, Loader2, Upload,
+} from 'lucide-react';
 
 import { downloadBlob } from '@/lib/downloadBlob';
+import FileDropzone from '@/components/ui/FileDropzone';
 import {
-  BTN_PRIMAIRE, CARTE, DEGRADE, EnTetePage, Erreur, SELECT,
+  BTN_PRIMAIRE, Badge, CARTE, DEGRADE, EnTetePage, Erreur, SELECT,
 } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import {
-  useAnonymats, useClassesSelect, useFicheCollecte, useMatieresSelect,
-  useSemestresAll, useSessions,
+  useAnonymats, useClassesSelect, useFicheCollecte, useImportNotes,
+  useMatieresSelect, useSemestresAll, useSessions,
 } from '@/lib/api/ipgei-hooks';
-import type { TypeNoteCollecte } from '@/lib/api/ipgei';
+import type { BilanImportNotes, TypeNoteCollecte } from '@/lib/api/ipgei';
 
 /**
  * Fiche de collecte de notes — la feuille que l'enseignant emporte en salle.
@@ -51,11 +54,15 @@ export default function FicheCollectePage() {
   const [anonymat,  setAnonymat]  = useState(false);
   const [format,    setFormat]    = useState<'pdf' | 'excel'>('pdf');
   const [erreur,    setErreur]    = useState<string | null>(null);
+  const [fichier,   setFichier]   = useState<File | null>(null);
+  const [bilan,     setBilan]     = useState<BilanImportNotes | null>(null);
+  const [erreurImport, setErreurImport] = useState<string | null>(null);
 
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const { data: classes   = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
   const { data: sessions  = [] } = useSessions(annee);
   const editer = useFicheCollecte();
+  const importer = useImportNotes();
 
   const semestre = semestres.find(s => s.id === semestreId) ?? null;
   const classe   = classes.find(c => c.id === classeId) ?? null;
@@ -116,6 +123,25 @@ export default function FicheCollectePage() {
           downloadBlob(blob, `${nom}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
         },
         onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+  };
+
+  /**
+   * Verse le classeur rempli. Le numéro d'épreuve suit celui de la fiche : un
+   * devoir surveillé se rend au premier, et la grille sert à en saisir un
+   * second — l'écran ne le demande pas pour ne pas faire choisir un rang que
+   * la fiche ne porte pas.
+   */
+  const verser = () => {
+    if (!fichier || !semestre || !classe) return;
+    setErreurImport(null);
+    setBilan(null);
+    importer.mutate(
+      { fichier, semestre: semestre.id, classe: classe.id, type_note: typeNote },
+      {
+        onSuccess: (r) => { setBilan(r); setFichier(null); },
+        onError:   (e) => setErreurImport(e instanceof Error ? e.message : 'Erreur'),
       },
     );
   };
@@ -269,6 +295,86 @@ export default function FicheCollectePage() {
             ? <><Loader2 size={14} className="animate-spin" /> Édition en cours…</>
             : <><Download size={14} /> Télécharger la fiche</>}
         </button>
+      </div>
+
+      {/* ── Le retour de la fiche ────────────────────────────────────────
+          La feuille qu'on lit est celle qu'on écrit : aucun gabarit à part,
+          rien à documenter. L'enseignant remplit la colonne « Note /20 » du
+          fichier téléchargé ci-dessus et le renvoie tel quel. */}
+      <div className={`${CARTE} p-6 space-y-4`}>
+        <div>
+          <h2 className="text-sm font-bold text-iss-dark">Reporter une fiche remplie</h2>
+          <p className="text-xs text-iss-gray mt-1">
+            Renvoyez le classeur Excel téléchargé ci-dessus, la colonne
+            «&nbsp;Note /20&nbsp;» remplie. Les matières sont lues dans les
+            onglets&nbsp;; les cases laissées vides ne touchent à rien.
+          </p>
+        </div>
+
+        <FileDropzone
+          label="Classeur rempli"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          maxSizeMb={5}
+          value={fichier}
+          onChange={(f) => { setFichier(f); setBilan(null); setErreurImport(null); }}
+          hint={classe && semestre
+            ? `Versé dans ${classe.nom} — ${semestre.code}, au titre de « ${
+                TYPES.find(t => t.cle === typeNote)?.label} ».`
+            : "Choisissez d'abord la classe et le semestre ci-dessus."}
+        />
+
+        {erreurImport && <Erreur erreur={new Error(erreurImport)} />}
+
+        <button onClick={verser} disabled={!fichier || !pret || importer.isPending}
+                className={`${BTN_PRIMAIRE} w-full justify-center`}
+                style={{ background: DEGRADE }}>
+          {importer.isPending
+            ? <><Loader2 size={14} className="animate-spin" /> Report en cours…</>
+            : <><Upload size={14} /> Reporter les notes</>}
+        </button>
+
+        {bilan && (
+          <div className="space-y-2 pt-1"
+               style={{ borderTop: '1px solid #f1f5f9' }}>
+            <div className="flex items-center gap-2 flex-wrap pt-3">
+              <Badge ton={bilan.erreurs.length ? 'ambre' : 'vert'}>
+                {bilan.saisies} note{bilan.saisies > 1 ? 's' : ''}
+              </Badge>
+              <span className="text-sm text-iss-dark">
+                report&eacute;e{bilan.saisies > 1 ? 's' : ''} sur{' '}
+                {bilan.matieres.length} mati&egrave;re{bilan.matieres.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {/* Le compte des cases vides n'est pas décoratif : c'est lui qui
+                dit qu'une pile n'est corrigée qu'à moitié. */}
+            {bilan.ignorees > 0 && (
+              <p className="text-xs text-iss-gray">
+                {bilan.ignorees} case{bilan.ignorees > 1 ? 's' : ''} laiss&eacute;e
+                {bilan.ignorees > 1 ? 's' : ''} vide{bilan.ignorees > 1 ? 's' : ''} —
+                les notes d&eacute;j&agrave; saisies sont intactes.
+              </p>
+            )}
+
+            <ul className="text-xs text-iss-gray space-y-0.5">
+              {bilan.matieres.map(m => (
+                <li key={m.feuille}>
+                  <b className="text-iss-dark">{m.matiere}</b> — {m.saisies} report&eacute;e
+                  {m.saisies > 1 ? 's' : ''}
+                  {m.ignorees > 0 && `, ${m.ignorees} vide${m.ignorees > 1 ? 's' : ''}`}
+                </li>
+              ))}
+            </ul>
+
+            {/* Une ligne refusée n'interrompt pas les autres — mais elle doit se
+                lire, sinon on croit la classe saisie. */}
+            {bilan.erreurs.map((e, i) => (
+              <p key={`${e.feuille}-${e.ligne}-${i}`} className="text-xs text-amber-700">
+                <b>{e.feuille}</b>, ligne {e.ligne} — {e.motif}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

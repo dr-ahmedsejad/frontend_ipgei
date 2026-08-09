@@ -5,7 +5,7 @@
  * puis par les hooks TanStack Query de `ipgei-hooks.ts`.
  */
 import {
-  apiFetch, apiFetchBlob, apiFetchBlobPost, apiFetchBlobPostAvecEntetes,
+  apiFetch, apiFetchBlob, apiFetchBlobPost, apiFetchBlobPostAvecEntetes, apiUpload,
   apiFetchPaginated,
 } from '@/lib/api';
 import type {
@@ -306,7 +306,37 @@ export const notesApi = {
     }
     return apiFetchBlob(`${BASE}/notes/fiche-collecte/`, params);
   },
+
+  /**
+   * Verse les notes d'un classeur de collecte rempli — le RETOUR de la fiche.
+   *
+   * La matière n'est pas transmise : le serveur la lit dans chaque onglet. Un
+   * classeur porte les six matières du semestre, et les faire désigner une à
+   * une inviterait à verser des notes dans la mauvaise.
+   */
+  importerNotes: (input: {
+    fichier: File; semestre: number; classe: number;
+    type_note: TypeNoteCollecte; numero?: number;
+  }) => {
+    const corps = new FormData();
+    corps.append('fichier',   input.fichier);
+    corps.append('semestre',  String(input.semestre));
+    corps.append('classe',    String(input.classe));
+    corps.append('type_note', input.type_note);
+    corps.append('numero',    String(input.numero ?? 1));
+    return apiUpload<BilanImportNotes>(`${BASE}/notes/importer/`, corps);
+  },
 };
+
+/** Ce qu'un import a produit, feuille par feuille. */
+export interface BilanImportNotes {
+  /** Une entrée par onglet reconnu. */
+  matieres: { feuille: string; matiere: string; saisies: number; ignorees: number }[];
+  saisies:  number;
+  /** Cases laissées vides : le compte qui dit qu'une pile n'est corrigée qu'à moitié. */
+  ignorees: number;
+  erreurs:  { feuille: string; ligne: number; motif: string }[];
+}
 
 /**
  * `RATT` est une épreuve, pas une campagne : elle emporte la seconde session.

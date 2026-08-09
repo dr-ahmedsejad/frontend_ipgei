@@ -624,6 +624,22 @@ export function useFicheCollecte() {
   });
 }
 
+/**
+ * Import d'un classeur de collecte rempli.
+ *
+ * Invalide TOUT le domaine : un import touche les notes, donc les moyennes,
+ * les rangs et l'avancement de la saisie. Ne rafraîchir que la grille
+ * laisserait les autres écrans afficher l'état d'avant.
+ */
+export function useImportNotes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof notesApi.importerNotes>[0]) =>
+      notesApi.importerNotes(input),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+  });
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Délibération
 // ═════════════════════════════════════════════════════════════════════════════
