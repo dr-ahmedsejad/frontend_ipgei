@@ -115,9 +115,11 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
-      // Le même écran édite la fiche ET reçoit le classeur rempli : la nommer
-      // « Fiches de collecte » laissait l'import introuvable pour qui le cherche.
-      { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches & import Excel', module: 'ipgei_notes' },
+      { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',   module: 'ipgei_notes' },
+      // L'import ÉCRIT des notes : il exige « modifier », là où éditer une
+      // fiche vierge se contente de « voir ».
+      { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
+        module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat', module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },

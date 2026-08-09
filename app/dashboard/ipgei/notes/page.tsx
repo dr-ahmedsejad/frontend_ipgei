@@ -206,8 +206,8 @@ export default function SaisieNotesPage() {
             {/* Reporter une pile de copies à la main prend l'après-midi : le
                 classeur de collecte se verse d'un fichier. Le lien est ici
                 parce que c'est ici qu'on est quand on cherche à saisir. */}
-            <Link href="/dashboard/ipgei/notes/collecte" className={BTN_SECONDAIRE}>
-              <FileSpreadsheet size={14} /> Fiches &amp; import Excel
+            <Link href="/dashboard/ipgei/notes/import" className={BTN_SECONDAIRE}>
+              <FileSpreadsheet size={14} /> Importer des notes
             </Link>
             {pret && (
               <button

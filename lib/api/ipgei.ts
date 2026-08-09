@@ -317,6 +317,8 @@ export const notesApi = {
   importerNotes: (input: {
     fichier: File; semestre: number; classe: number;
     type_note: TypeNoteCollecte; numero?: number;
+    /** Omise, tout le classeur est versé ; fournie, ce seul onglet l'est. */
+    matiere?: number;
   }) => {
     const corps = new FormData();
     corps.append('fichier',   input.fichier);
@@ -324,6 +326,7 @@ export const notesApi = {
     corps.append('classe',    String(input.classe));
     corps.append('type_note', input.type_note);
     corps.append('numero',    String(input.numero ?? 1));
+    if (input.matiere) corps.append('matiere', String(input.matiere));
     return apiUpload<BilanImportNotes>(`${BASE}/notes/importer/`, corps);
   },
 };
