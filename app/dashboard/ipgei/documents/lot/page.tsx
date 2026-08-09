@@ -30,6 +30,10 @@ const TYPES = [
   { cle: 'ipgei_releve_semestre',       label: 'Relevé de semestre', semestre: true },
   { cle: 'ipgei_releve_annuel',         label: 'Relevé annuel',      semestre: false },
   { cle: 'ipgei_attestation_inscription', label: "Attestation d'inscription", semestre: false },
+  // L'autorisation de concourir ne vise pas toute la classe mais les seuls
+  // étudiants que le jury a autorisés : le serveur les trie, et le bilan
+  // annonce leur nombre — pas l'effectif de la classe.
+  { cle: 'ipgei_attestation_cnim',      label: 'Attestation CNIM',   semestre: false },
 ] as const;
 
 export default function DocumentsEnLotPage() {
@@ -188,8 +192,11 @@ export default function DocumentsEnLotPage() {
               {/* Un seul signataire pour toute la fournée : quarante pièces
                   sorties d'un même tirage se signent de la même main. */}
               <p className="text-xs text-iss-gray mt-1.5">
-                Il signera les {classe ? classe.nom : 'documents'} de cette
-                fournée — un seul nom pour toutes les pièces.
+                {type === 'ipgei_attestation_cnim'
+                  ? "L'autorisation de concourir est signée par le directeur : "
+                    + "ne désignez quelqu'un que s'il signe à sa place."
+                  : `Il signera les ${classe ? classe.nom : 'documents'} de cette `
+                    + 'fournée — un seul nom pour toutes les pièces.'}
               </p>
             </>
           )}

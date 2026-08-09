@@ -83,7 +83,7 @@ const TYPES: TypeDocument[] = [
   {
     cle: 'attestation_cnim', label: 'Attestation CNIM',
     detail: 'Autorisation à concourir, pour les admis de deuxième année.',
-    besoin: 'deliberation', module: 'ipgei_deliberation',
+    besoin: 'deliberation', module: 'ipgei_deliberation', signee: true,
   },
   {
     cle: 'recu_paiement', label: 'Reçu des frais',
@@ -165,7 +165,8 @@ export default function GenererDocumentIPGEIPage() {
           { deliberation: deliberationId as number, inscription: inscription.id }, options('decision'));
       case 'attestation_cnim':
         return mutations.attestationCnim.mutate(
-          { deliberation: deliberationId as number, inscription: inscription.id }, options('cnim'));
+          { deliberation: deliberationId as number, inscription: inscription.id, signataire },
+          options('cnim'));
       case 'recu_paiement':
         return mutations.recuPaiement.mutate(inscription.id, options('recu'));
     }
@@ -461,8 +462,12 @@ function Parametres({
                 ))}
               </select>
               <p className="text-xs text-iss-gray mt-1.5">
-                Son nom et sa fonction seront imprimés au-dessus du trait ; la
-                signature reste manuscrite. À changer quand le titulaire est absent.
+                {choisi.cle === 'attestation_cnim'
+                  ? "L'autorisation de concourir est signée par le directeur : "
+                    + "ne désignez quelqu'un que s'il signe à sa place, son nom "
+                    + 'prendra alors le pas sur le sien.'
+                  : 'Son nom et sa fonction seront imprimés au-dessus du trait ; la '
+                    + 'signature reste manuscrite. À changer quand le titulaire est absent.'}
               </p>
             </>
           )}

@@ -1084,8 +1084,9 @@ export function useDocumentMutations() {
       onSuccess:  invalider,
     }),
     attestationCnim: useMutation({
-      mutationFn: ({ deliberation, inscription }: { deliberation: number; inscription: number }) =>
-        documentsApi.attestationCnim(deliberation, inscription),
+      mutationFn: ({ deliberation, inscription, signataire }:
+                   { deliberation: number; inscription: number; signataire?: number }) =>
+        documentsApi.attestationCnim(deliberation, inscription, signataire),
       onSuccess:  invalider,
     }),
     attestationInscription: useMutation({

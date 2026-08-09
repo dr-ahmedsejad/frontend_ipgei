@@ -629,8 +629,12 @@ export const documentsApi = {
     emettreDocument('releve-annuel', nettoyer({ inscription, signataire })),
   decision:       (deliberation: number, inscription: number) =>
     emettreDocument('decision-deliberation', { deliberation, inscription }),
-  attestationCnim:(deliberation: number, inscription: number) =>
-    emettreDocument('attestation-cnim', { deliberation, inscription }),
+  /**
+   * L'attestation CNIM est signée par le DIRECTEUR ; `signataire` ne sert donc
+   * qu'à désigner qui signe en son absence — et ce choix prime alors sur lui.
+   */
+  attestationCnim:(deliberation: number, inscription: number, signataire?: number) =>
+    emettreDocument('attestation-cnim', nettoyer({ deliberation, inscription, signataire })),
   /** Attestation de scolarité de l'année en cours, maquette comprise. */
   attestationInscription: (inscription: number, signataire?: number) =>
     emettreDocument('attestation-inscription', nettoyer({ inscription, signataire })),
