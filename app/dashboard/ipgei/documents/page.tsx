@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Download, FileBadge, FilePlus, Search } from 'lucide-react';
+import { Download, FileBadge, FilePlus, FileSearch, Search } from 'lucide-react';
 
 import { Pagination } from '@/components/Pagination';
 import {
-  BTN_PRIMAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage, Erreur, SELECT,
-  Toast, Vide,
+  BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
+  Erreur, SELECT, Toast, Vide,
 } from '../_ui';
 import { useAnneeIPGEI } from '../_annee';
 import { useDocumentsIPGEI } from '@/lib/api/ipgei-hooks';
@@ -55,10 +55,18 @@ export default function DocumentsIPGEIPage() {
         titre="Documents officiels"
         sousTitre="Registre des pièces émises — numérotées, scellées et vérifiables en ligne."
         actions={
-          <Link href="/dashboard/ipgei/documents/generer"
-                className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            <FilePlus size={14} /> Générer un document
-          </Link>
+          <div className="flex gap-2">
+            {/* Consulter d'abord, émettre ensuite : vérifier une moyenne ne
+                doit pas obliger à délivrer une pièce numérotée. */}
+            <Link href="/dashboard/ipgei/documents/consultation"
+                  className={BTN_SECONDAIRE}>
+              <FileSearch size={14} /> Consulter les notes
+            </Link>
+            <Link href="/dashboard/ipgei/documents/generer"
+                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+              <FilePlus size={14} /> Générer un document
+            </Link>
+          </div>
         }
       />
 

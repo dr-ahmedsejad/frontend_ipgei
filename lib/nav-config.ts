@@ -153,6 +153,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
         module: 'ipgei_documents', action: 'modifier' },
       { href: '/dashboard/ipgei/documents/lot',     label: 'Éditer par groupe',
         module: 'ipgei_documents', action: 'modifier' },
+      // Consultation : lecture seule, donc le droit de VOIR suffit — exiger
+      // « modifier » interdirait de vérifier une moyenne à qui ne délivre pas.
+      { href: '/dashboard/ipgei/documents/consultation', label: 'Consulter les notes',
+        module: 'ipgei_documents' },
       { href: '/dashboard/ipgei/documents',         label: 'Registre des documents',
         module: 'ipgei_documents' },
     ],

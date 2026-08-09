@@ -3,19 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, CheckCircle2, Download, FileBadge, Loader2, Lock, Search,
+  ArrowLeft, CheckCircle2, Download, FileBadge, Loader2, Lock,
 } from 'lucide-react';
 
 import Stepper from '@/components/ui/Stepper';
 import { canAccess } from '@/lib/auth';
 import { downloadBlob } from '@/lib/downloadBlob';
 import {
-  BTN_PRIMAIRE, BTN_SECONDAIRE, CARTE, Chargement, DEGRADE, EnTetePage, SELECT,
+  BTN_PRIMAIRE, BTN_SECONDAIRE, CARTE, DEGRADE, EnTetePage, SELECT,
 } from '../../_ui';
+import ChoixInscription from '../_choix-inscription';
 import { useAnneeIPGEI } from '../../_annee';
 import {
-  useClassesSelect, useDeliberations, useDocumentMutations, useInscriptions,
-  useSemestresAll, useSignataires,
+  useDeliberations, useDocumentMutations, useSemestresAll, useSignataires,
 } from '@/lib/api/ipgei-hooks';
 import type { Inscription } from '@/types/ipgei';
 
@@ -248,57 +248,12 @@ function ChoixEtudiant({ annee, choisi, onChoisir, onSuivant }: {
   annee: string; choisi: Inscription | null;
   onChoisir: (i: Inscription) => void; onSuivant: () => void;
 }) {
-  const [classe, setClasse]       = useState('');
-  const [recherche, setRecherche] = useState('');
-
-  const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
-  const { data: page, isLoading } = useInscriptions({
-    page: 1, annee_universitaire: annee || '__aucune__',
-    classe: classe ? Number(classe) : undefined,
-    search: recherche || undefined, actif: true,
-  });
-  const inscriptions = page?.results ?? [];
-
+  // La liste elle-même est partagée avec la consultation des notes : deux
+  // copies auraient fini par ne plus filtrer de la même façon. Seule l'étape
+  // suivante appartient à l'assistant.
   return (
     <div className="space-y-4">
-      <h2 className="font-semibold text-iss-dark">Sélectionner l&apos;étudiant</h2>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe</label>
-          <select value={classe} className={SELECT} onChange={e => setClasse(e.target.value)}>
-            <option value="">Toutes</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Rechercher</label>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-iss-gray pointer-events-none" />
-            <input value={recherche} onChange={e => setRecherche(e.target.value)}
-                   placeholder="Nom ou matricule…"
-                   className="w-full h-11 pl-9 pr-4 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#006633] transition-all" />
-          </div>
-        </div>
-      </div>
-
-      {isLoading ? <Chargement /> : (
-        <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100">
-          {inscriptions.length === 0 ? (
-            <p className="px-4 py-5 text-sm text-iss-gray">Aucune inscription pour ces critères.</p>
-          ) : inscriptions.map(i => (
-            <button key={i.id} type="button" onClick={() => onChoisir(i)}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                      choisi?.id === i.id
-                        ? 'bg-[#006633]/8 font-semibold text-[#006633]'
-                        : 'hover:bg-gray-50'}`}>
-              {i.etudiant_nom}
-              <span className="text-iss-gray"> · {i.etudiant_matricule} · {i.classe_nom}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      <ChoixInscription annee={annee} choisi={choisi} onChoisir={onChoisir} />
       <div className="flex justify-end pt-1">
         <button onClick={onSuivant} disabled={!choisi}
                 className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
