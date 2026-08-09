@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { GraduationCap, Lock, Minus, Plus, RefreshCw, Save } from 'lucide-react';
+import {
+  FileSpreadsheet, GraduationCap, Lock, Minus, Plus, RefreshCw, Save,
+} from 'lucide-react';
 
 import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
@@ -201,6 +203,12 @@ export default function SaisieNotesPage() {
           // Année close : aucune action n'a de sens, pas même le recalcul.
           !anneeOuverte ? null : (
           <>
+            {/* Reporter une pile de copies à la main prend l'après-midi : le
+                classeur de collecte se verse d'un fichier. Le lien est ici
+                parce que c'est ici qu'on est quand on cherche à saisir. */}
+            <Link href="/dashboard/ipgei/notes/collecte" className={BTN_SECONDAIRE}>
+              <FileSpreadsheet size={14} /> Fiches &amp; import Excel
+            </Link>
             {pret && (
               <button
                 onClick={() => recalculerLot.mutate(
