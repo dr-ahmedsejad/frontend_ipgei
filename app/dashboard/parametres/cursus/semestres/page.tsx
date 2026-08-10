@@ -25,6 +25,43 @@ function RetourParametres() {
   );
 }
 
+/** Ce que la synchronisation du calendrier a fait, côté serveur. */
+interface BilanCalendrier {
+  creees:     number;
+  modifiees:  number;
+  supprimees: number;
+  /** Semaines retirées du socle mais gardées ici : des séances s'y accrochent. */
+  retenues:   number[];
+  total:      number;
+}
+
+/**
+ * Résume la synchronisation en une phrase.
+ *
+ * Trois mouvements peuvent s'être produits — des semaines créées, des dates
+ * corrigées, des semaines retirées — et n'annoncer que les créations laissait
+ * croire qu'une suppression n'avait rien fait.
+ */
+function resumeReprise(r: BilanCalendrier): string {
+  const faits = [
+    r.creees     && `${r.creees} reprise${r.creees > 1 ? 's' : ''}`,
+    r.modifiees  && `${r.modifiees} corrigée${r.modifiees > 1 ? 's' : ''}`,
+    r.supprimees && `${r.supprimees} retirée${r.supprimees > 1 ? 's' : ''}`,
+  ].filter(Boolean);
+  const garde = r.retenues?.length
+    ? ` · semaine${r.retenues.length > 1 ? 's' : ''} ${r.retenues.join(', ')} gardée`
+      + `${r.retenues.length > 1 ? 's' : ''} : des séances y sont rattachées`
+    : '';
+  return faits.length
+    ? `${faits.join(', ')} — ${r.total} semaine(s) au total${garde}`
+    : `Le semestre était déjà à jour${garde}`;
+}
+
+/** Date courte, jj/mm/aaaa. Rend un tiret sur une valeur absente. */
+function jour(valeur: string | null | undefined): string {
+  return valeur ? new Date(valeur).toLocaleDateString('fr-FR') : '—';
+}
+
 export default function ParametresSemestresPage() {
   const [toast, setToast] = useState<string | null>(null);
   const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
@@ -114,15 +151,31 @@ function BlocSemestres({ onNotifier }: { onNotifier: (m: string) => void }) {
                   <Badge ton="neutre">{s.type_semestre === 'I' ? 'Impair' : 'Pair'}</Badge>
                   {s.est_cloture && <Badge ton="ambre">Clôturé</Badge>}
                 </div>
+                {/* Le calendrier se CONSTATE : « 16 semaines · du 05/10 au
+                    25/01 ». La dernière semaine n'est pas une fin — on peut en
+                    ajouter d'autres après les seize, et la phrase suivra. Tant
+                    qu'aucune n'est reprise, la date reste le repère de
+                    convention posé à l'ouverture de l'année. */}
                 <p className="text-xs text-iss-gray mt-0.5">
                   {s.niveaux.length > 0 && (
                     <>Suivi par {s.niveaux.join(', ')}{' · '}</>
                   )}
-                  à partir du {new Date(s.date_debut).toLocaleDateString('fr-FR')}
-                  {' · '}
-                  <span className="font-semibold text-iss-dark">
-                    {s.nb_semaines_generees} semaine(s) reprises
-                  </span>
+                  {s.nb_semaines_generees > 0 ? (
+                    <>
+                      <span className="font-semibold text-iss-dark">
+                        {s.nb_semaines_generees} semaine{s.nb_semaines_generees > 1 ? 's' : ''}
+                      </span>
+                      {s.calendrier?.premiere_semaine && (
+                        <> · du {jour(s.calendrier.premiere_semaine)}
+                          {s.calendrier.derniere_semaine
+                            && <> au {jour(s.calendrier.derniere_semaine)}</>}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>à partir du {jour(s.date_debut)} · <span className="text-amber-700">
+                      aucune semaine reprise</span></>
+                  )}
                 </p>
               </div>
 
@@ -169,31 +222,29 @@ function BlocSemestres({ onNotifier }: { onNotifier: (m: string) => void }) {
  * relancer n'ajoute que ce qui manquait. Sans elle, les séances de l'emploi du
  * temps n'auraient aucune semaine à quoi se rattacher.
  */
+/**
+ * Reprend du calendrier du socle les semaines qui manquent au semestre.
+ *
+ * Plus de compteur à côté du bouton : il affichait 16, partait au serveur, y
+ * était validé entre 1 et 40 — et le service l'ignorait. On reprend TOUT ce
+ * que porte le calendrier, qui fait foi ; en reprendre la moitié n'aurait pas
+ * de sens.
+ */
 function BoutonReprise({ semestre, mutation, onNotifier }: {
   semestre:   SemestreIPGEI;
-  mutation:   { mutate: (v: { id: number; nb?: number }, o?: object) => void; isPending: boolean };
+  mutation:   { mutate: (v: { id: number }, o?: object) => void; isPending: boolean };
   onNotifier: (m: string) => void;
 }) {
-  const [nb, setNb] = useState(String(semestre.nb_semaines || 16));
-
   return (
-    <div className="flex items-center gap-1.5">
-      <input type="number" min={1} max={40} value={nb}
-             onChange={e => setNb(e.target.value)}
-             title="Nombre de semaines à reprendre au maximum"
-             className={INPUT} style={{ width: 62, textAlign: 'center' }} />
-      <button onClick={() => mutation.mutate(
-                { id: semestre.id, nb: Number(nb) || undefined },
-                { onSuccess: (r: { semaines_creees: number; total: number }) =>
-                    onNotifier(r.semaines_creees
-                      ? `${r.semaines_creees} semaine(s) reprises — ${r.total} au total`
-                      : 'Le semestre était déjà à jour') },
-              )}
-              disabled={mutation.isPending}
-              className={BTN_SECONDAIRE} title="Reprendre les semaines du calendrier">
-        <RefreshCw size={13} /> Reprendre
-      </button>
-    </div>
+    <button onClick={() => mutation.mutate(
+              { id: semestre.id },
+              { onSuccess: (r: BilanCalendrier) => onNotifier(resumeReprise(r)) },
+            )}
+            disabled={mutation.isPending}
+            className={BTN_SECONDAIRE}
+            title="Reprendre les semaines du calendrier (Paramètres → Semaines)">
+      <RefreshCw size={13} /> Reprendre
+    </button>
   );
 }
 

@@ -99,9 +99,21 @@ export interface SemestreIPGEI {
   institution:          number | null;
   code:                 CodeSemestre;
   annee_universitaire:  string;
+  /** Déduite de la première semaine reprise ; repère de convention à défaut. */
   date_debut:           string;
-  date_fin:             string;
+  /**
+   * Jamais renseignée, et c'est délibéré : on ne sait pas quand un semestre
+   * s'achève. Après seize semaines on peut en ajouter d'autres, et une fin
+   * inscrite d'avance serait démentie par la première semaine de rattrapage.
+   * Lire `calendrier.derniere_semaine`, qui CONSTATE au lieu d'annoncer.
+   */
+  date_fin:             string | null;
   nb_semaines:          number;
+  /** Bornes du calendrier réellement repris. Un constat, pas un terme. */
+  calendrier?:          {
+    premiere_semaine: string | null;
+    derniere_semaine: string | null;
+  };
   est_cloture:          boolean;
   /** 1 = première année, 2 = deuxième. C'est le vrai rattachement du semestre. */
   rang:                 number;

@@ -219,8 +219,8 @@ export function useSemestreMutations() {
       onSuccess:  () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
     }),
     genererSemaines: useMutation({
-      mutationFn: ({ id, remplacer, nb }: { id: number; remplacer?: boolean; nb?: number }) =>
-        semestresApi.genererSemaines(id, remplacer ?? false, nb),
+      mutationFn: ({ id, remplacer }: { id: number; remplacer?: boolean }) =>
+        semestresApi.genererSemaines(id, remplacer ?? false),
       onSuccess:  (_, vars) => {
         invalider();
         qc.invalidateQueries({ queryKey: ipgeiKeys.semaines(vars.id) });

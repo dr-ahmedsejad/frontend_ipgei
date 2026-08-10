@@ -74,11 +74,17 @@ export const semestresApi = {
     apiFetch<SemestreIPGEI>(`${BASE}/semestres/${id}/`, { method: 'PATCH', body: input }),
   remove:   (id: number) => apiFetch<void>(`${BASE}/semestres/${id}/`, { method: 'DELETE' }),
 
-  /** Ajoute `nb` semaines à la suite des existantes (défaut : celui du semestre). */
-  genererSemaines: (id: number, remplacer = false, nb?: number) =>
+  /**
+   * Reprend du calendrier du socle les semaines qui manquent au semestre.
+   *
+   * Aucun nombre à passer : on reprend tout ce que le socle porte. Le
+   * paramètre `nb_semaines` existait, était validé par la vue et ignoré par le
+   * service — il promettait un réglage qui n'a jamais existé.
+   */
+  genererSemaines: (id: number, remplacer = false) =>
     apiFetch<{ semaines_creees: number; total: number }>(
       `${BASE}/semestres/${id}/generer-semaines/`,
-      { method: 'POST', body: { remplacer, ...(nb ? { nb_semaines: nb } : {}) } },
+      { method: 'POST', body: { remplacer } },
     ),
   /** `classe` restreint l'état de cohérence à cette classe plutôt qu'au niveau. */
   semaines:  (id: number, classe?: number | null) =>
