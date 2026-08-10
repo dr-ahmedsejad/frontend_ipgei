@@ -15,14 +15,18 @@ import { useSaisieAbsences } from '@/hooks/useSaisieAbsences';
 import { STATUTS } from '@/components/absences/StatutBadge';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import type { Etudiant } from '@/types/absences';
+import { deptLabel as deptLabelPartage } from '@/lib/format-depts';
 
 /* ─── Types locaux ────────────────────────────────────────────────────────── */
 interface Departement { id: number; nom: string; niveau_nom?: string | null; filiere_code?: string | null; is_container?: boolean; }
 
 /* Libellé groupe « FILIERE - NIVEAU - GROUPE » (ex. LPSTAT - L1 - G1),
    identique au select de emplois/gerer. */
-function deptLabel(d: Departement): string {
-  return [d.filiere_code, d.niveau_nom, d.nom].filter(Boolean).join(' - ');
+function deptLabel(d: Departement, tous?: Departement[]): string {
+  // Règle partagée (`lib/format-depts`) : le code de filière tombe quand
+  // l'établissement n'en a qu'un, le niveau quand le nom de la classe le porte
+  // déjà. Dix écrans portaient chacun leur copie de cette composition.
+  return deptLabelPartage(d, tous);
 }
 
 interface SuivieRow {
@@ -365,7 +369,7 @@ export default function SaisirAbsencesPage() {
           <select value={selDepId} onChange={e => confirmChange(() => setSelDepId(e.target.value))}
             className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:border-iss-primary">
             <option value="">— Classe —</option>
-            {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d)}</option>)}
+            {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d, departements)}</option>)}
           </select>
 
           <button onClick={loadMatrix} disabled={loading || !selSemaine || !selJour || !selDepId}

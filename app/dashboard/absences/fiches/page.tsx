@@ -9,14 +9,18 @@ import {
 } from 'lucide-react';
 import { apiFetch, apiFetchBlob } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { deptLabel as deptLabelPartage } from '@/lib/format-depts';
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 interface Departement { id: number; nom: string; niveau_nom?: string | null; filiere_code?: string | null; is_container?: boolean; }
 
 /* Libellé groupe « FILIERE - NIVEAU - GROUPE » (ex. LPSTAT - L1 - G1),
    identique aux selects de emplois/gerer et absences/saisir. */
-function deptLabel(d: Departement): string {
-  return [d.filiere_code, d.niveau_nom, d.nom].filter(Boolean).join(' - ');
+function deptLabel(d: Departement, tous?: Departement[]): string {
+  // Règle partagée (`lib/format-depts`) : le code de filière tombe quand
+  // l'établissement n'en a qu'un, le niveau quand le nom de la classe le porte
+  // déjà. Dix écrans portaient chacun leur copie de cette composition.
+  return deptLabelPartage(d, tous);
 }
 
 /* DS / ER / EF = examen/surveillance → signé par le surveillant (pas le prof),
@@ -308,7 +312,7 @@ export default function FichesPresencePage() {
                 <option value="">
                   {selSemId ? 'Toutes les classes' : '— Choisir d\'abord un semestre —'}
                 </option>
-                {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d)}</option>)}
+                {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d, departements)}</option>)}
               </select>
             )}
           </div>

@@ -15,6 +15,7 @@ import { getStoredUser, AuthUser } from '@/lib/auth';
 import { rapport as fetchRapport, getSeuil, updateSeuil } from '@/lib/api/absences';
 import { joursApi } from '@/lib/api/jours';
 import type { RapportRow, SeuilAbsence } from '@/types/absences';
+import { deptLabel as deptLabelPartage } from '@/lib/format-depts';
 // F-6 : chart.js + plugins enregistres dans @/components/charts
 
 interface RapportJourRow {
@@ -48,8 +49,11 @@ interface Departement { id: number; nom: string; niveau_nom?: string | null; fil
 
 /* Libellé groupe « FILIERE - NIVEAU - GROUPE » (ex. LPSTAT - L1 - G1),
    identique aux selects de emplois/gerer et absences/saisir. */
-function deptLabel(d: Departement): string {
-  return [d.filiere_code, d.niveau_nom, d.nom].filter(Boolean).join(' - ');
+function deptLabel(d: Departement, tous?: Departement[]): string {
+  // Règle partagée (`lib/format-depts`) : le code de filière tombe quand
+  // l'établissement n'en a qu'un, le niveau quand le nom de la classe le porte
+  // déjà. Dix écrans portaient chacun leur copie de cette composition.
+  return deptLabelPartage(d, tous);
 }
 
 /* Jours de la semaine en français */
@@ -556,7 +560,7 @@ export default function StatsAbsencesPage() {
             <select value={selDepId} onChange={e => setSelDepId(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:border-[#B8960C]">
               <option value="">— Tous les classes —</option>
-              {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d)}</option>)}
+              {departements.map(d => <option key={d.id} value={d.id}>{deptLabel(d, departements)}</option>)}
             </select>
           </div>
           <button onClick={() => rapportQuery.refetch()} disabled={loading}

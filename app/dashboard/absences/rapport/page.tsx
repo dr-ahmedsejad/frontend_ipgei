@@ -12,6 +12,7 @@ import { getStoredUser } from '@/lib/auth';
 import { useTimeout } from '@/hooks/useTimeout';
 import { rapport as fetchRapport } from '@/lib/api/absences';
 import type { RapportRow } from '@/types/absences';
+import { deptLabel as deptLabelPartage } from '@/lib/format-depts';
 
 interface Filiere    { id: number; code: string; intitule_fr: string; }
 interface Departement {
@@ -23,8 +24,11 @@ interface Departement {
 
 /* Libellé groupe « FILIERE - NIVEAU - GROUPE » (ex. LPSTAT - L1 - G1),
    identique aux selects de emplois/gerer et absences/saisir. */
-function deptLabel(d: Departement): string {
-  return [d.filiere_code, d.niveau_nom, d.nom].filter(Boolean).join(' - ');
+function deptLabel(d: Departement, tous?: Departement[]): string {
+  // Règle partagée (`lib/format-depts`) : le code de filière tombe quand
+  // l'établissement n'en a qu'un, le niveau quand le nom de la classe le porte
+  // déjà. Dix écrans portaient chacun leur copie de cette composition.
+  return deptLabelPartage(d, tous);
 }
 
 const MOIS_NOMS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -346,7 +350,7 @@ export default function RapportAbsencesPage() {
                   {!niveauId ? '— Choisir d\'abord un niveau —' : '— Choisir une classe —'}
                 </option>
                 {departements.map(d => (
-                  <option key={d.id} value={d.id}>{deptLabel(d)}</option>
+                  <option key={d.id} value={d.id}>{deptLabel(d, departements)}</option>
                 ))}
               </select>
             )}
