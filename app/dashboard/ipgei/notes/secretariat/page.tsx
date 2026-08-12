@@ -79,7 +79,12 @@ export default function ExportSecretariatPage() {
     [anonymats, niveau],
   );
   const demandees = lots.reduce((t, l) => t + (l.nb || 0), 0);
-  const trop = demandees > disponibles;
+  // Le dépassement ne se juge QUE si l'on sait à quoi comparer. À l'ouverture,
+  // aucune campagne n'est choisie : `disponibles` vaut 0, et le premier lot en
+  // porte 20 par défaut — l'écran annonçait « 20 demandées pour 0 disponibles »
+  // avant même qu'on ait touché à quoi que ce soit.
+  const compte = !!session && disponibles > 0;
+  const trop = compte && demandees > disponibles;
 
   const pret = !!session && disponibles > 0;
   const echec = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
@@ -254,20 +259,22 @@ export default function ExportSecretariatPage() {
                      }} />
               {/* Le maximum est ce qui RESTE, pas le total : à trois
                   correcteurs, chacun est borné par ce que les autres n'ont pas
-                  pris. La valeur est écrêtée à la saisie, on ne peut donc pas
-                  composer un total impossible. */}
+                  pris. Tant qu'aucune campagne n'est choisie, aucun plafond ne
+                  s'applique — écrêter contre un total inconnu bloquerait la
+                  saisie à 1. */}
               <input type="number" min={1}
-                     max={Math.max(1, disponibles - (demandees - (lot.nb || 0)))}
+                     max={compte
+                       ? Math.max(1, disponibles - (demandees - (lot.nb || 0)))
+                       : undefined}
                      value={lot.nb}
                      className={INPUT} style={{ width: 90, textAlign: 'center' }}
                      onChange={e => {
-                       const autres = demandees - (lot.nb || 0);
-                       const plafond = Math.max(1, disponibles - autres);
+                       const saisi = Math.max(1, Number(e.target.value) || 1);
+                       const plafond = compte
+                         ? Math.max(1, disponibles - (demandees - (lot.nb || 0)))
+                         : saisi;
                        const suite = [...lots];
-                       suite[index] = {
-                         ...lot,
-                         nb: Math.min(plafond, Math.max(1, Number(e.target.value) || 1)),
-                       };
+                       suite[index] = { ...lot, nb: Math.min(plafond, saisi) };
                        setLots(suite); setBilan(null);
                      }} />
               <span className="text-xs text-iss-gray w-12">copies</span>
@@ -282,15 +289,19 @@ export default function ExportSecretariatPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <button onClick={() => setLots([
                       ...lots,
-                      // Le nouveau lot ne prend que ce qui reste : ajouter un
-                      // correcteur ne doit pas rendre le total impossible.
-                      { correcteur: '', nb: Math.max(1, Math.min(20, disponibles - demandees)) },
+                      // Le nouveau lot ne prend que ce qui reste — sauf tant
+                      // que le total est inconnu, où l'on propose la valeur
+                      // usuelle.
+                      { correcteur: '',
+                        nb: compte
+                          ? Math.max(1, Math.min(20, disponibles - demandees))
+                          : 20 },
                     ])}
-                    disabled={demandees >= disponibles}
+                    disabled={compte && demandees >= disponibles}
                     className={BTN_SECONDAIRE}>
               <Plus size={14} /> Ajouter un correcteur
             </button>
-            {!!session && (
+            {compte && (
               <span className={`text-xs ${trop ? 'text-red-600 font-semibold' : 'text-iss-gray'}`}>
                 {demandees} / {disponibles} copie{disponibles > 1 ? 's' : ''} répartie
                 {demandees > 1 ? 's' : ''}
