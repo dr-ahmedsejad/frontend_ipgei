@@ -17,7 +17,8 @@ import {
   niveauxApi,
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
-  type FiltresCollecte, type FiltresGrilleAnonyme, type Params,
+  type FiltresCollecte, type FiltresGrilleAnonyme, type LotCorrection,
+  type Params,
   type TriDetailNotes,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
@@ -572,6 +573,33 @@ export function useAnonymats(session: number | null | undefined) {
     queryFn:  () => sessionsApi.anonymats(session as number),
     enabled:  session != null,
   });
+}
+
+/**
+ * Pièces du secrétariat autour de l'anonymat.
+ *
+ * Deux documents que rien ne doit confondre : la LISTE porte le couple
+ * numéro ↔ matricule et reste au secrétariat ; la RÉPARTITION ne porte que des
+ * numéros et accompagne les copies chez le correcteur.
+ */
+export function useSecretariatAnonymat() {
+  return {
+    exporter: useMutation({
+      mutationFn: ({ session, niveau, sortie }:
+                   { session: number; niveau?: string; sortie?: 'excel' | 'pdf' }) =>
+        sessionsApi.exportSecretariat(session, niveau, sortie ?? 'excel'),
+    }),
+    apercu: useMutation({
+      mutationFn: ({ session, lots, niveau }:
+                   { session: number; lots: LotCorrection[]; niveau?: string }) =>
+        sessionsApi.apercuRepartition(session, lots, niveau),
+    }),
+    repartir: useMutation({
+      mutationFn: ({ session, lots, niveau }:
+                   { session: number; lots: LotCorrection[]; niveau?: string }) =>
+        sessionsApi.repartitionPdf(session, lots, niveau),
+    }),
+  };
 }
 
 export function useAnonymatMutations(session?: number) {

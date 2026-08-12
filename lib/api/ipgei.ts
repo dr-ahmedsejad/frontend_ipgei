@@ -224,6 +224,33 @@ export const matieresApi = {
 
 // ── Notes ────────────────────────────────────────────────────────────────────
 // ── Sessions de saisie ───────────────────────────────────────────────────────
+/** Un correcteur et le nombre de copies qu'il prend. */
+export interface LotCorrection { correcteur: string; nb: number }
+
+/** Ce que la répartition produirait — montré avant d'imprimer. */
+export interface BilanRepartition {
+  paquets: {
+    correcteur: string; nb: number;
+    premier: number; dernier: number;
+    /** Les NUMÉROS seuls : aucun matricule ne descend jusqu'au correcteur. */
+    numeros: number[];
+  }[];
+  total:     number;
+  reparties: number;
+  /** Copies qu'aucun correcteur n'a prises — rendues plutôt que réparties d'office. */
+  restantes: number[];
+}
+
+/** Corps de requête à structure libre : `nettoyer` ne prend que des scalaires. */
+function nettoyer2(corps: Record<string, unknown>): Record<string, unknown> {
+  const sortie: Record<string, unknown> = {};
+  for (const [cle, valeur] of Object.entries(corps)) {
+    if (valeur === undefined || valeur === null || valeur === '') continue;
+    sortie[cle] = valeur;
+  }
+  return sortie;
+}
+
 export const sessionsApi = {
   /**
    * Sessions d'une année. Le backend matérialise les campagnes manquantes :
@@ -246,6 +273,28 @@ export const sessionsApi = {
 
   update: (id: number, input: Partial<SessionEvaluationIPGEI>) =>
     apiFetch<SessionEvaluationIPGEI>(`${BASE}/sessions/${id}/`, { method: 'PATCH', body: input }),
+
+  /**
+   * Liste du secrétariat : numéro d'anonymat ↔ matricule, toutes classes du
+   * niveau confondues. C'est la table de LEVÉE d'anonymat — elle ne se remet
+   * pas aux correcteurs.
+   */
+  exportSecretariat: (id: number, niveau?: string, sortie: 'excel' | 'pdf' = 'excel') =>
+    apiFetchBlob(`${BASE}/sessions/${id}/export-secretariat/`,
+                 { ...(niveau ? { niveau } : {}), sortie }),
+
+  /**
+   * Partage les copies entre correcteurs. `apercu` rend le bilan en JSON —
+   * l'écran montre ce qui sera produit avant d'imprimer.
+   */
+  apercuRepartition: (id: number, lots: LotCorrection[], niveau?: string) =>
+    apiFetch<BilanRepartition>(`${BASE}/sessions/${id}/repartir-copies/`,
+      { method: 'POST', body: nettoyer2({ lots, niveau, apercu: true }) }),
+
+  /** Le PDF des feuilles de correction — une page par correcteur, sans matricule. */
+  repartitionPdf: (id: number, lots: LotCorrection[], niveau?: string) =>
+    apiFetchBlobPost(`${BASE}/sessions/${id}/repartir-copies/`,
+                     nettoyer2({ lots, niveau })),
 
   /** Table de correspondance numéro ↔ étudiant : c'est la levée d'anonymat. */
   anonymats: (id: number) =>

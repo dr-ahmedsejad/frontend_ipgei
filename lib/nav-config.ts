@@ -121,6 +121,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
         module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
+      // La table numéro ↔ matricule lève l'anonymat : elle exige « modifier »,
+      // comme le tirage, et non le simple droit de voir les notes.
+      { href: '/dashboard/ipgei/notes/secretariat', label: 'Export secrétariat',
+        module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat', module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
     ],
