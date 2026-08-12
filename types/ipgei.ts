@@ -389,6 +389,8 @@ export interface AnonymatIPGEI {
   etudiant_nom:       string;
   etudiant_matricule: string;
   classe:             string;
+  /** Code du niveau — sert à compter les copies d'un niveau avant de les répartir. */
+  niveau:             NiveauIPGEI;
 }
 
 export interface SaisieAnonyme {

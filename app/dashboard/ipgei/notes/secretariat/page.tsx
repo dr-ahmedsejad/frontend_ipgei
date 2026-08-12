@@ -13,8 +13,8 @@ import {
 } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import {
-  useMatieresSelect, useOptionsNiveaux, useSecretariatAnonymat, useSemestresAll,
-  useSessions,
+  useAnonymats, useMatieresSelect, useOptionsNiveaux, useSecretariatAnonymat,
+  useSemestresAll, useSessions,
 } from '@/lib/api/ipgei-hooks';
 import type { BilanRepartition, LotCorrection } from '@/lib/api/ipgei';
 
@@ -70,7 +70,18 @@ export default function ExportSecretariatPage() {
     code_semestre: semestre?.code, actif: true,
   });
 
-  const pret = !!session;
+  // Combien de copies existent réellement. Le compte est CONNU avant de
+  // répartir : laisser saisir 80 sur 50 pour refuser au clic obligeait à tout
+  // recommencer, alors que l'écran savait dès le départ que c'était impossible.
+  const { data: anonymats = [] } = useAnonymats(session?.id ?? null);
+  const disponibles = useMemo(
+    () => anonymats.filter(a => !niveau || a.niveau === niveau).length,
+    [anonymats, niveau],
+  );
+  const demandees = lots.reduce((t, l) => t + (l.nb || 0), 0);
+  const trop = demandees > disponibles;
+
+  const pret = !!session && disponibles > 0;
   const echec = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
   const nomFichier = `${semestre?.code ?? ''}_${niveau || 'tous'}`;
 
@@ -167,6 +178,16 @@ export default function ExportSecretariatPage() {
             Aucune campagne ouverte sur ce semestre.
           </p>
         )}
+        {!!session && disponibles === 0 && (
+          <p className="text-xs text-amber-700">
+            Aucun numéro tiré pour cette campagne{niveau && ` en ${niveau}`} : le
+            tirage se fait depuis{' '}
+            <Link href="/dashboard/ipgei/notes/anonymat"
+                  className="text-[#006633] font-medium hover:underline">
+              Anonymat des copies
+            </Link>, avant la correction.
+          </p>
+        )}
 
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => telecharger('excel')} disabled={!pret || exporter.isPending}
@@ -231,11 +252,22 @@ export default function ExportSecretariatPage() {
                        suite[index] = { ...lot, correcteur: e.target.value };
                        setLots(suite); setBilan(null);
                      }} />
-              <input type="number" min={1} value={lot.nb}
+              {/* Le maximum est ce qui RESTE, pas le total : à trois
+                  correcteurs, chacun est borné par ce que les autres n'ont pas
+                  pris. La valeur est écrêtée à la saisie, on ne peut donc pas
+                  composer un total impossible. */}
+              <input type="number" min={1}
+                     max={Math.max(1, disponibles - (demandees - (lot.nb || 0)))}
+                     value={lot.nb}
                      className={INPUT} style={{ width: 90, textAlign: 'center' }}
                      onChange={e => {
+                       const autres = demandees - (lot.nb || 0);
+                       const plafond = Math.max(1, disponibles - autres);
                        const suite = [...lots];
-                       suite[index] = { ...lot, nb: Math.max(1, Number(e.target.value) || 1) };
+                       suite[index] = {
+                         ...lot,
+                         nb: Math.min(plafond, Math.max(1, Number(e.target.value) || 1)),
+                       };
                        setLots(suite); setBilan(null);
                      }} />
               <span className="text-xs text-iss-gray w-12">copies</span>
@@ -247,23 +279,52 @@ export default function ExportSecretariatPage() {
               </button>
             </div>
           ))}
-          <button onClick={() => setLots([...lots, { correcteur: '', nb: 20 }])}
-                  className={BTN_SECONDAIRE}>
-            <Plus size={14} /> Ajouter un correcteur
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button onClick={() => setLots([
+                      ...lots,
+                      // Le nouveau lot ne prend que ce qui reste : ajouter un
+                      // correcteur ne doit pas rendre le total impossible.
+                      { correcteur: '', nb: Math.max(1, Math.min(20, disponibles - demandees)) },
+                    ])}
+                    disabled={demandees >= disponibles}
+                    className={BTN_SECONDAIRE}>
+              <Plus size={14} /> Ajouter un correcteur
+            </button>
+            {!!session && (
+              <span className={`text-xs ${trop ? 'text-red-600 font-semibold' : 'text-iss-gray'}`}>
+                {demandees} / {disponibles} copie{disponibles > 1 ? 's' : ''} répartie
+                {demandees > 1 ? 's' : ''}
+                {demandees < disponibles && !trop
+                  && ` · ${disponibles - demandees} sans correcteur`}
+                {trop && ` · ${demandees - disponibles} de trop`}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Dit AVANT le clic, et non après : c'est le sens de tout ce
+            bornage. Le serveur refuse toujours de son côté — l'écran n'est
+            pas une garantie, seulement une politesse. */}
+        {trop && (
+          <p className="text-xs text-red-600">
+            {demandees} copies demandées pour {disponibles} disponibles.
+            Retirez-en {demandees - disponibles}.
+          </p>
+        )}
 
         {erreur && <Erreur erreur={new Error(erreur)} />}
 
         <div className="flex gap-2 flex-wrap">
-          <button onClick={voir} disabled={!pret || !lotsValides.length || apercu.isPending}
+          <button onClick={voir}
+                  disabled={!pret || trop || !lotsValides.length || apercu.isPending}
                   className={BTN_SECONDAIRE}>
             {apercu.isPending
               ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
             Voir la répartition
           </button>
           <button onClick={() => imprimer('excel')}
-                  disabled={!pret || !lotsValides.length || !matiereId || repartir.isPending}
+                  disabled={!pret || trop || !lotsValides.length || !matiereId
+                            || repartir.isPending}
                   className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
             {repartir.isPending
               ? <Loader2 size={14} className="animate-spin" />
@@ -271,7 +332,7 @@ export default function ExportSecretariatPage() {
             Fiches Excel
           </button>
           <button onClick={() => imprimer('pdf')}
-                  disabled={!pret || !lotsValides.length || repartir.isPending}
+                  disabled={!pret || trop || !lotsValides.length || repartir.isPending}
                   className={BTN_SECONDAIRE}>
             <FileText size={14} /> Fiches PDF
           </button>
