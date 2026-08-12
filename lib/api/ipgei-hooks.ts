@@ -595,9 +595,10 @@ export function useSecretariatAnonymat() {
         sessionsApi.apercuRepartition(session, lots, niveau),
     }),
     repartir: useMutation({
-      mutationFn: ({ session, lots, niveau }:
-                   { session: number; lots: LotCorrection[]; niveau?: string }) =>
-        sessionsApi.repartitionPdf(session, lots, niveau),
+      mutationFn: ({ session, lots, niveau, matiere, sortie }:
+                   { session: number; lots: LotCorrection[]; niveau?: string;
+                     matiere?: number; sortie?: 'pdf' | 'excel' }) =>
+        sessionsApi.repartitionPdf(session, lots, niveau, matiere, sortie ?? 'pdf'),
     }),
   };
 }

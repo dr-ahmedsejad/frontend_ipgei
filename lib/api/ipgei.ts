@@ -291,10 +291,18 @@ export const sessionsApi = {
     apiFetch<BilanRepartition>(`${BASE}/sessions/${id}/repartir-copies/`,
       { method: 'POST', body: nettoyer2({ lots, niveau, apercu: true }) }),
 
-  /** Le PDF des feuilles de correction — une page par correcteur, sans matricule. */
-  repartitionPdf: (id: number, lots: LotCorrection[], niveau?: string) =>
+  /**
+   * Les fiches de collecte des correcteurs — deux colonnes, numéro et note,
+   * aucun matricule.
+   *
+   * En `excel`, le classeur est au format de la fiche de collecte : rempli, il
+   * se reverse par Notes → Import Excel. La matière est alors exigée, c'est
+   * elle que l'import lit pour savoir où verser les notes.
+   */
+  repartitionPdf: (id: number, lots: LotCorrection[], niveau?: string,
+                   matiere?: number, sortie: 'pdf' | 'excel' = 'pdf') =>
     apiFetchBlobPost(`${BASE}/sessions/${id}/repartir-copies/`,
-                     nettoyer2({ lots, niveau })),
+                     nettoyer2({ lots, niveau, matiere, sortie })),
 
   /** Table de correspondance numéro ↔ étudiant : c'est la levée d'anonymat. */
   anonymats: (id: number) =>

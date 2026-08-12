@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, Download, FileSpreadsheet, FileText, Loader2, Plus, Trash2, Users,
+  ArrowLeft, FileSpreadsheet, FileText, Loader2, Plus, Trash2, Users,
 } from 'lucide-react';
 
 import { downloadBlob } from '@/lib/downloadBlob';
@@ -13,7 +13,8 @@ import {
 } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import {
-  useOptionsNiveaux, useSecretariatAnonymat, useSemestresAll, useSessions,
+  useMatieresSelect, useOptionsNiveaux, useSecretariatAnonymat, useSemestresAll,
+  useSessions,
 } from '@/lib/api/ipgei-hooks';
 import type { BilanRepartition, LotCorrection } from '@/lib/api/ipgei';
 
@@ -39,6 +40,7 @@ export default function ExportSecretariatPage() {
   const [semestreId, setSemestreId] = useState<number | null>(null);
   const [rattrapage, setRattrapage] = useState(false);
   const [niveau, setNiveau]         = useState('');
+  const [matiereId, setMatiereId] = useState<number | null>(null);
   const [lots, setLots]   = useState<LotCorrection[]>([{ correcteur: '', nb: 20 }]);
   const [bilan, setBilan] = useState<BilanRepartition | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -61,6 +63,12 @@ export default function ExportSecretariatPage() {
     () => (semestre ? niveaux.filter(n => semestre.niveaux.includes(n.value)) : []),
     [niveaux, semestre],
   );
+
+  // La matière ne sert qu'aux fiches des correcteurs — la liste du secrétariat
+  // couvre toute la campagne, matières confondues.
+  const { data: matieres = [] } = useMatieresSelect({
+    code_semestre: semestre?.code, actif: true,
+  });
 
   const pret = !!session;
   const echec = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
@@ -85,11 +93,17 @@ export default function ExportSecretariatPage() {
                   { onSuccess: setBilan, onError: echec });
   };
 
-  const imprimer = () => {
+  const imprimer = (sortie: 'pdf' | 'excel') => {
     if (!session || !lotsValides.length) return;
     setErreur(null);
-    repartir.mutate({ session: session.id, lots: lotsValides, niveau: niveau || undefined },
-      { onSuccess: (b) => downloadBlob(b, `repartition_${nomFichier}.pdf`), onError: echec });
+    repartir.mutate(
+      { session: session.id, lots: lotsValides, niveau: niveau || undefined,
+        matiere: matiereId ?? undefined, sortie },
+      {
+        onSuccess: (b) => downloadBlob(
+          b, `collecte_${nomFichier}.${sortie === 'excel' ? 'xlsx' : 'pdf'}`),
+        onError: echec,
+      });
   };
 
   return (
@@ -180,10 +194,31 @@ export default function ExportSecretariatPage() {
         <div>
           <h2 className="text-sm font-bold text-iss-dark">Répartir les copies</h2>
           <p className="text-xs text-iss-gray mt-1">
-            Nommez les correcteurs et le nombre de copies de chacun. Les paquets
-            suivent l&apos;ordre des numéros — «&nbsp;du n° 1 au n° 20&nbsp;». La
-            feuille remise ne porte <b>aucun matricule</b>.
+            Chacun reçoit une <b>fiche de collecte</b> : deux colonnes, numéro
+            d&apos;anonymat et note, une ligne par copie. Les paquets suivent
+            l&apos;ordre des numéros — «&nbsp;du n° 1 au n° 20&nbsp;». La feuille
+            ne porte <b>aucun matricule</b>.
           </p>
+
+          <div className="mt-3">
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Matière
+            </label>
+            <select value={matiereId ?? ''} className={SELECT} disabled={!semestreId}
+                    onChange={e => setMatiereId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">— Choisir —</option>
+              {matieres.map(m => <option key={m.id} value={m.id}>{m.intitule}</option>)}
+            </select>
+            {/* Le classeur se reverse par l'import, qui lit la matière dans la
+                feuille : sans elle il ne saurait pas où poser les notes. */}
+            <p className="text-xs text-iss-gray mt-1.5">
+              Exigée pour le classeur Excel, qui se reverse ensuite par{' '}
+              <Link href="/dashboard/ipgei/notes/import"
+                    className="text-[#006633] font-medium hover:underline">
+                Import Excel
+              </Link>. Facultative pour le PDF.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -227,11 +262,18 @@ export default function ExportSecretariatPage() {
               ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
             Voir la répartition
           </button>
-          <button onClick={imprimer} disabled={!pret || !lotsValides.length || repartir.isPending}
+          <button onClick={() => imprimer('excel')}
+                  disabled={!pret || !lotsValides.length || !matiereId || repartir.isPending}
                   className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
             {repartir.isPending
-              ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Feuilles de correction
+              ? <Loader2 size={14} className="animate-spin" />
+              : <FileSpreadsheet size={14} />}
+            Fiches Excel
+          </button>
+          <button onClick={() => imprimer('pdf')}
+                  disabled={!pret || !lotsValides.length || repartir.isPending}
+                  className={BTN_SECONDAIRE}>
+            <FileText size={14} /> Fiches PDF
           </button>
         </div>
 
