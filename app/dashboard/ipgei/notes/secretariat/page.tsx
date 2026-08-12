@@ -87,6 +87,13 @@ export default function ExportSecretariatPage() {
   const trop = compte && demandees > disponibles;
 
   const pret = !!session && disponibles > 0;
+  // QUEL format est en cours, et non « une mutation est en cours » : les deux
+  // boutons partagent la même mutation, si bien que cliquer sur l'un faisait
+  // tourner l'autre. `variables` porte les paramètres de l'appel en vol.
+  const enCoursExport = (format: 'excel' | 'pdf') =>
+    exporter.isPending && exporter.variables?.sortie === format;
+  const enCoursFiches = (format: 'excel' | 'pdf') =>
+    repartir.isPending && repartir.variables?.sortie === format;
   const echec = (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur');
   const nomFichier = `${semestre?.code ?? ''}_${niveau || 'tous'}`;
 
@@ -195,16 +202,23 @@ export default function ExportSecretariatPage() {
         )}
 
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => telecharger('excel')} disabled={!pret || exporter.isPending}
+          {/* Chaque bouton ne s'éteint que pour SON format : l'autre reste
+              cliquable, il n'est pas concerné par l'édition en cours. */}
+          <button onClick={() => telecharger('excel')}
+                  disabled={!pret || enCoursExport('excel')}
                   className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            {exporter.isPending
+            {enCoursExport('excel')
               ? <Loader2 size={14} className="animate-spin" />
               : <FileSpreadsheet size={14} />}
             Liste Excel
           </button>
-          <button onClick={() => telecharger('pdf')} disabled={!pret || exporter.isPending}
+          <button onClick={() => telecharger('pdf')}
+                  disabled={!pret || enCoursExport('pdf')}
                   className={BTN_SECONDAIRE}>
-            <FileText size={14} /> Liste PDF
+            {enCoursExport('pdf')
+              ? <Loader2 size={14} className="animate-spin" />
+              : <FileText size={14} />}
+            Liste PDF
           </button>
         </div>
 
@@ -335,17 +349,20 @@ export default function ExportSecretariatPage() {
           </button>
           <button onClick={() => imprimer('excel')}
                   disabled={!pret || trop || !lotsValides.length || !matiereId
-                            || repartir.isPending}
+                            || enCoursFiches('excel')}
                   className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            {repartir.isPending
+            {enCoursFiches('excel')
               ? <Loader2 size={14} className="animate-spin" />
               : <FileSpreadsheet size={14} />}
             Fiches Excel
           </button>
           <button onClick={() => imprimer('pdf')}
-                  disabled={!pret || trop || !lotsValides.length || repartir.isPending}
+                  disabled={!pret || trop || !lotsValides.length || enCoursFiches('pdf')}
                   className={BTN_SECONDAIRE}>
-            <FileText size={14} /> Fiches PDF
+            {enCoursFiches('pdf')
+              ? <Loader2 size={14} className="animate-spin" />
+              : <FileText size={14} />}
+            Fiches PDF
           </button>
         </div>
 
