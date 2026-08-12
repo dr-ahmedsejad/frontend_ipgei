@@ -367,7 +367,14 @@ export interface FiltresCollecte extends Params {
 }
 
 // ── Délibération ─────────────────────────────────────────────────────────────
-export type TriDetailNotes = 'rang' | 'matricule' | 'moyenne';
+/**
+ * Ordre des fiches du détail des notes.
+ *
+ * `anonymat` suit l'ordre des copies encore anonymes : retrouver la fiche
+ * d'une copie obligeait sinon à lever l'anonymat d'abord, ce qu'on veut
+ * précisément éviter tant que la correction n'est pas close.
+ */
+export type TriDetailNotes = 'rang' | 'matricule' | 'moyenne' | 'anonymat';
 
 export interface DeliberationFilters extends Params {
   page?: number; niveau?: string; annee_universitaire?: string;

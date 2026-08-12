@@ -202,13 +202,16 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
               /* Le jury ne parcourt pas toujours la classe de la même
                  façon : par classement pour délibérer du haut vers le bas, par
                  matricule pour retrouver un dossier qu'on lui présente, par
-                 moyenne pour examiner les cas limites. L'ordre voyage avec la
-                 demande, et s'imprime sur le bandeau du document. */
+                 moyenne pour examiner les cas limites, par numéro d'anonymat
+                 pour suivre l'ordre des copies tant qu'elles le restent.
+                 L'ordre voyage avec la demande, et s'imprime sur le bandeau du
+                 document. */
               <div className="inline-flex items-center gap-1.5">
-                <select value={triDetail} className={SELECT} style={{ width: 132 }}
+                <select value={triDetail} className={SELECT} style={{ width: 148 }}
                         onChange={e => setTriDetail(e.target.value as TriDetailNotes)}>
                   <option value="rang">Par classement</option>
                   <option value="matricule">Par matricule</option>
+                  <option value="anonymat">Par n° d&apos;anonymat</option>
                   <option value="moyenne">Par moyenne</option>
                 </select>
                 <button onClick={() => detailNotes.mutate(
