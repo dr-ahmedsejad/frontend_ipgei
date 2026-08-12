@@ -373,8 +373,12 @@ export interface FiltresCollecte extends Params {
  * `anonymat` suit l'ordre des copies encore anonymes : retrouver la fiche
  * d'une copie obligeait sinon à lever l'anonymat d'abord, ce qu'on veut
  * précisément éviter tant que la correction n'est pas close.
+ *
+ * Il n'y a PAS de tri « par moyenne » : le rang est calculé depuis la moyenne
+ * décroissante, les deux ordres ne pouvaient que coïncider. Le serveur accepte
+ * encore ce nom, en le traduisant par `rang`, pour les liens déjà en usage.
  */
-export type TriDetailNotes = 'rang' | 'matricule' | 'moyenne' | 'anonymat';
+export type TriDetailNotes = 'rang' | 'matricule' | 'anonymat';
 
 export interface DeliberationFilters extends Params {
   page?: number; niveau?: string; annee_universitaire?: string;
