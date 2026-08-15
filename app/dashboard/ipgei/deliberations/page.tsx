@@ -33,11 +33,16 @@ export default function DeliberationsPage() {
   const [page, setPage]     = useState(1);
   const [classe, setClasse] = useState('');
   const [statut, setStatut] = useState('');
+  // La portée sépare trois natures de jury qui se ressemblent dans la liste :
+  // un bilan de semestre, une session normale, une session de rattrapage. Le
+  // serveur sait déjà filtrer dessus — l'écran ne faisait que ne pas le demander.
+  const [portee, setPortee] = useState('');
 
   const { data, isLoading, error } = useDeliberations({
     page, annee_universitaire: annee || '__aucune__',
     classe: classe ? Number(classe) : undefined,
     statut: statut || undefined,
+    portee: portee || undefined,
   });
 
   // Le jury siège classe par classe : c'est par classe qu'on cherche le sien.
@@ -84,6 +89,16 @@ export default function DeliberationsPage() {
           {classesReelles.map(c => (
             <option key={c.id} value={c.id}>{c.nom}</option>
           ))}
+        </select>
+        {/* Mêmes libellés que les chips de la liste : « annuelle » s'y lit
+            « session normale », et l'on ne doit pas avoir à traduire d'un
+            filtre à l'autre. */}
+        <select value={portee} onChange={e => { setPortee(e.target.value); setPage(1); }}
+                className={SELECT} style={{ width: 200 }}>
+          <option value="">Toutes les portées</option>
+          <option value="semestre">Bilan de semestre</option>
+          <option value="annuelle">Session normale (annuel)</option>
+          <option value="rattrapage">Session de rattrapage</option>
         </select>
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
                 className={SELECT} style={{ width: 160 }}>
@@ -317,18 +332,24 @@ function FormulaireDeliberation({
                  onChange={e => setLibelle(e.target.value)} />
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
-            Seuil de validation
-          </label>
-          {/* Le placeholder porte la valeur par défaut : laissé vide, le champ
-              reprend les paramètres de l'institut, que la délibération fige
-              ensuite. Plus de phrase sous le champ — le plafond de rattrapage,
-              lui, ne se règle plus du tout ici. */}
-          <input type="number" min="0" max="20" step="0.25" value={seuil} className={INPUT}
-                 placeholder={seuilDefaut ? Number(seuilDefaut).toFixed(2) : '10.00'}
-                 onChange={e => setSeuil(e.target.value)} />
-        </div>
+        {/* Un jury de SEMESTRE ne prononce aucune décision : il arrête un bilan
+            et verrouille les notes du semestre. Un seuil n'y sert à rien — il ne
+            départage rien —, et le proposer laissait croire qu'on réglait
+            quelque chose. Le champ disparaît donc avec la portée, comme il a
+            déjà disparu de la ligne de liste et de l'en-tête du jury. */}
+        {portee !== 'semestre' && (
+          <div>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Seuil de validation
+            </label>
+            {/* Le placeholder porte la valeur par défaut : laissé vide, le champ
+                reprend les paramètres de l'institut, que la délibération fige
+                ensuite. */}
+            <input type="number" min="0" max="20" step="0.25" value={seuil} className={INPUT}
+                   placeholder={seuilDefaut ? Number(seuilDefaut).toFixed(2) : '10.00'}
+                   onChange={e => setSeuil(e.target.value)} />
+          </div>
+        )}
       </div>
 
       {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
