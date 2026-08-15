@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Save, ChevronDown, BookOpen, Lock } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { useInstance } from '@/lib/api/sync-hooks';
 import { getStoredUser } from '@/lib/auth';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 
@@ -83,11 +84,20 @@ export default function NotesEnseignantPage() {
   if (emsError) toast.error('Impossible de charger vos matières.');
   const ems = emsData;
 
+  // ── Où va la saisie : la note officielle, ou un brouillon en ligne ────────
+  // Sur le portail, `evaluations_note` est un miroir en lecture seule. La même
+  // grille écrit alors dans la boîte de réception : un BROUILLON, que la
+  // direction exportera et ressaisira en local. L'enseignant ne change ni
+  // d'écran ni de gestes — seule la destination diffère, et le bandeau le dit.
+  const { data: instance } = useInstance();
+  const enLigne = instance?.mirror_mode ?? false;
+  const baseNotes = enLigne ? '/api/v1/saisie-en-ligne' : '/api/v1/evaluations/notes';
+
   // ── Feuille de notes ─────────────────────────────────────────────────────
-  const feuilleKey = ['evaluations', 'notes', 'feuille', { sessionId, emId }] as const;
+  const feuilleKey = ['evaluations', 'notes', 'feuille', { sessionId, emId, enLigne }] as const;
   const { data: feuilleQueryData, isLoading: loadingFeuille, error: feuilleError } = useQuery({
     queryKey: feuilleKey,
-    queryFn:  () => apiFetch<FeuilleRow[]>(`/api/v1/evaluations/notes/feuille/?session=${sessionId}&em=${emId}`),
+    queryFn:  () => apiFetch<FeuilleRow[]>(`${baseNotes}/feuille/?session=${sessionId}&em=${emId}`),
     enabled:  !!sessionId && !!emId,
   });
   // useMemo pour stabiliser la référence : sans ça, `?? []` crée un nouveau []
@@ -128,8 +138,14 @@ export default function NotesEnseignantPage() {
         };
       });
       return apiFetch<{ created: number; updated: number }>(
-        '/api/v1/evaluations/notes/saisir-bulk/',
-        { method: 'POST', body: { session: Number(sessionId), rows } },
+        `${baseNotes}/saisir-bulk/`,
+        // En ligne, l'élément de module accompagne la saisie : le brouillon est
+        // rangé par (professeur, session, EM), et le serveur vérifie au passage
+        // que cet EM est bien dans son périmètre.
+        { method: 'POST',
+          body: enLigne
+            ? { session: Number(sessionId), em: Number(emId), rows }
+            : { session: Number(sessionId), rows } },
       );
     },
     onSuccess: (res) => {
@@ -173,6 +189,23 @@ export default function NotesEnseignantPage() {
           <p className="text-xs text-slate-400">{annee} — Semestre {typeSem}</p>
         </div>
       </div>
+
+      {/* En ligne, la saisie ne produit pas de note officielle. Le taire serait
+          pire que tout : l'enseignant croirait ses notes arrêtées, et la
+          direction les découvrirait absentes du relevé. */}
+      {enLigne && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4
+                        flex items-start gap-2.5" style={{ borderLeft: '3px solid #b45309' }}>
+          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-slate-600">
+            Vous saisissez depuis le <b>portail en ligne</b> : vos notes sont
+            enregistrées comme <b>brouillons</b>. La direction les récupère puis
+            les reporte sur le serveur de l&apos;établissement, où elles
+            deviennent officielles. Vous pouvez les corriger tant qu&apos;elles
+            n&apos;ont pas été reprises.
+          </p>
+        </div>
+      )}
 
       {/* Sélection session + EM */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">

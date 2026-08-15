@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, ChevronLeft, ChevronRight, CheckCircle2, XCircle, ClipboardCheck } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { useInstance } from '@/lib/api/sync-hooks';
 import { getStoredUser } from '@/lib/auth';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 
@@ -28,6 +29,13 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 interface ModalReclamer { pointageId: number; label: string; }
+
+/** Ce que rend la boîte de réception : le statut y vit, pas dans le pointage. */
+interface ReclamationEnLigne {
+  id:           number;
+  pointage_id:  number | null;
+  statut:       'en_attente' | 'acceptee' | 'rejetee';
+}
 
 export default function SuiviEnseignantPage() {
   const toast   = useToast();
@@ -83,14 +91,37 @@ export default function SuiviEnseignantPage() {
   const grilleCreneaux = grilleData?.creneaux ?? [];
   const error = grilleError ? (grilleError as Error).message : '';
 
+  // ── Où écrire : le suivi local, ou la boîte de réception en ligne ───────────
+  // Sur le portail, le suivi est un MIROIR en lecture seule : y écrire une
+  // réclamation serait accepté en apparence, puis effacé au push suivant. On
+  // dépose donc dans la boîte de réception, seule table qui traverse la
+  // synchronisation. Le geste de l'enseignant, lui, ne change pas.
+  const { data: instance } = useInstance();
+  const enLigne = instance?.mirror_mode ?? false;
+
+  const { data: reclamationsEnLigne = [] } = useQuery({
+    queryKey: ['portail', 'reclamer-seance'] as const,
+    queryFn:  () => apiFetch<ReclamationEnLigne[]>('/api/v1/portail/reclamer-seance/'),
+    enabled:  enLigne,
+  });
+  // Statut par séance, lu dans l'inbox : en ligne, le champ du pointage reste
+  // celui du dernier dump et ne connaît pas ce qui vient d'être déposé.
+  const statutEnLigne = new Map(
+    reclamationsEnLigne.map(r => [r.pointage_id, r.statut]));
+
   const reclamerMut = useMutation({
     mutationFn: ({ id, m }: { id: number; m: string }) =>
-      apiFetch(`/api/v1/suivi/pointages/${id}/reclamer/`, { method: 'POST', body: { motif: m } }),
+      enLigne
+        ? apiFetch('/api/v1/portail/reclamer-seance/', {
+            method: 'POST', body: { pointage: id, motif: m } })
+        : apiFetch(`/api/v1/suivi/pointages/${id}/reclamer/`, {
+            method: 'POST', body: { motif: m } }),
     onSuccess: () => {
       toast.success('Réclamation envoyée avec succès.');
       setModal(null);
       setMotif('');
       qc.invalidateQueries({ queryKey: grilleKey });
+      qc.invalidateQueries({ queryKey: ['portail', 'reclamer-seance'] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'envoi.'),
   });
@@ -258,14 +289,25 @@ export default function SuiviEnseignantPage() {
                                   {e.dept_noms?.length > 0 && (
                                     <div className="text-[10px] text-slate-400 truncate">{e.dept_noms.join(' · ')}</div>
                                   )}
-                                  {!fait && (
-                                    e.reclamation_statut === 'en_attente' ? (
+                                  {!fait && (() => {
+                                    // En ligne, l'inbox fait foi ; en local, le
+                                    // champ du pointage. Même affichage, deux
+                                    // sources — l'enseignant ne voit pas la
+                                    // différence, et c'est le but.
+                                    const statutReclamation = enLigne
+                                      ? statutEnLigne.get(e.id)
+                                      : e.reclamation_statut;
+                                    return statutReclamation === 'en_attente' ? (
                                       <span className="mt-1.5 inline-block text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                                         Réclamation en attente
                                       </span>
-                                    ) : e.reclamation_statut === 'acceptee' ? (
+                                    ) : statutReclamation === 'acceptee' ? (
                                       <span className="mt-1.5 inline-block text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md">
                                         Réclamation acceptée
+                                      </span>
+                                    ) : statutReclamation === 'rejetee' ? (
+                                      <span className="mt-1.5 inline-block text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                                        Réclamation rejetée
                                       </span>
                                     ) : (
                                       <button
@@ -273,8 +315,8 @@ export default function SuiviEnseignantPage() {
                                         className="mt-1.5 text-[10px] font-semibold text-white bg-[#C82020] hover:bg-[#a31a1a] px-2 py-0.5 rounded-md transition-colors">
                                         Réclamer
                                       </button>
-                                    )
-                                  )}
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}

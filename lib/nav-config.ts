@@ -8,6 +8,7 @@ import {
   LayoutDashboard, AlertCircle, ClipboardCheck, Edit3,
   BookMarked, ArrowUpCircle, MessageSquareWarning, History,
   Briefcase, Shield, Database, ShieldCheck, Repeat, BookOpenCheck,
+  RefreshCw,
 } from 'lucide-react';
 import type { UserRole, RbacAction } from '@/lib/auth';
 import {
@@ -324,6 +325,25 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/historique', label: 'Tous les évènements' },
     ],
   },
+  // ── Ce qui vient du portail en ligne ────────────────────────────────────────
+  // Le VPS est un miroir en lecture seule, à deux exceptions près : la
+  // réclamation de séance et la saisie de notes. Ces deux dépôts n'ont pas
+  // d'équivalent local — ils arrivent d'ailleurs, et c'est ici qu'on les traite.
+  {
+    key: 'portail-inbox', icon: Globe, label: 'Portail en ligne',
+    roles: ADMIN_IT,
+    items: [
+      { href: '/dashboard/suivi/reclamations-seance',   label: 'Réclamations séances' },
+      { href: '/dashboard/evaluations/saisie-en-ligne', label: 'Saisie de notes en ligne' },
+    ],
+  },
+  {
+    key: 'synchronisation', icon: RefreshCw, label: 'Synchronisation',
+    roles: ADMIN_ONLY,
+    items: [
+      { href: '/dashboard/synchronisation', label: 'Publier vers le portail' },
+    ],
+  },
   // ── Paramétrage ──────────────────────────────────────────────────────────────
   {
     key: 'ipgei-parametres', icon: GraduationCap, label: 'Cursus prépa',
@@ -472,8 +492,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/scolarite/etudiants/chercher', label: 'Chercher un étudiant' },
       { href: '/dashboard/scolarite/etudiants',          label: 'Liste des étudiants' },
-      { href: '/dashboard/scolarite/etudiants/ajouter',  label: 'Ajouter étudiant', action: 'modifier' },
-      { href: '/dashboard/scolarite/etudiants/importer', label: 'Importer (Excel)', action: 'modifier' },
+      // Un étudiant d'IPGEI n'entre pas par ici : il arrive par l'inscription
+      // IPGEI, qui lui donne son année, son niveau et sa classe d'un seul
+      // geste. La saisie unitaire et l'import Excel du socle créaient un
+      // dossier hors cursus — visible dans la liste, inscrit nulle part.
       { href: '/dashboard/scolarite/etudiants/comptes',  label: 'Comptes portail' },
     ],
   },
@@ -570,6 +592,14 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     roles: ETUDIANT_ONLY,
     items: [{ href: '/dashboard/portail/notes', label: 'Mes notes' }],
   },
+  // Le fil pédagogique vit EN LIGNE : il n'existe que sur le portail, où
+  // l'enseignant publie et où l'étudiant répond. Rien de tout cela ne redescend
+  // sur le serveur local, qui ne le connaît pas.
+  {
+    key: 'portail-cours', icon: BookOpenCheck, label: 'Cours',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/cours', label: 'Cours & échanges' }],
+  },
   {
     key: 'portail-documents', icon: FileBadge, label: 'Documents',
     roles: ETUDIANT_ONLY,
@@ -623,6 +653,13 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     key: 'ens-notes', icon: Edit3, label: 'Saisie des notes',
     roles: ENSEIGNANT_ONLY,
     items: [{ href: '/dashboard/enseignant/notes', label: 'Saisie des notes' }],
+  },
+  // Publier un cours et répondre aux étudiants : le pendant enseignant du fil
+  // que les étudiants lisent depuis leur portail.
+  {
+    key: 'ens-cours', icon: BookOpenCheck, label: 'Cours',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/cours', label: 'Cours & échanges' }],
   },
   {
     key: 'ens-reclamations', icon: AlertCircle, label: 'Réclamations',

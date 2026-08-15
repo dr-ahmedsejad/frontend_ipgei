@@ -21,8 +21,13 @@ export default function Topbar({
 }: Props) {
   const { count: unreadCount } = useUnreadCount();
 
+  // Hauteur imposée, la même que l'en-tête de la barre latérale (`Sidebar`) :
+  // les deux filets forment ainsi une seule ligne continue en travers de
+  // l'écran. Elle remplace le `py-3` d'origine, qui laissait la hauteur suivre
+  // le contenu — un sous-titre d'institution sur deux lignes décalait la barre
+  // et rompait l'alignement. Si l'une des deux change, l'autre doit suivre.
   return (
-    <header className="bg-white border-b border-gray-100 px-4 lg:px-6 py-3 flex items-center gap-3 sticky top-0 z-30">
+    <header className="bg-white border-b border-gray-100 px-4 lg:px-6 h-[72px] flex items-center gap-3 sticky top-0 z-30">
 
       {/* Burger mobile */}
       <button onClick={onOpenMobile}

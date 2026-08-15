@@ -32,8 +32,14 @@ export default function Sidebar({
         ? 'flex flex-col h-full w-72 bg-white shadow-drawer overflow-y-auto'
         : `hidden lg:flex flex-col bg-white border-r border-gray-100 min-h-screen sticky top-0 h-screen overflow-y-auto overflow-x-hidden ${hideText ? 'w-[80px]' : 'w-64'}`
     }`}>
-      {/* Logo */}
-      <div className={`flex items-center ${hideText ? 'justify-center px-0' : 'gap-3 px-5'} py-4 border-b border-gray-100 shrink-0 transition-all`}>
+      {/* Logo.
+          HAUTEUR IMPOSÉE, et la même que la barre du haut (`Topbar`) : les deux
+          filets se rejoignent alors sur une seule ligne en travers de l'écran.
+          Laissée libre, la bande dépassait d'une trentaine de pixels — le logo
+          de 64 px et ses marges pesaient plus lourd que le titre d'en face, et
+          la cassure se voyait à chaque écran. Si l'une des deux hauteurs
+          change, l'autre doit suivre. */}
+      <div className={`flex items-center h-[72px] ${hideText ? 'justify-center px-0' : 'gap-3 px-5'} border-b border-gray-100 shrink-0 transition-all`}>
         {/* 52 px au lieu de 36 : le logo est la marque de l'établissement sur
             chaque écran, et il se lisait moins bien que le texte à côté. La
             barre repliée fait 80 px de large — il y tient sans la déborder.
