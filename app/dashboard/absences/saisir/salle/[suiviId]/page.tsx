@@ -13,6 +13,31 @@ import { bulkPresences } from '@/lib/api/absences';
 import { StatutPresence } from '@/types/absences';
 import type { Etudiant } from '@/types/absences';
 
+/** Une présence déjà enregistrée sur cette séance. */
+interface PresenceRow {
+  id:          number;
+  etudiant:    number;
+  statut:      number;
+  commentaire: string;
+}
+
+/**
+ * Comment se marque ce qui n'est pas une présence.
+ *
+ * Le mode salle ne saisit que présent/absent — mais il doit MONTRER ce qui a
+ * été saisi ailleurs, sanction ou justification comprise, faute de quoi il
+ * l'efface sans le dire.
+ */
+const MARQUE: Record<number, { lettre: string; libelle: string;
+                               couleur: string; fond: string }> = {
+  [StatutPresence.Absent]:     { lettre: 'A', libelle: 'Absent',
+                                 couleur: '#C82020', fond: 'rgba(200,32,32,0.04)' },
+  [StatutPresence.Sanctionne]: { lettre: 'S', libelle: 'Sanctionné',
+                                 couleur: '#B8960C', fond: 'rgba(184,150,12,0.06)' },
+  [StatutPresence.Justifiee]:  { lettre: 'J', libelle: 'Absence justifiée',
+                                 couleur: '#1a5c8f', fond: 'rgba(26,92,143,0.05)' },
+};
+
 interface SuivieDetail {
   id: number;
   jour_label: string | null;
@@ -67,16 +92,37 @@ function PointageSalleContent() {
   });
   const etudiants = useMemo(() => etudiantsQuery.data ?? [], [etudiantsQuery.data]);
 
-  // Initialise statuts à "Présent" quand la liste arrive
+  /* ─── Ce qui est DÉJÀ pointé sur cette séance ── */
+  // Sans cette lecture, l'écran repartait de « tout le monde présent » : il
+  // annonçait 0 absent sur une séance qui en portait quatre, et valider
+  // écrasait le pointage existant en déclarant tout le monde présent.
+  const presencesQuery = useQuery({
+    queryKey: ['absences', 'presences', 'suivi', suiviId] as const,
+    queryFn:  async () => {
+      const res = await apiFetch<{ results: PresenceRow[] } | PresenceRow[]>(
+        `/api/v1/absences/presences/?suivi=${suiviId}&page_size=500`,
+      );
+      return Array.isArray(res) ? res : res.results;
+    },
+    enabled: !!suiviId,
+  });
+  const presences = useMemo(() => presencesQuery.data ?? [], [presencesQuery.data]);
+
+  // Présent par défaut, puis on repose ce qui a été saisi. L'ordre compte : un
+  // étudiant sans ligne enregistrée est présent, c'est la saisie par exception.
   useEffect(() => {
     if (etudiants.length === 0) return;
     const map = new Map<number, StatutPresence>();
     etudiants.forEach(e => map.set(e.id, StatutPresence.Present));
+    presences.forEach(p => {
+      if (map.has(p.etudiant)) map.set(p.etudiant, p.statut as StatutPresence);
+    });
     setStatuts(map);
-  }, [etudiants]);
+  }, [etudiants, presences]);
 
-  const loading = suiviQuery.isLoading || etudiantsQuery.isLoading;
-  const queryError = suiviQuery.error || etudiantsQuery.error;
+  const loading = suiviQuery.isLoading || etudiantsQuery.isLoading
+    || presencesQuery.isLoading;
+  const queryError = suiviQuery.error || etudiantsQuery.error || presencesQuery.error;
   useEffect(() => {
     if (queryError) setError(queryError instanceof Error ? queryError.message : 'Erreur de chargement.');
   }, [queryError]);
@@ -92,7 +138,9 @@ function PointageSalleContent() {
 
   /* ─── Statistiques ── */
   const nbPresents = [...statuts.values()].filter(s => s === StatutPresence.Present).length;
-  const nbAbsents  = [...statuts.values()].filter(s => s === StatutPresence.Absent).length;
+  // Tout ce qui n'est pas présent compte comme manquant : le compteur du
+  // bouton doit dire ce que l'écran montre.
+  const nbAbsents  = [...statuts.values()].filter(s => s !== StatutPresence.Present).length;
 
   /* ─── Filtrage par recherche ── */
   const filtered = query.trim().length > 0
@@ -105,14 +153,21 @@ function PointageSalleContent() {
   /* ─── Validation ── */
   const qc = useQueryClient();
   const validateMut = useMutation({
-    mutationFn: () => bulkPresences({
-      suivi_id: Number(suiviId),
-      presences: etudiants.map(etu => ({
-        etudiant_id: etu.id,
-        statut: statuts.get(etu.id) ?? StatutPresence.Present,
-        commentaire: '',
-      })),
-    }),
+    mutationFn: () => {
+      // Le commentaire déjà enregistré est repris tel quel : l'envoyer vide
+      // effaçait le motif saisi ailleurs — « Émargement de l'épreuve », un
+      // justificatif noté par la scolarité — sans que personne ne l'ait
+      // demandé. Le mode salle pointe, il ne commente pas.
+      const commentaires = new Map(presences.map(p => [p.etudiant, p.commentaire ?? '']));
+      return bulkPresences({
+        suivi_id: Number(suiviId),
+        presences: etudiants.map(etu => ({
+          etudiant_id: etu.id,
+          statut: statuts.get(etu.id) ?? StatutPresence.Present,
+          commentaire: commentaires.get(etu.id) ?? '',
+        })),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['absences'] });
       setSaved(true);
@@ -217,14 +272,18 @@ function PointageSalleContent() {
         )}
         {filtered.map(etu => {
           const statut   = statuts.get(etu.id) ?? StatutPresence.Present;
-          const isAbsent = statut === StatutPresence.Absent;
+          // Tout ce qui n'est pas « présent » se voit. Une absence justifiée
+          // saisie ailleurs s'affichait en vert comme une présence, et le
+          // pointeur la remettait présente sans s'en apercevoir.
+          const isAbsent = statut !== StatutPresence.Present;
+          const teinte   = MARQUE[statut] ?? MARQUE[StatutPresence.Absent];
 
           return (
             <div key={etu.id}
               className="rounded-2xl border transition-all"
               style={{
-                background: isAbsent ? 'rgba(200,32,32,0.04)' : 'rgba(0,102,51,0.03)',
-                borderColor: isAbsent ? '#C82020' : '#e2e8f0',
+                background: isAbsent ? teinte.fond : 'rgba(0,102,51,0.03)',
+                borderColor: isAbsent ? teinte.couleur : '#e2e8f0',
               }}>
               <button
                 onClick={() => toggle(etu.id)}
@@ -237,10 +296,11 @@ function PointageSalleContent() {
                 </div>
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: isAbsent ? '#C82020' : '#006633' }}
+                  style={{ background: isAbsent ? teinte.couleur : '#006633' }}
+                  title={isAbsent ? teinte.libelle : 'Présent'}
                 >
                   {isAbsent
-                    ? <span className="text-white text-xs font-bold">A</span>
+                    ? <span className="text-white text-xs font-bold">{teinte.lettre}</span>
                     : <Check size={16} className="text-white" />
                   }
                 </div>

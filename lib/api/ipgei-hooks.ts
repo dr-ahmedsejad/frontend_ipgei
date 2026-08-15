@@ -10,13 +10,17 @@ import {
 } from '@tanstack/react-query';
 
 import {
-  archivesEdtApi, absencesApi, classesApi, deliberationsApi, documentsApi, grillesApi,
+  archivesEdtApi, absencesApi, classementApi, classesApi, concoursApi,
+  deliberationsApi,
+  documentsApi, grillesApi,
   inscriptionsApi, lignesDeliberationApi, matieresApi, membresJuryApi, notesApi,
   parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
   niveauxApi,
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
+  type EpreuveChoisie,
+  type SaisieRattrapage,
   type FiltresCollecte, type FiltresGrilleAnonyme, type LotCorrection,
   type Params,
   type TriDetailNotes,
@@ -331,6 +335,22 @@ export function useInscriptions(filters: InscriptionFilters = {}) {
   });
 }
 
+/**
+ * Tous les inscrits d'un périmètre, sans pagination.
+ *
+ * Pour compter, pas pour lister à l'écran : une page de 20 ne dirait pas
+ * combien de copies un devoir surveillé produit. `filtres` omis, rien n'est
+ * demandé — c'est ce qui permet de ne pas charger la promotion entière quand
+ * le compte vient d'ailleurs.
+ */
+export function useInscriptionsAll(filtres?: InscriptionFilters) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.inscriptions.all, 'tous', filtres ?? null] as const,
+    queryFn:  () => inscriptionsApi.all(filtres as InscriptionFilters),
+    enabled:  filtres != null,
+  });
+}
+
 export function useInscription(id: number | null | undefined) {
   return useQuery({
     queryKey: ipgeiKeys.inscriptions.detail(id ?? 0),
@@ -590,17 +610,34 @@ export function useSecretariatAnonymat() {
         sessionsApi.exportSecretariat(session, niveau, sortie ?? 'excel'),
     }),
     apercu: useMutation({
-      mutationFn: ({ session, lots, niveau }:
-                   { session: number; lots: LotCorrection[]; niveau?: string }) =>
-        sessionsApi.apercuRepartition(session, lots, niveau),
+      mutationFn: ({ session, lots, niveau, matiere, epreuve }:
+                   { session: number; lots: LotCorrection[]; niveau?: string;
+                     matiere?: number; epreuve?: EpreuveChoisie }) =>
+        sessionsApi.apercuRepartition(session, lots, niveau, matiere, epreuve),
     }),
     repartir: useMutation({
-      mutationFn: ({ session, lots, niveau, matiere, sortie }:
+      mutationFn: ({ session, lots, niveau, matiere, sortie, epreuve }:
                    { session: number; lots: LotCorrection[]; niveau?: string;
-                     matiere?: number; sortie?: 'pdf' | 'excel' }) =>
-        sessionsApi.repartitionPdf(session, lots, niveau, matiere, sortie ?? 'pdf'),
+                     matiere?: number; sortie?: 'pdf' | 'excel';
+                     epreuve?: EpreuveChoisie }) =>
+        sessionsApi.repartitionPdf(session, lots, niveau, matiere,
+                                   sortie ?? 'pdf', epreuve),
     }),
   };
+}
+
+/**
+ * Les épreuves de la matière qui ont EU LIEU, d'après le pointage du Suivi.
+ *
+ * Rien n'est demandé tant que la matière n'est pas choisie : le pointage se
+ * rattache à un enseignement, « toutes matières confondues » n'a pas de sens.
+ */
+export function useEpreuvesTenues(session?: number | null, matiere?: number | null) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'epreuves-tenues', session ?? 0, matiere ?? 0] as const,
+    queryFn:  () => sessionsApi.epreuvesTenues(session as number, matiere as number),
+    enabled:  session != null && matiere != null,
+  });
 }
 
 export function useAnonymatMutations(session?: number) {
@@ -771,6 +808,15 @@ export function useDeliberationMutations() {
       onSuccess: invalider,
     }),
     valider:  useMutation({ mutationFn: deliberationsApi.valider,  onSuccess: invaliderTout }),
+    // Le second jury est une délibération de plus : la liste doit la voir
+    // apparaître, et le jury annuel savoir qu'il l'a désormais.
+    pvFinal: useMutation({
+      mutationFn: ({ id, sortie }: { id: number; sortie: 'pdf' | 'excel' }) =>
+        deliberationsApi.pvFinal(id, sortie),
+    }),
+    ouvrirRattrapage: useMutation({
+      mutationFn: deliberationsApi.ouvrirRattrapage, onSuccess: invaliderTout,
+    }),
     // Le passage crée des inscriptions sur une AUTRE année : c'est tout le
     // module qui se périme, pas seulement les délibérations.
     passage: useMutation({
@@ -803,6 +849,118 @@ export function useMembresJury(deliberation: number | null | undefined) {
     queryFn:  () => membresJuryApi.list(deliberation as number),
     enabled:  deliberation != null,
   });
+}
+
+/**
+ * Les comptes pouvant siéger au jury, filtrés côté serveur.
+ *
+ * `recherche` part au serveur plutôt que de filtrer une page déjà reçue : un
+ * établissement compte vite cent comptes, et une liste tronquée à vingt aurait
+ * caché la moitié des enseignants sans rien annoncer.
+ */
+export function useCandidatsJury(deliberation: number | null | undefined,
+                                 recherche = '') {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'candidats-jury', deliberation ?? 0, recherche] as const,
+    queryFn:  () => membresJuryApi.candidats(deliberation as number, recherche || undefined),
+    enabled:  deliberation != null,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Le classement de S3 — aperçu, puis édition.
+ *
+ * L'aperçu et les deux exports partagent le même calcul côté serveur : ce que
+ * l'écran montre est exactement ce que la feuille portera.
+ */
+export function useClassementS3(annee: string, niveau?: string) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'classement-s3', annee, niveau ?? ''] as const,
+    queryFn:  () => classementApi.apercu(annee, niveau),
+    enabled:  !!annee,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useClassementMutations() {
+  return {
+    exporter: useMutation({
+      mutationFn: ({ annee, sortie, niveau }:
+                   { annee: string; sortie: 'pdf' | 'excel'; niveau?: string }) =>
+        classementApi.exporter(annee, sortie, niveau),
+    }),
+  };
+}
+
+/**
+ * La grille de saisie du rattrapage, portée par le jury qui la concerne.
+ *
+ * Toutes les matières de l'année y figurent : c'est le jury qui décide où l'on
+ * repasse, et la règle retenue est `max(session normale, rattrapage)` — une
+ * matière repassée sans être améliorée ne fait aucun mal, une matière absente
+ * de la grille aurait interdit de la repasser.
+ */
+export function useGrilleRattrapage(deliberation: number | null | undefined) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.deliberations.all, 'rattrapage', deliberation ?? 0] as const,
+    queryFn:  () => deliberationsApi.grilleRattrapage(deliberation as number),
+    enabled:  deliberation != null,
+  });
+}
+
+export function useSaisieRattrapage(deliberation: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (saisies: SaisieRattrapage[]) =>
+      deliberationsApi.saisirRattrapage(deliberation, saisies),
+    // Les notes bougent, donc les moyennes, donc les décisions : c'est tout le
+    // jury qui se périme, pas la seule grille.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+  });
+}
+
+/**
+ * Le concours CNIM : qui y est autorisé, ce qu'il a obtenu, ce qui en découle.
+ *
+ * Le résultat vient de l'extérieur — il ne se calcule pas. La conséquence, elle,
+ * est mécanique, et c'est pourquoi l'écran la montre avant de l'appliquer.
+ */
+export function useConcoursCNIM(annee: string, niveau?: string) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'concours', annee, niveau ?? ''] as const,
+    queryFn:  () => concoursApi.grille(annee, niveau),
+    enabled:  !!annee,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useConcoursMutations(annee: string, niveau?: string) {
+  const qc = useQueryClient();
+  // Poser une situation change un statut d'inscription, parfois un compteur de
+  // redoublement : c'est tout le module qui se périme.
+  const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.all });
+
+  return {
+    saisir: useMutation({
+      mutationFn: (saisies: { inscription: number; resultat: string }[]) =>
+        concoursApi.saisir(saisies),
+      onSuccess: invalider,
+    }),
+    importer: useMutation({
+      mutationFn: ({ fichier, definitive }: { fichier: File; definitive: boolean }) =>
+        concoursApi.importerAdmis(fichier, annee, niveau, definitive),
+      onSuccess: invalider,
+    }),
+    appliquer: useMutation({
+      mutationFn: (apercu: boolean) => concoursApi.appliquer(annee, niveau, apercu),
+      onSuccess: (_, apercu) => { if (!apercu) invalider(); },
+    }),
+    // Éditer le modèle ne change rien : aucune invalidation.
+    modele: useMutation({
+      mutationFn: () => concoursApi.modele(annee, niveau),
+    }),
+  };
 }
 
 export function useJuryMutations(deliberation?: number) {
@@ -1004,6 +1162,33 @@ export function useSeanceMutations() {
 // ═════════════════════════════════════════════════════════════════════════════
 // Absences
 // ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Les ÉPREUVES d'un semestre — devoirs surveillés et examens finaux.
+ *
+ * Le filtre porte sur le libellé du référentiel « Paramètres → Séances » et
+ * non sur des identifiants : ceux-ci diffèrent d'une base à l'autre, et cette
+ * liste doit rester juste après une réinstallation.
+ *
+ * C'est de ces séances que vient l'émargement, et de l'émargement que vient
+ * le « ABS » porté sur les fiches de collecte.
+ */
+export function useEpreuves(filtres: {
+  semestre?: number | null; classe?: number | null; matiere?: number | null;
+}) {
+  const params = {
+    'semaine__semestre':          filtres.semestre ?? undefined,
+    classe:                       filtres.classe ?? undefined,
+    matiere:                      filtres.matiere ?? undefined,
+    'type_seance__type_seance__in': 'EF,DS',
+  };
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'epreuves', params] as const,
+    queryFn:  () => seancesApi.list(params),
+    enabled:  filtres.semestre != null,
+  });
+}
+
 export function useFeuilleAppel(seance: number | null | undefined) {
   return useQuery({
     queryKey: ipgeiKeys.feuilleAppel(seance ?? 0),

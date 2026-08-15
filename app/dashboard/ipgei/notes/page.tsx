@@ -10,7 +10,9 @@ import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
   Erreur, SELECT, Toast, Vide, fmtCoef, fmtNote,
 } from '../_ui';
-import { anneeParDefaut } from '../_annee';
+import {
+  anneeParDefaut, libelleSemestreSession, typeSemestreSession,
+} from '../_annee';
 import {
   useAnneesIPGEI, useClassesSelect, useGrilleNotes, useMatieresSelect,
   useNoteMutations, useSemestresAll,
@@ -21,6 +23,20 @@ import type { Note, SaisieLigneNote, TypeEvaluation } from '@/types/ipgei';
 type Brouillon = Record<string, string>;
 
 const cle = (noteId: number, champ: string) => `${noteId}:${champ}`;
+
+/**
+ * Un semestre relève-t-il de la période de session ?
+ *
+ * S1 et S3 sont impairs, S2 et S4 pairs — le rang est porté par le chiffre du
+ * code, et c'est la seule source : un semestre nommé autrement n'appartient à
+ * aucune période et reste proposé, faute de quoi on le ferait disparaître sans
+ * pouvoir dire pourquoi.
+ */
+function estDeLaPeriode(code: string, periode: 'I' | 'P'): boolean {
+  const rang = Number(code.replace(/\D/g, ''));
+  if (!Number.isInteger(rang) || rang === 0) return true;
+  return periode === 'I' ? rang % 2 === 1 : rang % 2 === 0;
+}
 
 export default function SaisieNotesPage() {
   // L'année n'est pas un choix sur cet écran : c'est celle de la session. La
@@ -71,10 +87,19 @@ export default function SaisieNotesPage() {
   // Écran de saisie : on ne propose ni les semestres d'un autre niveau, ni les
   // semestres clôturés — sur ces derniers toute écriture serait refusée, et un
   // choix qui ne mène qu'à un message d'erreur n'en est pas un.
+  //
+  // La PÉRIODE DE SESSION tranche le reste. L'utilisateur a choisi ses
+  // semestres impairs ou pairs à la connexion, et c'est cette période qu'il
+  // croit saisir : lui proposer les quatre revenait à laisser écrire des notes
+  // de S2 pendant la campagne de S1, sans que rien ne le signale. Croisée avec
+  // le niveau, elle ne laisse qu'un semestre — S1 pour une MPSI en période
+  // impaire, S3 pour une MP.
+  const periode = typeSemestreSession();
   const semestresDuNiveau = useMemo(
     () => semestres.filter(s => (anneeOuverte ? !s.est_cloture : true)
-                             && (!classe || s.niveaux.includes(classe.niveau))),
-    [classe, semestres, anneeOuverte],
+                             && (!classe || s.niveaux.includes(classe.niveau))
+                             && estDeLaPeriode(s.code, periode)),
+    [classe, semestres, anneeOuverte, periode],
   );
 
   const { data: matieres = [] } = useMatieresSelect({
@@ -84,11 +109,16 @@ export default function SaisieNotesPage() {
   // Réinitialise les sélections devenues incohérentes après un changement amont.
   // La liste vide ne compte pas : c'est l'état pendant le chargement, et effacer
   // à ce moment-là annulerait une présélection venue de « Mes feuilles ».
+  // Le semestre découle de la classe : période et niveau ne laissent qu'un
+  // candidat, et le faire choisir revenait à demander de confirmer une
+  // évidence. On le pose donc dès que la classe est prise, et on ne laisse le
+  // choix ouvert que s'il y en a vraiment un.
   useEffect(() => {
-    if (semestresDuNiveau.length
-        && semestreId && !semestresDuNiveau.some(s => s.id === semestreId)) {
-      setSemestreId(null);
-    }
+    if (!semestresDuNiveau.length) return;         // liste encore en vol
+    const valide = semestreId
+      && semestresDuNiveau.some(s => s.id === semestreId);
+    if (valide) return;
+    setSemestreId(semestresDuNiveau.length === 1 ? semestresDuNiveau[0].id : null);
   }, [semestresDuNiveau, semestreId]);
   useEffect(() => {
     if (matieres.length && matiereId && !matieres.some(m => m.id === matiereId)) {
@@ -273,10 +303,19 @@ export default function SaisieNotesPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semestre</label>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-iss-dark">Semestre</label>
+              {/* La période vient de la session, pas de cet écran : on la
+                  montre sans la rendre modifiable, sinon la liste courte
+                  passerait pour une liste incomplète. */}
+              <span className="text-[11px] text-iss-gray">{libelleSemestreSession()}</span>
+            </div>
             <select value={semestreId ?? ''} className={SELECT} disabled={!classeId}
                     onChange={e => setSemestreId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Choisir…</option>
+              {/* Pas de « Choisir… » quand il n'y a rien à choisir : le
+                  semestre est déjà posé, et proposer de le vider n'ouvrirait
+                  que sur une grille fermée. */}
+              {semestresDuNiveau.length !== 1 && <option value="">Choisir…</option>}
               {semestresDuNiveau.map(s => (
                 <option key={s.id} value={s.id}>{s.code}</option>
               ))}

@@ -239,7 +239,12 @@ export type ClasseInput = {
 
 // ── Inscriptions ─────────────────────────────────────────────────────────────
 export type StatutInscription =
-  | 'actif' | 'admis' | 'reoriente' | 'redoublant' | 'autorise_cnim' | 'abandon';
+  | 'actif' | 'admis' | 'reoriente' | 'redoublant' | 'autorise_cnim'
+  /** Entre le jury annuel et celui du rattrapage : il compose une seconde fois. */
+  | 'autorise_rattrapage'
+  /** Fin du cursus par la réussite au concours. */
+  | 'sortant'
+  | 'abandon';
 
 export interface Inscription {
   id:                   number;
@@ -563,18 +568,23 @@ export interface SaisieCollective {
 }
 
 // ── Délibération ─────────────────────────────────────────────────────────────
-export type PorteeDeliberation = 'semestre' | 'annuelle';
+export type PorteeDeliberation =
+  | 'semestre'
+  | 'annuelle'
+  /** Le second jury de 2e année, tenu après la session de rattrapage. */
+  | 'rattrapage';
 export type StatutDeliberation = 'brouillon' | 'calculee' | 'validee';
 export type DecisionJury =
-  | 'admis' | 'reoriente' | 'autorise_cnim' | 'redoublant' | 'exclu' | '';
+  | 'admis' | 'reoriente' | 'autorise_cnim' | 'autorise_rattrapage'
+  | 'redoublant' | '';
 
 /** Toutes les décisions qu'un jury peut prononcer, pour le paramétrage. */
 export const DECISIONS_JURY: { value: DecisionJury; label: string }[] = [
-  { value: 'admis',         label: 'Admis en 2e année' },
-  { value: 'reoriente',     label: 'Réorienté' },
-  { value: 'autorise_cnim', label: 'Autorisé à concourir (CNIM)' },
-  { value: 'redoublant',    label: 'Redoublant' },
-  { value: 'exclu',         label: 'Exclu — droit épuisé' },
+  { value: 'admis',              label: 'Admis en 2e année' },
+  { value: 'reoriente',          label: 'Réorienté' },
+  { value: 'autorise_cnim',      label: 'Autorisé à concourir (CNIM)' },
+  { value: 'autorise_rattrapage', label: 'Autorisé au rattrapage' },
+  { value: 'redoublant',         label: 'Redoublant' },
 ];
 
 /**
@@ -587,15 +597,25 @@ export const DECISIONS_PAR_NIVEAU: Record<string, { value: DecisionJury; label: 
     { value: 'admis',      label: 'Admis en 2e année' },
     { value: 'reoriente',  label: 'Réorienté' },
   ],
+  // Le jury ANNUEL n'a que les deux premières : concourir, ou passer par le
+  // rattrapage. Les deux suivantes sont celles du jury de rattrapage, selon
+  // que le droit de redoublement reste ouvert.
   MP: [
-    { value: 'autorise_cnim', label: 'Autorisé à concourir (CNIM)' },
-    { value: 'redoublant',    label: 'Redoublant' },
-    { value: 'exclu',         label: 'Exclu — droit de redoublement épuisé' },
+    { value: 'autorise_cnim',      label: 'Autorisé à concourir (CNIM)' },
+    { value: 'autorise_rattrapage', label: 'Autorisé au rattrapage' },
+    { value: 'redoublant',         label: 'Redoublant' },
+    { value: 'reoriente',          label: 'Réorienté' },
   ],
 };
 
 export interface Deliberation {
   id:                  number;
+  /** Jury annuel dont un jury de RATTRAPAGE reprend les étudiants. */
+  jury_source:         number | null;
+  /** Combien ce jury annuel a renvoyés au rattrapage. Nul sur les autres. */
+  nb_au_rattrapage:    number;
+  /** Le jury de rattrapage déjà ouvert depuis celui-ci, s'il existe. */
+  jury_rattrapage:     number | null;
   institution:         number | null;
   libelle:             string;
   niveau:              NiveauIPGEI;
@@ -651,6 +671,11 @@ export interface LigneDeliberation {
   moyenne_generale:      string | null;
   total_coefficients:    string | null;
   rang:                  number | null;
+  /** Jury de SEMESTRE : rang dans la classe et sur la promotion. Nuls ailleurs. */
+  rang_classe:           number | null;
+  rang_promotion:        number | null;
+  effectif_classe:       number | null;
+  effectif_promotion:    number | null;
   decision_auto:         DecisionJury;
   decision_auto_display: string;
   /** Pourquoi rien n'est proposé — vide quand une proposition existe. */
@@ -661,7 +686,33 @@ export interface LigneDeliberation {
   motif_ajustement:      string;
   observations:          string;
   nb_redoublements:      number;
+  /** CE QUE L'ÉTUDIANT EST DEVENU depuis — la décision du jury, elle, est datée. */
+  statut_actuel:         StatutInscription;
+  statut_actuel_display: string;
+  /**
+   * D'où vient cette situation : `concours`, `rattrapage`, ou vide quand elle
+   * n'a pas bougé. Deux étudiants deviennent redoublants par des chemins
+   * opposés, et c'est le chemin qu'on cherche en lisant la colonne.
+   */
+  origine_situation?:    '' | 'concours' | 'rattrapage';
   details?:              DetailLigneDeliberation[];
+}
+
+/**
+ * Une matière que le jury s'apprête à compter ZÉRO.
+ *
+ * `totale` : personne n'y a de note. C'est presque toujours une saisie oubliée
+ * plutôt qu'une promotion entière absente — et c'est le cas qui coûte cher.
+ */
+export interface LacuneDeliberation {
+  semestre:    string;
+  matiere:     number;
+  code:        string;
+  intitule:    string;
+  coefficient: string;
+  manquants:   number;
+  effectif:    number;
+  totale:      boolean;
 }
 
 export interface StatistiquesDeliberation {
@@ -671,6 +722,10 @@ export interface StatistiquesDeliberation {
   meilleure:     string | null;
   plus_faible:   string | null;
   repartition:   Record<string, number>;
+  /** Ce que la règle de l'épreuve non rendue va coûter, matière par matière. */
+  lacunes:        LacuneDeliberation[];
+  /** Combien de ces matières n'ont AUCUNE note — le signal d'un oubli. */
+  matieres_vides: number;
 }
 
 // ── EDT ──────────────────────────────────────────────────────────────────────

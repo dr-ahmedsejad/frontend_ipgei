@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, FileSearch, Printer } from 'lucide-react';
 
-import { Badge, CARTE, Chargement, Erreur, SELECT } from '../../_ui';
+import { CARTE, Chargement, Erreur, SELECT } from '../../_ui';
 import { useAnneeIPGEI } from '../../_annee';
 import ChoixInscription from '../_choix-inscription';
 import ReleveNotesVue from '../_releve-notes-vue';
@@ -104,11 +104,8 @@ export default function ConsultationNotesPage() {
                       {r.data.moyenne === null
                         ? '—' : Number(r.data.moyenne).toFixed(2)}/20
                     </span>
-                    <Badge ton={r.data.valide ? 'vert' : 'rouge'}>
-                      {r.data.valide ? 'Année validée' : 'Sous le seuil'}
-                    </Badge>
                   </div>
-                  <ReleveNotesVue releve={r.data} seuil={r.data.seuil} />
+                  <ReleveNotesVue releve={r.data} />
                 </div>
               ))}
 

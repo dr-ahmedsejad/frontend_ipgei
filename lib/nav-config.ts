@@ -120,6 +120,17 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       // fiche vierge se contente de « voir ».
       { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
         module: 'ipgei_notes', action: 'modifier' },
+      // L'émargement précède tout le reste : c'est le pointage du jour de
+      // l'épreuve, et c'est de lui que vient le « ABS » porté sur les fiches
+      // de collecte. Il vit sous « Évaluations » et non sous l'emploi du
+      // temps : ce qu'on y saisit sert à la correction, pas au calendrier.
+      //
+      // Le module gardé est `ipgei_edt` et non `ipgei_notes` : la feuille
+      // d'appel est servie par l'endpoint des séances, qui exige ce module.
+      // Annoncer l'entrée à qui ne l'a pas mènerait à un 403 sur un écran
+      // ouvert depuis le menu.
+      { href: '/dashboard/ipgei/notes/emargement', label: 'Émargement des épreuves',
+        module: 'ipgei_edt', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
       // La table numéro ↔ matricule lève l'anonymat : elle exige « modifier »,
       // comme le tirage, et non le simple droit de voir les notes.
@@ -127,6 +138,14 @@ const TOUS_LES_GROUPES: NavGroup[] = [
         module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat', module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
+      // Feuille de travail de l'affectation, éditée hors de tout jury : elle ne
+      // porte aucun numéro de registre et se réimprime dès qu'une note bouge.
+      { href: '/dashboard/ipgei/notes/classement', label: 'Classement S3',
+        module: 'ipgei_deliberation' },
+      // Le concours clôt le cursus : son résultat vient de l'extérieur, et
+      // c'est lui qui décide entre sortant, redoublant et réorienté.
+      { href: '/dashboard/ipgei/notes/cnim', label: 'Résultat du concours (CNIM)',
+        module: 'ipgei_deliberation', action: 'modifier' },
     ],
   },
   {

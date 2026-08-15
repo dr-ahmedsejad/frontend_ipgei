@@ -228,17 +228,46 @@ export const matieresApi = {
 export interface LotCorrection { correcteur: string; nb: number }
 
 /** Ce que la répartition produirait — montré avant d'imprimer. */
+/**
+ * Une épreuve qui a EU LIEU, telle que le Suivi la déclare.
+ *
+ * Elle n'est pas une séance mais un couple (type, date) : une épreuve de
+ * niveau se tient dans plusieurs classes le même jour.
+ */
+export interface EpreuveTenue {
+  /** `DS`, `EF` ou `ER`. */
+  type:    string;
+  /** ISO `AAAA-MM-JJ`. */
+  date:    string;
+  /** « Devoir surveillé du 12/03/2027 — MPSI A, MPSI B ». */
+  libelle: string;
+  classes: string[];
+}
+
+/** Ce que l'écran transmet pour désigner l'épreuve. */
+export interface EpreuveChoisie { type: string; date: string }
+
 export interface BilanRepartition {
   paquets: {
     correcteur: string; nb: number;
     premier: number; dernier: number;
     /** Les NUMÉROS seuls : aucun matricule ne descend jusqu'au correcteur. */
     numeros: number[];
+    /** Chaque numéro avec son état — `absent` vient de l'émargement de l'épreuve. */
+    lignes: { numero: number; absent: boolean }[];
+    /** Numéros sans copie : l'étudiant ne s'est pas présenté à l'épreuve. */
+    absents:    number;
+    /** Ce qui reste réellement à corriger dans le paquet. */
+    a_corriger: number;
   }[];
+  /** Faux pour un devoir surveillé : la fiche porte alors matricule et nom. */
+  anonyme:   boolean;
   total:     number;
   reparties: number;
-  /** Copies qu'aucun correcteur n'a prises — rendues plutôt que réparties d'office. */
-  restantes: number[];
+  /** Copies qu'aucun correcteur n'a prises — numéros, ou noms si nominative. */
+  restantes: (number | string)[];
+  /** Absents sur toute la campagne, matière choisie — 0 si aucune matière. */
+  absents:   number;
 }
 
 /** Corps de requête à structure libre : `nettoyer` ne prend que des scalaires. */
@@ -284,12 +313,29 @@ export const sessionsApi = {
                  { ...(niveau ? { niveau } : {}), sortie }),
 
   /**
+   * Les épreuves de la matière qui ont EU LIEU, d'après le pointage du Suivi.
+   *
+   * Une fiche de collecte porte sur UNE épreuve : ce choix est ce qui empêche
+   * les absents d'un devoir de ressortir sur la fiche du suivant.
+   */
+  epreuvesTenues: (id: number, matiere: number) =>
+    apiFetch<EpreuveTenue[]>(`${BASE}/sessions/${id}/epreuves-tenues/`,
+                             { params: { matiere } }),
+
+  /**
    * Partage les copies entre correcteurs. `apercu` rend le bilan en JSON —
    * l'écran montre ce qui sera produit avant d'imprimer.
+   *
+   * `matiere` sert ici aussi : c'est par elle que l'émargement de l'épreuve
+   * rejoint les numéros, et l'aperçu annonce alors combien de copies manquent
+   * avant qu'on imprime quoi que ce soit.
    */
-  apercuRepartition: (id: number, lots: LotCorrection[], niveau?: string) =>
+  apercuRepartition: (id: number, lots: LotCorrection[], niveau?: string,
+                      matiere?: number, epreuve?: EpreuveChoisie) =>
     apiFetch<BilanRepartition>(`${BASE}/sessions/${id}/repartir-copies/`,
-      { method: 'POST', body: nettoyer2({ lots, niveau, apercu: true }) }),
+      { method: 'POST', body: nettoyer2({
+          lots, niveau, matiere, apercu: true,
+          epreuve_type: epreuve?.type, epreuve_date: epreuve?.date }) }),
 
   /**
    * Les fiches de collecte des correcteurs — deux colonnes, numéro et note,
@@ -300,9 +346,12 @@ export const sessionsApi = {
    * elle que l'import lit pour savoir où verser les notes.
    */
   repartitionPdf: (id: number, lots: LotCorrection[], niveau?: string,
-                   matiere?: number, sortie: 'pdf' | 'excel' = 'pdf') =>
+                   matiere?: number, sortie: 'pdf' | 'excel' = 'pdf',
+                   epreuve?: EpreuveChoisie) =>
     apiFetchBlobPost(`${BASE}/sessions/${id}/repartir-copies/`,
-                     nettoyer2({ lots, niveau, matiere, sortie })),
+                     nettoyer2({ lots, niveau, matiere, sortie,
+                                 epreuve_type: epreuve?.type,
+                                 epreuve_date: epreuve?.date })),
 
   /** Table de correspondance numéro ↔ étudiant : c'est la levée d'anonymat. */
   anonymats: (id: number) =>
@@ -472,6 +521,35 @@ export const deliberationsApi = {
     ),
   valider:  (id: number) => apiFetch<Deliberation>(`${BASE}/deliberations/${id}/valider/`, { method: 'POST' }),
 
+  /**
+   * Ouvre le second jury, celui qui suit la session de rattrapage.
+   *
+   * Rendu déjà calculé — sa cohorte est connue — et rejoué il rend le jury
+   * existant : on n'ouvre jamais deux seconds jurys pour le même annuel.
+   */
+  /** La grille de rattrapage : les étudiants du jury × toutes les matières. */
+  grilleRattrapage: (id: number) =>
+    apiFetch<GrilleRattrapage>(`${BASE}/deliberations/${id}/notes-rattrapage/`),
+
+  /** Une valeur nulle EFFACE le rattrapage — l'étudiant retombe sur sa moyenne. */
+  saisirRattrapage: (id: number, saisies: SaisieRattrapage[]) =>
+    apiFetch<{ saisies: number; deliberation: Deliberation }>(
+      `${BASE}/deliberations/${id}/notes-rattrapage/`,
+      { method: 'POST', body: { saisies } }),
+
+  /**
+   * Le PV FINAL : session normale, rattrapage, concours et situation arrêtée.
+   *
+   * Tiré du jury ANNUEL, seul à définir la promotion entière. Il ne prononce
+   * rien — il réunit ce que les jurys et le concours ont décidé.
+   */
+  pvFinal: (id: number, sortie: 'pdf' | 'excel' = 'pdf') =>
+    apiFetchBlob(`${BASE}/deliberations/${id}/pv-final/`, { sortie }),
+
+  ouvrirRattrapage: (id: number) =>
+    apiFetch<Deliberation>(`${BASE}/deliberations/${id}/ouvrir-rattrapage/`,
+                           { method: 'POST' }),
+
   /** Qui repart l'an prochain, et vers quel niveau — avant d'agir. */
   passageApercu: (id: number) =>
     apiFetch<ApercuPassage>(`${BASE}/deliberations/${id}/passage/`),
@@ -508,7 +586,164 @@ export const deliberationsApi = {
     apiFetchBlob(`${BASE}/deliberations/${id}/detail-notes/`, { tri }),
 };
 
+/** Un compte pouvant siéger : tout sauf un étudiant. */
+export interface CandidatJury {
+  id:           number;
+  nom:          string;
+  role:         string;
+  role_display: string;
+}
+
+/** Une ligne du classement de S3 — deux chiffres, et deux colonnes à remplir. */
+export interface LigneClassementS3 {
+  rang:           number | null;
+  matricule:      string;
+  nom:            string;
+  classe:         string;
+  /** Moyenne annuelle de sa première année, quelle qu'en soit l'année. */
+  moyenne_annee1: string | null;
+  annee1:         string;
+  moyenne_s3:     string | null;
+}
+
+export const classementApi = {
+  /** Aperçu à l'écran : l'effectif se voit avant qu'on édite quoi que ce soit. */
+  apercu: (annee_universitaire: string, niveau?: string) =>
+    apiFetch<LigneClassementS3[]>(`${BASE}/classement/s3/`,
+                                  { params: nettoyer({ annee_universitaire, niveau }) }),
+
+  /** La feuille elle-même — `pdf` pour la séance, `excel` pour la retrier. */
+  exporter: (annee_universitaire: string, sortie: 'pdf' | 'excel', niveau?: string) =>
+    apiFetchBlob(`${BASE}/classement/s3/`,
+                 { annee_universitaire, sortie, ...(niveau ? { niveau } : {}) }),
+};
+
+/** Une matière de la grille de rattrapage. */
+export interface MatiereRattrapage {
+  id:          number;
+  code:        string;
+  intitule:    string;
+  semestre:    string;
+  coefficient: string;
+}
+
+/** Ce qu'une case porte : la moyenne à dépasser, le rattrapage, ce qui est retenu. */
+export interface CaseRattrapage {
+  moyenne:      string | null;
+  rattrapage:   string | null;
+  note_retenue: string | null;
+}
+
+export interface GrilleRattrapage {
+  matieres: MatiereRattrapage[];
+  lignes: {
+    inscription:        number;
+    etudiant_nom:       string;
+    etudiant_matricule: string;
+    classe_nom:         string;
+    moyenne_generale:   string | null;
+    decision_auto:      string;
+    /** Indexé par identifiant de matière, en chaîne. */
+    notes: Record<string, CaseRattrapage>;
+  }[];
+}
+
+export interface SaisieRattrapage {
+  inscription:     number;
+  matiere:         number;
+  note_rattrapage: string | null;
+}
+
+/** Une ligne du concours : le candidat, son résultat, la situation qui suivrait. */
+export interface LigneConcours {
+  inscription:        number;
+  etudiant_nom:       string;
+  etudiant_matricule: string;
+  classe_nom:         string;
+  nb_redoublements:   number;
+  /** `''` en attente, `admis`, ou `non_admis`. */
+  resultat:           string;
+  date_resultat:      string | null;
+  statut:             string;
+  statut_display:     string;
+  /** Ce que deviendrait l'étudiant — vide tant que le résultat est inconnu. */
+  situation_projetee: string;
+  situation_libelle:  string;
+  /** Vrai quand sa situation est déjà posée : il ne bougera plus. */
+  applique:           boolean;
+}
+
+export interface GrilleConcours {
+  lignes:             LigneConcours[];
+  droit_redoublement: number;
+  en_attente:         number;
+  a_appliquer:        number;
+}
+
+export interface BilanConcours {
+  appliques:   number;
+  a_appliquer: number;
+  en_attente:  number;
+  repartition: Record<string, number>;
+  detail: { matricule: string; nom: string; classe: string;
+            resultat: string; situation: string }[];
+}
+
+export const concoursApi = {
+  grille: (annee_universitaire: string, niveau?: string) =>
+    apiFetch<GrilleConcours>(`${BASE}/concours/grille/`,
+                             { params: nettoyer({ annee_universitaire, niveau }) }),
+
+  /** Un résultat vide remet en attente — on corrige sans défaire une situation. */
+  saisir: (saisies: { inscription: number; resultat: string }[]) =>
+    apiFetch<{ saisies: number }>(`${BASE}/concours/saisir/`,
+                                  { method: 'POST', body: { saisies } }),
+
+  /**
+   * Import de la LISTE DES ADMIS.
+   *
+   * `listeDefinitive` bascule les absents en « non admis » : sans lui, une
+   * liste d'admis ne dit rien de ceux qui n'y figurent pas.
+   */
+  importerAdmis: (fichier: File, annee_universitaire: string,
+                  niveau?: string, listeDefinitive = false) => {
+    const corps = new FormData();
+    corps.append('fichier', fichier);
+    corps.append('annee_universitaire', annee_universitaire);
+    if (niveau) corps.append('niveau', niveau);
+    if (listeDefinitive) corps.append('liste_definitive', 'true');
+    return apiUpload<{ admis: number; non_admis: number; lus: number;
+                       inconnus: string[] }>(`${BASE}/concours/importer/`, corps);
+  },
+
+  /**
+   * Le classeur à remplir, pré-rempli des candidats autorisés.
+   *
+   * Il se reverse par `importerAdmis` : aucun matricule à retaper, et ce qu'on
+   * laisse blanc reste en attente.
+   */
+  modele: (annee_universitaire: string, niveau?: string) =>
+    apiFetchBlob(`${BASE}/concours/modele/`,
+                 { annee_universitaire, ...(niveau ? { niveau } : {}) }),
+
+  /** `apercu` montre ce qui changerait sans rien écrire. */
+  appliquer: (annee_universitaire: string, niveau?: string, apercu = false) =>
+    apiFetch<BilanConcours>(`${BASE}/concours/appliquer/`,
+      { method: 'POST', body: nettoyer2({ annee_universitaire, niveau, apercu }) }),
+};
+
 export const membresJuryApi = {
+  /**
+   * Qui peut siéger — endpoint dédié, servi sous le module du jury.
+   *
+   * La liste des comptes, elle, est réservée aux administrateurs : s'en servir
+   * laissait le champ vide, sans le dire, pour un président de jury ou un
+   * agent de scolarité.
+   */
+  candidats: (deliberation: number, search?: string) =>
+    apiFetch<CandidatJury[]>(`${BASE}/membres-jury/candidats/`,
+                             { params: nettoyer({ deliberation, search }) }),
+
   list:   (deliberation: number) =>
     apiFetch<MembreJuryIPGEI[]>(`${BASE}/membres-jury/`, { params: { deliberation } }),
   create: (input: { deliberation: number; utilisateur: number; role: RoleJuryIPGEI }) =>

@@ -1,27 +1,27 @@
 'use client';
 
-import { Badge } from '../_ui';
 import type { ReleveAnnuel } from '@/types/ipgei';
 
 /**
  * Relevé consolidé à l'écran, dans le gabarit du relevé SIGA.
  *
  * Groupé par année universitaire → semestre → matière : un bloc gris par
- * semestre, sa moyenne et son verdict dans la barre de titre, puis une ligne
- * par matière avec DS / TP / Examen / Rattrapage / Moyenne / Statut. Lecture
- * seule.
+ * semestre, sa moyenne dans la barre de titre, puis une ligne par matière avec
+ * DS / TP / Examen / Rattrapage / Moyenne. Lecture seule.
+ *
+ * AUCUN verdict — ni par matière, ni par semestre, ni par année. Une
+ * consultation montre des notes ; c'est la délibération qui prononce ce
+ * qu'elles valent, et un « acquis » affiché avant le jury a été pris pour une
+ * décision.
  *
  * La hiérarchie de SIGA compte un niveau de plus — module, puis élément de
  * module. L'IPGEI n'en a pas : une matière est directement rattachée au
  * semestre. La colonne « Module » cède donc la place au coefficient, qui est
  * ce qu'on cherche à côté d'une note quand on vérifie une moyenne.
  */
-export default function ReleveNotesVue({ releve, seuil }: {
+export default function ReleveNotesVue({ releve }: {
   releve: ReleveAnnuel;
-  /** Seuil de validation, pour juger chaque matière comme le fait le jury. */
-  seuil:  string;
 }) {
-  const barre = Number(seuil);
   const fmt = (v: string | null | undefined) =>
     (v === null || v === undefined ? '—' : Number(v).toFixed(2));
 
@@ -45,7 +45,6 @@ export default function ReleveNotesVue({ releve, seuil }: {
 
         {releve.semestres.map(sem => {
           const aDesTP = sem.notes.some(n => n.matiere_has_tp);
-          const moyenne = sem.moyenne === null ? null : Number(sem.moyenne);
           const total = sem.notes.reduce(
             (t, n) => t + Number(n.coefficient ?? n.matiere_coefficient ?? 0), 0);
 
@@ -64,11 +63,6 @@ export default function ReleveNotesVue({ releve, seuil }: {
                   <span className="text-iss-gray">·</span>
                   <span className="text-iss-gray">Coefficients</span>
                   <span className="font-bold text-iss-dark tabular-nums">{total}</span>
-                  {moyenne !== null && (
-                    <Badge ton={moyenne >= barre ? 'vert' : 'rouge'}>
-                      {moyenne >= barre ? 'Acquis' : 'Sous le seuil'}
-                    </Badge>
-                  )}
                 </div>
               </div>
 
@@ -88,7 +82,6 @@ export default function ReleveNotesVue({ releve, seuil }: {
                         <th className="text-center p-2 border-b">Examen</th>
                         <th className="text-center p-2 border-b">Rattrapage</th>
                         <th className="text-center p-2 border-b">Moyenne</th>
-                        <th className="text-center p-2 border-b">Statut</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -96,7 +89,6 @@ export default function ReleveNotesVue({ releve, seuil }: {
                         // La note RETENUE prime sur la moyenne calculée : après
                         // rattrapage, c'est elle qui compte pour le jury.
                         const retenue = n.note_retenue ?? n.moyenne;
-                        const valeur = retenue === null ? null : Number(retenue);
                         return (
                           <tr key={n.id} className="border-b border-gray-50">
                             <td className="p-2">
@@ -122,17 +114,6 @@ export default function ReleveNotesVue({ releve, seuil }: {
                             </td>
                             <td className="p-2 text-center font-mono font-bold">
                               {fmt(retenue)}
-                            </td>
-                            <td className="p-2 text-center">
-                              {/* Des mots, pas des codes : « V » et « NV »
-                                  demandent une légende, et l'IPGEI écrit
-                                  partout ailleurs « Validée », « Admis »,
-                                  « Redoublant ». */}
-                              {valeur === null
-                                ? <span className="text-iss-gray/40">—</span>
-                                : valeur >= barre
-                                  ? <Badge ton="vert">Acquise</Badge>
-                                  : <Badge ton="ambre">Sous le seuil</Badge>}
                             </td>
                           </tr>
                         );

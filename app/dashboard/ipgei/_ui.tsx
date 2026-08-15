@@ -123,7 +123,12 @@ export function Badge({ children, ton = 'neutre' }: { children: ReactNode; ton?:
 /** Couleur d'une décision de jury : favorable → vert, défavorable → rouge. */
 export function tonDecision(decision: string): TonBadge {
   if (decision === 'admis' || decision === 'autorise_cnim') return 'vert';
-  if (decision === 'reoriente' || decision === 'exclu')     return 'rouge';
+  // « Exclu » n'existe plus : le droit de redoublement épuisé mène à une
+  // réorientation, pas à un renvoi.
+  if (decision === 'reoriente')                            return 'rouge';
+  // Le rattrapage n'est ni un succès ni un échec : une seconde chance.
+  if (decision === 'autorise_rattrapage')                  return 'ambre';
+  if (decision === 'sortant')                              return 'vert';
   if (decision === 'redoublant')                            return 'ambre';
   return 'neutre';
 }

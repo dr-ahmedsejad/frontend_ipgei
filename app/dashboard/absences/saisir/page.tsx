@@ -153,10 +153,15 @@ export default function SaisirAbsencesPage() {
       const suiviesAll = Array.isArray(suiviesRes) ? suiviesRes : suiviesRes.results;
       const etusList   = Array.isArray(etusRes)    ? etusRes    : etusRes.results;
 
+      // Le TYPE de séance suffit à faire une colonne : c'est lui qui distingue
+      // une séance tenue d'une case vide du quadrillage de la semaine. Exiger
+      // en plus un enseignant rendait invisible toute épreuve dont le
+      // surveillant n'est pas encore désigné — précisément le cas où le
+      // pointage compte le plus, et où l'écran répondait « aucune séance ».
       const cols = suiviesAll.filter(s =>
         s.jour_label === selJour &&
         s.departement === Number(selDepId) &&
-        s.prof_nom && s.type_seance_label,
+        s.type_seance_label,
       );
 
       const seen = new Set<string>();
@@ -434,11 +439,15 @@ export default function SaisirAbsencesPage() {
                               {label}
                             </span>
                             {creneau && <span className="text-xs font-bold text-iss-dark">{creneau}</span>}
-                            {col.prof_nom && (
-                              <span className="text-xs text-iss-gray truncate max-w-[110px]" title={col.prof_nom}>
-                                {col.prof_nom}
-                              </span>
-                            )}
+                            {/* Une épreuve se pointe même sans surveillant
+                                désigné : la colonne le dit plutôt que de
+                                laisser un blanc qu'on prendrait pour un
+                                défaut d'affichage. */}
+                            <span className={`text-xs truncate max-w-[110px] ${
+                              col.prof_nom ? 'text-iss-gray' : 'text-iss-gray/60 italic'}`}
+                              title={col.prof_nom || 'Aucun enseignant désigné'}>
+                              {col.prof_nom || 'sans enseignant'}
+                            </span>
                           </div>
                         </th>
                       );

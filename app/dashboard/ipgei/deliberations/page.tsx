@@ -21,6 +21,13 @@ import { type Deliberation, type NiveauIPGEI, type PorteeDeliberation,
 
 const TON_STATUT = { brouillon: 'neutre', calculee: 'bleu', validee: 'vert' } as const;
 
+/** Ce que le jury est : un bilan de semestre, une session normale, une seconde. */
+const PORTEE = {
+  semestre:   { label: 'bilan de semestre',   ton: 'neutre' },
+  annuelle:   { label: 'session normale',     ton: 'bleu'   },
+  rattrapage: { label: 'session de rattrapage', ton: 'ambre' },
+} as const;
+
 export default function DeliberationsPage() {
   const { annee, setAnnee, options } = useAnneeIPGEI();
   const [page, setPage]     = useState(1);
@@ -55,7 +62,8 @@ export default function DeliberationsPage() {
       <EnTetePage
         icone={<Scale size={14} className="text-white" />}
         titre="Délibérations"
-        sousTitre="Seuil configurable, décisions proposées automatiquement, ajustables par le jury."
+        sousTitre="Bilans de semestre, sessions normales et de rattrapage. Les décisions
+                   se proposent au seuil du jury et restent ajustables."
         actions={
           <button onClick={() => setFormOuvert(true)} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
             <Plus size={14} /> Nouvelle délibération
@@ -106,7 +114,10 @@ export default function DeliberationsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-iss-dark">
                       {d.libelle
-                        || `${d.classe_nom || d.niveau} — ${d.portee === 'semestre' ? d.semestre_code : 'année'}`}
+                        || `${d.classe_nom || d.niveau} — ${
+                             d.portee === 'semestre' ? d.semestre_code
+                             : d.portee === 'rattrapage' ? 'rattrapage'
+                             : 'année'}`}
                     </span>
                     <Badge ton={d.niveau === 'MPSI' ? 'bleu' : 'violet'}>{d.niveau}</Badge>
                     {/* Un jury tenu avant la règle porte tout un niveau : le
@@ -114,14 +125,40 @@ export default function DeliberationsPage() {
                     <Badge ton={d.classe_nom ? 'neutre' : 'ambre'}>
                       {d.classe_nom || 'niveau entier'}
                     </Badge>
+                    {/* Deux jurys d'une même classe portent le même intitulé —
+                        « MP A — année » et « MP A — rattrapage » se
+                        confondaient d'un coup d'œil. La session se dit donc en
+                        toutes lettres. */}
+                    <Badge ton={PORTEE[d.portee].ton}>{PORTEE[d.portee].label}</Badge>
                     <Badge ton={TON_STATUT[d.statut]}>{d.statut_display}</Badge>
                   </div>
                   <p className="text-xs text-iss-gray mt-0.5">
-                    {d.annee_universitaire} · seuil {Number(d.seuil_validation).toFixed(2)}
-                    {d.plafond_rattrapage && ` · rattrapage plafonné à ${Number(d.plafond_rattrapage).toFixed(2)}`}
+                    {d.annee_universitaire}
+                    {/* Le seuil ne sert qu'à proposer une décision : un jury de
+                        semestre n'en prononce aucune, l'afficher laissait
+                        croire qu'il en jouait une. */}
+                    {d.portee !== 'semestre'
+                      && ` · seuil ${Number(d.seuil_validation).toFixed(2)}`}
+                    {d.portee !== 'semestre' && d.plafond_rattrapage
+                      && ` · rattrapage plafonné à ${Number(d.plafond_rattrapage).toFixed(2)}`}
                     {' · '}{d.nb_lignes} étudiant{d.nb_lignes !== 1 ? 's' : ''}
                     {' · '}{resumeEtat(d)}
                   </p>
+                  {/* Un jury de rattrapage ne s'explique que par le jury annuel
+                      qui l'a convoqué : on y renvoie depuis la liste, sans
+                      avoir à l'ouvrir pour retrouver son parent. */}
+                  {d.portee === 'rattrapage' && d.jury_source && (
+                    <Link href={`/dashboard/ipgei/deliberations/${d.jury_source}`}
+                          className="text-xs text-[#006633] hover:underline mt-0.5 inline-block">
+                      Issu du jury annuel n° {d.jury_source}
+                    </Link>
+                  )}
+                  {d.portee === 'annuelle' && d.jury_rattrapage && (
+                    <Link href={`/dashboard/ipgei/deliberations/${d.jury_rattrapage}`}
+                          className="text-xs text-[#006633] hover:underline mt-0.5 inline-block">
+                      Jury de rattrapage n° {d.jury_rattrapage}
+                    </Link>
+                  )}
                 </div>
 
                 {!d.est_verrouillee && (
@@ -182,7 +219,6 @@ function FormulaireDeliberation({
   const [semestre, setSemestre] = useState<number | null>(null);
   const [libelle, setLibelle] = useState('');
   const [seuil, setSeuil]     = useState('');
-  const [plafond, setPlafond] = useState('');
   const [erreur, setErreur]   = useState<string | null>(null);
 
   const semestresDuNiveau = semestres.filter(s => s.niveaux.includes(niveau));
@@ -212,9 +248,9 @@ function FormulaireDeliberation({
       annee_universitaire: annee,
       libelle: libelle.trim(),
       // Vide = on reprend les paramètres de l'institut ; la délibération fige
-      // ensuite sa propre valeur.
-      ...(seuil   ? { seuil_validation: seuil } : {}),
-      ...(plafond ? { plafond_rattrapage: plafond } : {}),
+      // ensuite sa propre valeur. Le plafond de rattrapage n'est plus envoyé
+      // du tout : il vient toujours des paramètres.
+      ...(seuil ? { seuil_validation: seuil } : {}),
     } as never, {
       onSuccess: onCree,
       onError:   (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
@@ -256,6 +292,8 @@ function FormulaireDeliberation({
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">Portée</label>
+          {/* Le rattrapage ne figure pas ici : il ne s'ouvre pas seul, mais
+              depuis le jury annuel qui désigne sa cohorte. */}
           <select value={portee} className={SELECT}
                   onChange={e => setPortee(e.target.value as PorteeDeliberation)}>
             <option value="annuelle">Annuelle — décision de passage</option>
@@ -283,27 +321,13 @@ function FormulaireDeliberation({
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">
             Seuil de validation
           </label>
+          {/* Le placeholder porte la valeur par défaut : laissé vide, le champ
+              reprend les paramètres de l'institut, que la délibération fige
+              ensuite. Plus de phrase sous le champ — le plafond de rattrapage,
+              lui, ne se règle plus du tout ici. */}
           <input type="number" min="0" max="20" step="0.25" value={seuil} className={INPUT}
                  placeholder={seuilDefaut ? Number(seuilDefaut).toFixed(2) : '10.00'}
                  onChange={e => setSeuil(e.target.value)} />
-          <p className="text-xs text-iss-gray mt-1">
-            Défaut {portee === 'semestre' ? 'semestriel' : 'annuel'} — figé à la création.
-          </p>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
-            Plafond de rattrapage
-          </label>
-          <input type="number" min="0" max="20" step="0.25" value={plafond} className={INPUT}
-                 placeholder={params?.plafond_rattrapage
-                   ? Number(params.plafond_rattrapage).toFixed(2) : 'Aucun plafond'}
-                 onChange={e => setPlafond(e.target.value)} />
-        </div>
-        <div className="flex items-end pb-2">
-          <p className="text-xs text-iss-gray leading-snug">
-            Laissés vides, ces deux réglages reprennent les paramètres de l&apos;institut
-            et sont ensuite <strong>figés</strong> dans la délibération.
-          </p>
         </div>
       </div>
 

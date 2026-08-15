@@ -436,7 +436,7 @@ function Parametres({
         <button onClick={onEmettre} disabled={manquant || enCours}
                 className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
           {enCours ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-          {enCours ? 'Émission…' : 'Émettre le document'}
+          {enCours ? 'Génération…' : 'Générer'}
         </button>
       </div>
     </div>

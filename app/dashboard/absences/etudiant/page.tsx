@@ -80,11 +80,14 @@ export default function EtudiantAbsencesPage() {
   const searchMut = useMutation({
     mutationFn: async (): Promise<Presence[]> => {
       const res = await parEtudiant(selectedEtu!.id);
-      // Filtrer côté client par date (le backend ne supporte pas encore ce filtre)
       let items = res.filter(p => p.statut !== 0); // Exclure Présent
       if (dateDebut || dateFin) {
         items = items.filter(p => {
-          const d = p.date_modification?.slice(0, 10);
+          // La date de la SÉANCE, et non l'horodatage d'écriture de la ligne :
+          // une absence à l'épreuve du 1er février saisie en août tombait hors
+          // de toute plage qu'on pense à demander, et l'écran répondait
+          // « aucune absence » à un étudiant qui en avait.
+          const d = (p.suivi_date ?? p.date_modification)?.slice(0, 10);
           if (!d) return true;
           if (dateDebut && d < dateDebut) return false;
           if (dateFin   && d > dateFin)   return false;
