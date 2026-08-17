@@ -1,12 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData, useMutation, useQuery, useQueryClient,
+} from '@tanstack/react-query';
 import {
   CalendarX2, CheckCircle2, Clock, MessageSquareWarning, XCircle,
 } from 'lucide-react';
 
 import { apiFetch } from '@/lib/api';
+import { Pagination } from '@/components/Pagination';
 import { ToastContainer, useToast } from '@/components/ui/Toast';
 import { formatDateTime } from '@/lib/formatters';
 
@@ -38,6 +41,11 @@ interface ReclamationSeance {
   date_traitement:     string | null;
 }
 
+/** Ce que rend la route : l'enveloppe paginée du socle, ou une liste nue. */
+type Enveloppe =
+  | ReclamationSeance[]
+  | { count: number; pages: number; results: ReclamationSeance[] };
+
 const FILTRES = [
   { cle: 'en_attente', label: 'En attente', Icone: Clock },
   { cle: 'acceptee',   label: 'Acceptées',  Icone: CheckCircle2 },
@@ -55,15 +63,30 @@ export default function ReclamationsSeancePage() {
   const toast = useToast();
   const qc = useQueryClient();
   const [statut, setStatut] = useState<string>('en_attente');
+  const [page, setPage]     = useState(1);
   const [aTrancher, setATrancher] = useState<
     { reclamation: ReclamationSeance; decision: 'acceptee' | 'rejetee' } | null>(null);
   const [reponse, setReponse] = useState('');
 
-  const { data: reclamations = [], isLoading } = useQuery({
-    queryKey: ['reclamations', 'seances', statut] as const,
-    queryFn:  () => apiFetch<ReclamationSeance[]>(
-      `/api/v1/reclamations/seances/${statut ? `?statut=${statut}` : ''}`),
+  // L'endpoint est un ViewSet : il rend l'enveloppe paginée du socle, pas un
+  // tableau. Le lire comme une liste faisait échouer `.map` sur un objet — et
+  // avant lui `.length`, qui valait `undefined` et ne déclenchait donc même pas
+  // l'écran vide. On accepte les deux formes : le jour où la pagination serait
+  // retirée de cette route, l'écran continuerait de fonctionner.
+  const { data: reponseListe, isLoading } = useQuery({
+    queryKey: ['reclamations', 'seances', statut, page] as const,
+    queryFn:  () => {
+      const params = new URLSearchParams({ page: String(page) });
+      if (statut) params.set('statut', statut);
+      return apiFetch<Enveloppe>(`/api/v1/reclamations/seances/?${params}`);
+    },
+    placeholderData: keepPreviousData,
   });
+  const reclamations = Array.isArray(reponseListe)
+    ? reponseListe : (reponseListe?.results ?? []);
+  const total = Array.isArray(reponseListe)
+    ? reponseListe.length : (reponseListe?.count ?? 0);
+  const pages = Array.isArray(reponseListe) ? 1 : (reponseListe?.pages ?? 1);
 
   const traiter = useMutation({
     mutationFn: ({ id, decision, texte }:
@@ -100,7 +123,7 @@ export default function ReclamationsSeancePage() {
 
       <div className="flex gap-2 flex-wrap">
         {FILTRES.map(({ cle, label, Icone }) => (
-          <button key={label} onClick={() => setStatut(cle)}
+          <button key={label} onClick={() => { setStatut(cle); setPage(1); }}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs
                               font-semibold border transition-colors ${
                     statut === cle
@@ -176,6 +199,11 @@ export default function ReclamationsSeancePage() {
               )}
             </div>
           ))}
+          {/* Dix par page côté serveur : sans ce pied, on ne verrait que les dix
+              premières sans jamais savoir qu'il y en avait d'autres. */}
+          {pages > 1 && (
+            <Pagination page={page} pages={pages} count={total} onPage={setPage} />
+          )}
         </div>
       )}
 
