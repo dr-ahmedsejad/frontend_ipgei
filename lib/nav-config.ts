@@ -1,14 +1,13 @@
 import {
   BarChart2, Calendar, ClipboardList, TrendingUp, UserX,
-  Banknote, Users, Building2, BookOpen, DoorOpen,
-  Landmark, UserCog, Unlock, CalendarDays, Layers,
-  CalendarRange, Clock, Presentation, Coins, Sun, Moon,
+  Banknote, Users, Building2, BookOpen,
+  Landmark, UserCog, CalendarDays,
   ChevronRight, Bell, User, KeyRound, ChevronDown,
-  GraduationCap, UserCheck, FileBadge, BellRing, Globe, Scale,
+  GraduationCap, UserCheck, FileBadge, Globe, Scale,
   LayoutDashboard, AlertCircle, ClipboardCheck, Edit3,
-  BookMarked, ArrowUpCircle, MessageSquareWarning, History,
-  Briefcase, Shield, Database, ShieldCheck, Repeat, BookOpenCheck,
-  RefreshCw,
+  BookMarked, ArrowUpCircle, History, RefreshCw,
+  Briefcase, Database, Repeat, BookOpenCheck,
+  Gavel, EyeOff, Settings, PenLine,
 } from 'lucide-react';
 import type { UserRole, RbacAction } from '@/lib/auth';
 import {
@@ -48,32 +47,82 @@ export {
 };
 
 // ── Configuration du menu ─────────────────────────────────────────────────────
+//
+// L'ordre et les regroupements suivent le TRAVAIL, pas l'origine du code. Le
+// menu mêlait deux héritages — le module IPGEI et le socle SIGA —, si bien que
+// la journée d'un même agent traversait deux sections : l'emploi du temps d'un
+// côté, le suivi des séances et les absences de l'autre. Six sections désormais,
+// dans l'ordre où l'on s'en sert :
+//
+//   Pilotage · Scolarité · Enseignement · Notes & jurys · Finances · Système
+//
+// Trois règles tiennent ce fichier :
+//
+//   1. UN SEUL LIEN ⇒ PAS DE GROUPE. `NavTree` rend d'office en lien direct tout
+//      groupe qui ne compte qu'une entrée après filtrage RBAC — rien à déclarer
+//      ici, il suffit de ne pas gonfler un groupe pour le principe.
+//   2. SEPT ENTRÉES AU PLUS, sauf séquence qu'on parcourt dans l'ordre
+//      (inscriptions, absences), où la liste EST le déroulé du travail.
+//   3. LE RÉGLAGE RARE QUITTE LA BARRE. Les douze référentiels vivent sur
+//      `/dashboard/parametres`, une page de cartes qui les explique — ce que le
+//      menu ne permet pas.
+//
 // `TOUS_LES_GROUPES` décrit le menu complet du fork (IPGEI + socle + LMD).
 // `NAV_GROUPS`, exporté plus bas, en retire la couche LMD remplacée par IPGEI.
 const TOUS_LES_GROUPES: NavGroup[] = [
-  // ── IPGEI — moteur académique classes préparatoires ──────────────────────
+  // ═══ Pilotage ═════════════════════════════════════════════════════════════
+  // Ce qu'on regarde, pas ce qu'on saisit. En tête parce qu'on y arrive en
+  // ouvrant l'application, et qu'on n'y revient qu'entre deux tâches.
   {
-    key: 'ipgei-accueil', icon: GraduationCap, label: 'Tableau de bord',
-    section: 'IPGEI — Classes préparatoires', roles: ALL, module: 'ipgei_classes',
+    key: 'ipgei-accueil', icon: LayoutDashboard, label: 'Tableau de bord',
+    section: 'Pilotage', roles: ALL, module: 'ipgei_classes',
     items: [
       { href: '/dashboard/ipgei', label: 'Tableau de bord' },
     ],
   },
   {
-    key: 'ipgei-structure', icon: Users, label: 'Classes',
-    roles: ALL, module: 'ipgei_classes',
+    key: 'statistiques', icon: BarChart2, label: 'Statistiques',
+    section: 'Pilotage', roles: MANAGE, module: 'statistiques',
     items: [
-      { href: '/dashboard/ipgei/classes', label: 'Classes & sous-groupes', module: 'ipgei_classes' },
+      { href: '/dashboard/statistiques/profs',                label: 'Enseignants' },
+      { href: '/dashboard/statistiques/semestres',            label: 'Avancement par semestre' },
+      { href: '/dashboard/statistiques/vacations',            label: 'Vacations par mois' },
+      { href: '/dashboard/statistiques/repartition-charges',  label: 'Répartition des charges' },
     ],
   },
-  // Le parcours d'inscription tenait dans le groupe des classes : sept entrées
-  // dont six relevaient de l'inscription, et la classe — le seul objet
-  // réellement structurel — s'y perdait. Elles ont leur propre titre, dans
-  // l'ordre du parcours : le candidat se présente, on l'inscrit, on l'affecte à
-  // ses matières, on traite les cas particuliers, on facture.
+  {
+    key: 'avancement', icon: TrendingUp, label: 'Avancement',
+    section: 'Pilotage', roles: MANAGE, module: 'avancement',
+    items: [
+      { href: '/dashboard/avancement/em',         label: 'Avancement par matière' },
+      { href: '/dashboard/avancement/profs',      label: 'Avancement par enseignant' },
+      { href: '/dashboard/avancement/permanents', label: 'Charge des permanents' },
+      { href: '/dashboard/avancement/details',    label: 'Détail des enseignements' },
+    ],
+  },
+
+  // ═══ Scolarité ════════════════════════════════════════════════════════════
+  // Le dossier de l'étudiant, de sa candidature à ses pièces officielles.
+  {
+    key: 'etudiants', icon: Users, label: 'Étudiants',
+    section: 'Scolarité', roles: SCOLARITE, module: 'scolarite_etudiants',
+    items: [
+      { href: '/dashboard/scolarite/etudiants/chercher', label: 'Chercher un étudiant' },
+      { href: '/dashboard/scolarite/etudiants',          label: 'Liste des étudiants' },
+      // Un étudiant d'IPGEI n'entre pas par ici : il arrive par l'inscription
+      // IPGEI, qui lui donne son année, son niveau et sa classe d'un seul
+      // geste. La saisie unitaire et l'import Excel du socle créaient un
+      // dossier hors cursus — visible dans la liste, inscrit nulle part.
+      { href: '/dashboard/scolarite/etudiants/comptes',  label: 'Comptes portail' },
+    ],
+  },
+  // Huit entrées, et elles restent ensemble : c'est le parcours d'inscription
+  // dans son ordre — le candidat se présente, on l'inscrit, on l'affecte à ses
+  // matières, on traite les cas particuliers, on facture. Le scinder obligerait
+  // à passer d'un groupe à l'autre au milieu d'un même dossier.
   {
     key: 'ipgei-inscriptions', icon: UserCheck, label: 'Inscriptions',
-    roles: ALL, module: 'ipgei_inscriptions',
+    section: 'Scolarité', roles: ALL, module: 'ipgei_inscriptions',
     items: [
       { href: '/dashboard/ipgei/inscriptions/preinscriptions', label: 'Pré-inscriptions',      module: 'ipgei_inscriptions' },
       { href: '/dashboard/ipgei/inscriptions/nouvelle',        label: 'Nouvelle inscription',  module: 'ipgei_inscriptions', action: 'modifier' },
@@ -85,97 +134,17 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/inscriptions/frais',           label: 'Grille tarifaire',      module: 'ipgei_inscriptions' },
     ],
   },
-  // Espace personnel de l'enseignant. Sans `module` : les enseignants n'ont pas
-  // `ipgei_notes` — c'est justement pourquoi cette entrée existe — et le groupe
-  // « Académique », adossé à un module, leur resterait fermé. L'écran ne montre
-  // que le périmètre de celui qui le consulte.
   {
-    key: 'ipgei-mon-enseignement', icon: BookOpenCheck, label: 'Mon enseignement',
-    roles: [...ENSEIGNANT_ONLY, 'admin'],
+    key: 'ipgei-structure', icon: Users, label: 'Classes & sous-groupes',
+    section: 'Scolarité', roles: ALL, module: 'ipgei_classes',
     items: [
-      { href: '/dashboard/ipgei/notes/mes-feuilles', label: 'Mes feuilles de notes' },
+      { href: '/dashboard/ipgei/classes', label: 'Classes & sous-groupes', module: 'ipgei_classes' },
     ],
   },
-  {
-    key: 'ipgei-academique', icon: BookOpen, label: 'Enseignements',
-    roles: ALL, module: 'ipgei_matieres',
-    items: [
-      { href: '/dashboard/ipgei/matieres', label: 'Matières & pondération', module: 'ipgei_matieres' },
-    ],
-  },
-  // Tout ce qui touche aux notes, de la saisie au jury, sous un seul titre.
-  //
-  // Le groupe ne porte PAS de `module` : il l'empruntait à `ipgei_matieres`, si
-  // bien qu'un président de jury — qui a `ipgei_deliberation` mais ni les
-  // matières ni les notes — ne voyait aucune entrée, pas même la sienne. Sans
-  // module de groupe, chaque entrée est filtrée par le sien, et le groupe
-  // disparaît de lui-même quand il ne reste rien à montrer.
-  {
-    key: 'ipgei-evaluations', icon: ClipboardCheck, label: 'Évaluations',
-    roles: ALL,
-    items: [
-      { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
-      { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',   module: 'ipgei_notes' },
-      // L'import ÉCRIT des notes : il exige « modifier », là où éditer une
-      // fiche vierge se contente de « voir ».
-      { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
-        module: 'ipgei_notes', action: 'modifier' },
-      // L'émargement précède tout le reste : c'est le pointage du jour de
-      // l'épreuve, et c'est de lui que vient le « ABS » porté sur les fiches
-      // de collecte. Il vit sous « Évaluations » et non sous l'emploi du
-      // temps : ce qu'on y saisit sert à la correction, pas au calendrier.
-      //
-      // Le module gardé est `ipgei_edt` et non `ipgei_notes` : la feuille
-      // d'appel est servie par l'endpoint des séances, qui exige ce module.
-      // Annoncer l'entrée à qui ne l'a pas mènerait à un 403 sur un écran
-      // ouvert depuis le menu.
-      { href: '/dashboard/ipgei/notes/emargement', label: 'Émargement des épreuves',
-        module: 'ipgei_edt', action: 'modifier' },
-      { href: '/dashboard/ipgei/notes/anonymat', label: 'Anonymat des copies', module: 'ipgei_notes', action: 'modifier' },
-      // La table numéro ↔ matricule lève l'anonymat : elle exige « modifier »,
-      // comme le tirage, et non le simple droit de voir les notes.
-      { href: '/dashboard/ipgei/notes/secretariat', label: 'Export secrétariat',
-        module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat', module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
-      // Feuille de travail de l'affectation, éditée hors de tout jury : elle ne
-      // porte aucun numéro de registre et se réimprime dès qu'une note bouge.
-      { href: '/dashboard/ipgei/notes/classement', label: 'Classement S3',
-        module: 'ipgei_deliberation' },
-      // Le concours clôt le cursus : son résultat vient de l'extérieur, et
-      // c'est lui qui décide entre sortant, redoublant et réorienté.
-      { href: '/dashboard/ipgei/notes/cnim', label: 'Résultat du concours (CNIM)',
-        module: 'ipgei_deliberation', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'ipgei-edt', icon: CalendarDays, label: 'Emploi du temps',
-    roles: ALL, module: 'ipgei_edt',
-    items: [
-      // « Semaine (saisie) » a fusionné dans « Gérer les emplois », qui porte
-      // désormais un sélecteur de période : même grille pour le patron et pour
-      // une semaine donnée. La route reste servie le temps de valider la
-      // fusion, mais n'est plus proposée au menu.
-      { href: '/dashboard/ipgei/edt/grille',     label: 'Gérer les emplois',     module: 'ipgei_edt', action: 'modifier' },
-      { href: '/dashboard/ipgei/edt/classe',     label: 'Emploi par classe',     module: 'ipgei_edt' },
-      { href: '/dashboard/ipgei/edt/enseignant', label: 'Emploi par enseignant', module: 'ipgei_edt' },
-      { href: '/dashboard/ipgei/edt/salle',      label: 'Occupation des salles', module: 'ipgei_edt' },
-      { href: '/dashboard/ipgei/edt/historique', label: 'Historique',            module: 'ipgei_edt' },
-    ],
-  },
-  {
-    key: 'ipgei-vie-scolaire', icon: Repeat, label: 'Permutations',
-    roles: ALL, module: 'ipgei_permutations',
-    items: [
-      { href: '/dashboard/ipgei/permutations', label: 'Permutations', module: 'ipgei_permutations' },
-    ],
-  },
-  // Les pièces officielles ont leur titre : elles ne relèvent pas de la vie
-  // scolaire, et l'émission se distingue désormais de la consultation.
+  // Les pièces officielles : l'émission se distingue de la consultation.
   {
     key: 'ipgei-documents', icon: FileBadge, label: 'Documents officiels',
-    roles: ALL, module: 'ipgei_documents',
+    section: 'Scolarité', roles: ALL, module: 'ipgei_documents',
     items: [
       { href: '/dashboard/ipgei/documents/generer', label: 'Générer un document',
         module: 'ipgei_documents', action: 'modifier' },
@@ -190,8 +159,84 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     ],
   },
   {
+    key: 'reclamations-admin', icon: AlertCircle, label: 'Réclamations',
+    section: 'Scolarité', roles: SCOLARITE, module: 'reclamations',
+    items: [{ href: '/dashboard/reclamations', label: 'Gestion réclamations' }],
+  },
+  // L'établissement lui-même : sa raison sociale, son en-tête, son cachet —
+  // ce qui s'imprime en haut de chaque pièce délivrée. Il vivait sous un titre
+  // « Scolarité LMD » hérité, seul de sa section.
+  {
+    key: 'institution', icon: Globe, label: 'Institution',
+    section: 'Scolarité', roles: ADMIN_ONLY,
+    items: [
+      { href: '/dashboard/institution', label: 'Paramétrage établissement' },
+    ],
+  },
+
+  // ═══ Enseignement ═════════════════════════════════════════════════════════
+  // La semaine, dans son ordre réel : on pose l'emploi du temps, on l'ajuste,
+  // on constate ce qui a été fait, on relève les absents. Suivi et absences
+  // venaient du socle et vivaient sous un autre titre — c'était la frontière
+  // des deux bases de code, pas celle du travail.
+  {
+    key: 'ipgei-edt', icon: CalendarDays, label: 'Emploi du temps',
+    section: 'Enseignement', roles: ALL, module: 'ipgei_edt',
+    items: [
+      // « Semaine (saisie) » a fusionné dans « Gérer les emplois », qui porte
+      // désormais un sélecteur de période : même grille pour le patron et pour
+      // une semaine donnée. La route reste servie le temps de valider la
+      // fusion, mais n'est plus proposée au menu.
+      { href: '/dashboard/ipgei/edt/grille',     label: 'Gérer les emplois',     module: 'ipgei_edt', action: 'modifier' },
+      { href: '/dashboard/ipgei/edt/classe',     label: 'Emploi par classe',     module: 'ipgei_edt' },
+      { href: '/dashboard/ipgei/edt/enseignant', label: 'Emploi par enseignant', module: 'ipgei_edt' },
+      { href: '/dashboard/ipgei/edt/salle',      label: 'Occupation des salles', module: 'ipgei_edt' },
+      { href: '/dashboard/ipgei/edt/historique', label: 'Historique',            module: 'ipgei_edt' },
+    ],
+  },
+  {
+    key: 'ipgei-vie-scolaire', icon: Repeat, label: 'Permutations',
+    section: 'Enseignement', roles: ALL, module: 'ipgei_permutations',
+    items: [
+      { href: '/dashboard/ipgei/permutations', label: 'Permutations', module: 'ipgei_permutations' },
+    ],
+  },
+  {
+    key: 'suivi', icon: ClipboardList, label: 'Suivi des séances',
+    section: 'Enseignement', roles: ALL, module: 'suivi_fiches',
+    items: [
+      { href: '/dashboard/suivi/ajouter',              label: 'Ajouter un suivi',      module: 'suivi_saisie',  action: 'modifier' },
+      { href: '/dashboard/suivi/fiches-individuelles', label: 'Fiches individuelles',  module: 'suivi_fiches',  action: 'voir' },
+      { href: '/dashboard/suivi/fiches-collectives',   label: 'Fiches collectives',    module: 'suivi_fiches',  action: 'voir' },
+      { href: '/dashboard/suivi/remplissage',          label: 'Remplissage',           module: 'suivi_saisie',  action: 'modifier' },
+      { href: '/dashboard/suivi/rattrapage',           label: 'Rattrapage',            module: 'suivi_saisie',  action: 'voir' },
+      { href: '/dashboard/suivi/charges',              label: 'Charges GP',            module: 'suivi_charges', action: 'voir' },
+      // L'attestation se tire de ce qui a été fait en séance : elle suit le
+      // suivi, et non la liste des vacations où elle était rangée. Son module
+      // reste `vac_paiement` — c'est le droit de payer qui l'ouvre, pas celui
+      // de remplir une fiche, et le déplacer ne doit rien changer à cela.
+      { href: '/dashboard/payement/attestation',       label: 'Attestation',           module: 'vac_paiement',  action: 'modifier' },
+    ],
+  },
+  {
+    key: 'absences', icon: UserX, label: 'Absences',
+    section: 'Enseignement', roles: ALL,
+    items: [
+      { href: '/dashboard/absences/saisir',          label: 'Marquer les absences',    module: 'abs_saisie',        action: 'modifier' },
+      { href: '/dashboard/absences/saisir/salle',    label: 'Mode Salle (mobile)',     module: 'abs_saisie',        action: 'modifier' },
+      { href: '/dashboard/absences/etudiant',        label: 'ABS par étudiant(e)',     module: 'abs_rapport',       action: 'voir' },
+      { href: '/dashboard/absences/rapport',         label: 'Rapport absences',        module: 'abs_rapport',       action: 'voir' },
+      { href: '/dashboard/absences/stats',           label: 'Statistiques ABS',        module: 'abs_rapport',       action: 'voir' },
+      { href: '/dashboard/absences/fiches',          label: 'Fiches de présence',      module: 'abs_rapport',       action: 'voir' },
+      { href: '/dashboard/absences/justificatifs',   label: 'Justificatifs (DA)',      module: 'abs_justificatifs', action: 'modifier' },
+      // L'import ferme la liste : on ne le fait qu'à la rentrée, et le placer en
+      // tête donnait à un geste annuel la première place d'un menu quotidien.
+      { href: '/dashboard/absences/importer',        label: 'Importer les étudiants',  module: 'abs_import',        action: 'modifier' },
+    ],
+  },
+  {
     key: 'profs', icon: Users, label: 'Enseignants',
-    section: 'Pédagogie & enseignants', roles: MANAGE, module: 'profs',
+    section: 'Enseignement', roles: MANAGE, module: 'profs',
     items: [
       { href: '/dashboard/profs',                    label: 'Liste des enseignants' },
       { href: '/dashboard/profs/ajouter',            label: 'Ajouter un enseignant', action: 'modifier' },
@@ -199,15 +244,296 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     ],
   },
   {
-    key: 'statistiques', icon: BarChart2, label: 'Statistiques',
-    roles: MANAGE, module: 'statistiques',
+    key: 'ipgei-academique', icon: BookOpen, label: 'Matières & pondération',
+    section: 'Enseignement', roles: ALL, module: 'ipgei_matieres',
     items: [
-      { href: '/dashboard/statistiques/profs',                label: 'Profs' },
-      { href: '/dashboard/statistiques/semestres',            label: 'Avancement par semestre' },
-      { href: '/dashboard/statistiques/vacations',            label: 'Vacations par mois' },
-      { href: '/dashboard/statistiques/repartition-charges',  label: 'Répartition des charges' },
+      { href: '/dashboard/ipgei/matieres', label: 'Matières & pondération', module: 'ipgei_matieres' },
     ],
   },
+
+  // ═══ Notes & jurys ════════════════════════════════════════════════════════
+  // Un seul groupe « Évaluations » portait douze entrées et trois métiers : la
+  // saisie courante, la chaîne d'anonymat, et les jurys qui prononcent des
+  // décisions. Trois moments de l'année, trois responsables, souvent trois
+  // droits — le président de jury n'a rien à faire dans l'import Excel.
+  //
+  // Aucun des trois groupes ne porte de `module` : chaque entrée est filtrée
+  // par le sien, et le groupe disparaît de lui-même quand il ne reste rien à
+  // montrer. Un module de groupe fermerait la porte à qui n'a que le droit
+  // voisin — c'est ce qui privait le président de jury de sa propre entrée.
+  {
+    key: 'ipgei-notes-saisie', icon: PenLine, label: 'Saisie des notes',
+    section: 'Notes & jurys', roles: ALL,
+    items: [
+      { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
+      { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',  module: 'ipgei_notes' },
+      // L'import ÉCRIT des notes : il exige « modifier », là où éditer une
+      // fiche vierge se contente de « voir ».
+      { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
+        module: 'ipgei_notes', action: 'modifier' },
+      // L'émargement précède tout le reste : c'est le pointage du jour de
+      // l'épreuve, et c'est de lui que vient le « ABS » porté sur les fiches
+      // de collecte. Il vit ici et non sous l'emploi du temps : ce qu'on y
+      // saisit sert à la correction, pas au calendrier.
+      //
+      // Le module gardé est `ipgei_edt` et non `ipgei_notes` : la feuille
+      // d'appel est servie par l'endpoint des séances, qui exige ce module.
+      // Annoncer l'entrée à qui ne l'a pas mènerait à un 403 sur un écran
+      // ouvert depuis le menu.
+      { href: '/dashboard/ipgei/notes/emargement', label: 'Émargement des épreuves',
+        module: 'ipgei_edt', action: 'modifier' },
+    ],
+  },
+  // Une chaîne en trois temps, qu'on suit dans cet ordre : tirer les numéros,
+  // saisir sous couvert, lever l'anonymat pour le secrétariat.
+  {
+    key: 'ipgei-anonymat', icon: EyeOff, label: 'Anonymat des copies',
+    section: 'Notes & jurys', roles: ALL,
+    items: [
+      { href: '/dashboard/ipgei/notes/anonymat',        label: 'Tirage de l\'anonymat', module: 'ipgei_notes', action: 'modifier' },
+      { href: '/dashboard/ipgei/notes/saisie-anonymat', label: 'Saisie sous anonymat',  module: 'ipgei_notes', action: 'modifier' },
+      // La table numéro ↔ matricule lève l'anonymat : elle exige « modifier »,
+      // comme le tirage, et non le simple droit de voir les notes.
+      { href: '/dashboard/ipgei/notes/secretariat',     label: 'Export secrétariat',
+        module: 'ipgei_notes', action: 'modifier' },
+    ],
+  },
+  {
+    key: 'ipgei-jurys', icon: Gavel, label: 'Jurys & décisions',
+    section: 'Notes & jurys', roles: ALL,
+    items: [
+      { href: '/dashboard/ipgei/deliberations',  label: 'Délibérations',       module: 'ipgei_deliberation' },
+      // Feuille de travail de l'affectation, éditée hors de tout jury : elle ne
+      // porte aucun numéro de registre et se réimprime dès qu'une note bouge.
+      { href: '/dashboard/ipgei/notes/classement', label: 'Classement S3',
+        module: 'ipgei_deliberation' },
+      // Le concours clôt le cursus : son résultat vient de l'extérieur, et
+      // c'est lui qui décide entre sortant, redoublant et réorienté.
+      { href: '/dashboard/ipgei/notes/cnim', label: 'Résultat du concours (CNIM)',
+        module: 'ipgei_deliberation', action: 'modifier' },
+    ],
+  },
+
+  // ═══ Finances ═════════════════════════════════════════════════════════════
+  // Le vacataire est payé sur un compte : les deux écrans se suivent, alors
+  // qu'ils vivaient dans deux sections différentes.
+  {
+    key: 'vacations', icon: Banknote, label: 'Vacations',
+    section: 'Finances', roles: MANAGE, module: 'vac_saisie',
+    items: [
+      { href: '/dashboard/payement/ajouter',     label: 'Ajouter vacation',          module: 'vac_saisie',     action: 'modifier' },
+      { href: '/dashboard/payement/liste',       label: 'Liste des vacations',       module: 'vac_saisie',     action: 'voir' },
+      { href: '/dashboard/payement/fiches',      label: 'Fiches vacataires',         module: 'vac_saisie',     action: 'voir' },
+      { href: '/dashboard/payement/etat',        label: 'État de vacation',          module: 'vac_validation', action: 'voir' },
+      { href: '/dashboard/payement/details',     label: 'Détails de vacation',       module: 'vac_validation', action: 'voir' },
+      { href: '/dashboard/payement/heures-supp', label: 'Heures supp. permanents',   module: 'vac_validation', action: 'voir' },
+    ],
+  },
+  {
+    key: 'banques', icon: Landmark, label: 'Banques',
+    section: 'Finances', roles: MANAGE, module: 'banques',
+    items: [
+      { href: '/dashboard/banque',         label: 'Liste des banques' },
+      { href: '/dashboard/banque/ajouter', label: 'Ajouter une banque', action: 'modifier' },
+    ],
+  },
+
+  // ═══ Système ══════════════════════════════════════════════════════════════
+  // Trois façons d'ouvrir un droit à quelqu'un — un compte, une délégation
+  // d'emploi du temps, une autorisation de rattrapage — se cherchaient dans
+  // trois sections. Elles sont ici, ensemble.
+  {
+    key: 'comptes', icon: UserCog, label: 'Comptes & droits',
+    section: 'Système', roles: ADMIN_ONLY,
+    items: [
+      { href: '/dashboard/comptes',                      label: 'Liste des utilisateurs' },
+      { href: '/dashboard/comptes/ajouter',              label: 'Ajouter un utilisateur' },
+      { href: '/dashboard/comptes/permissions',          label: 'Permissions' },
+      { href: '/dashboard/comptes/defaults',             label: 'Défauts par rôle' },
+      { href: '/dashboard/deblocage',                    label: 'Débloquer un utilisateur' },
+      { href: '/dashboard/parametres/permissions-edt',   label: 'Permissions EDT' },
+      { href: '/dashboard/parametres/permissions-suivi', label: 'Rattrapage suivi' },
+    ],
+  },
+  // Publier est un GESTE, pas une rubrique : on le déclenche, on regarde le
+  // journal, on repart. Il sort donc du groupe pour devenir une entrée de
+  // premier rang — au même titre que le journal d'audit. Réservé à
+  // l'administrateur : c'est lui qui décide d'écraser le miroir.
+  {
+    key: 'synchronisation', icon: RefreshCw, label: 'Publier vers le portail',
+    section: 'Système', roles: ADMIN_ONLY,
+    items: [
+      { href: '/dashboard/synchronisation', label: 'Publier vers le portail' },
+    ],
+  },
+  // Restent les deux BOÎTES DE RÉCEPTION : le VPS est un miroir en lecture
+  // seule, sauf pour ce que les enseignants y déposent — une réclamation de
+  // séance, une saisie de notes. Ces dépôts n'ont pas d'équivalent local, et
+  // c'est ici que la direction les tranche.
+  {
+    key: 'portail-inbox', icon: Globe, label: 'Portail en ligne',
+    section: 'Système', roles: ADMIN_IT,
+    items: [
+      { href: '/dashboard/suivi/reclamations-seance',   label: 'Réclamations séances' },
+      { href: '/dashboard/evaluations/saisie-en-ligne', label: 'Saisie de notes en ligne' },
+    ],
+  },
+  {
+    key: 'historique', icon: History, label: 'Journal d\'audit',
+    section: 'Système', roles: ADMIN_IT,
+    items: [
+      { href: '/dashboard/historique', label: 'Tous les évènements' },
+    ],
+  },
+  {
+    key: 'backups', icon: Database, label: 'Sauvegardes',
+    section: 'Système', roles: ADMIN_ONLY,  // les non-admin avec grant accèdent via URL directe
+    items: [
+      { href: '/dashboard/parametres/backups',             label: 'Liste & téléchargement' },
+      { href: '/dashboard/parametres/permissions-backup',  label: 'Utilisateurs autorisés' },
+    ],
+  },
+  // Douze référentiels tenaient douze groupes, dont huit à une seule page —
+  // plus du tiers du menu permanent pour des réglages qu'on touche trois fois
+  // l'an. Ils vivent désormais sur une page de cartes, qui a la place de dire à
+  // quoi chacun sert.
+  {
+    key: 'parametrage', icon: Settings, label: 'Paramétrage',
+    section: 'Système', roles: MANAGE,
+    items: [
+      { href: '/dashboard/parametres', label: 'Paramétrage' },
+    ],
+  },
+
+  // ═══ Portail Étudiant ═════════════════════════════════════════════════════
+  {
+    key: 'portail-accueil', icon: LayoutDashboard, label: 'Tableau de bord',
+    section: 'Portail Étudiant', roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail', label: 'Accueil' }],
+  },
+  {
+    key: 'portail-profil', icon: User, label: 'Mon profil',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/profil', label: 'Mon profil' }],
+  },
+  {
+    key: 'portail-emploi', icon: Calendar, label: 'Emploi du temps',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/emploi', label: 'Emploi du temps' }],
+  },
+  {
+    key: 'portail-absences', icon: UserX, label: 'Mes absences',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/absences', label: 'Mes absences' }],
+  },
+  {
+    key: 'portail-notes', icon: ClipboardList, label: 'Mes notes',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/notes', label: 'Mes notes' }],
+  },
+  // Le fil pédagogique vit EN LIGNE : il n'existe que sur le portail, où
+  // l'enseignant publie et où l'étudiant répond. Rien de tout cela ne redescend
+  // sur le serveur local, qui ne le connaît pas.
+  {
+    key: 'portail-cours', icon: BookOpenCheck, label: 'Cours',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/cours', label: 'Cours & échanges' }],
+  },
+  {
+    key: 'portail-documents', icon: FileBadge, label: 'Documents',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/documents', label: 'Mes documents' }],
+  },
+  {
+    key: 'portail-reclamations', icon: AlertCircle, label: 'Réclamations',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/reclamations', label: 'Mes réclamations' }],
+  },
+  {
+    key: 'portail-releve', icon: BookMarked, label: 'Mon relevé',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/releve', label: 'Relevé de notes annuel' }],
+  },
+  {
+    key: 'portail-progression', icon: ArrowUpCircle, label: 'Ma progression',
+    roles: ETUDIANT_ONLY,
+    items: [{ href: '/dashboard/portail/progression', label: 'Décision de passage' }],
+  },
+
+  // ═══ Portail Enseignant ═══════════════════════════════════════════════════
+  {
+    key: 'ens-accueil', icon: LayoutDashboard, label: 'Tableau de bord',
+    section: 'Portail Enseignant', roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant', label: 'Accueil' }],
+  },
+  // Espace personnel de l'enseignant, dans SON portail et nulle part ailleurs.
+  //
+  // `roles` ne contient plus 'admin' : l'entrée s'affichait aussi dans le menu
+  // du personnel, où elle n'a pas de sens — un administrateur n'a pas de
+  // feuilles à lui. Elle est réservée au rôle enseignant, comme le reste de
+  // cette section.
+  //
+  // Sans `module` : les enseignants n'ont pas `ipgei_notes` — c'est justement
+  // la raison d'être de cet écran, qui ne montre que le périmètre de celui qui
+  // le consulte.
+  {
+    key: 'ipgei-mon-enseignement', icon: BookOpenCheck, label: 'Mes feuilles de notes',
+    roles: ENSEIGNANT_ONLY,
+    items: [
+      { href: '/dashboard/ipgei/notes/mes-feuilles', label: 'Mes feuilles de notes' },
+    ],
+  },
+  {
+    key: 'ens-profil', icon: User, label: 'Mon profil',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/profil', label: 'Mon profil' }],
+  },
+  {
+    key: 'ens-emploi', icon: Calendar, label: 'Emploi du temps',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/emploi', label: 'Emploi du temps' }],
+  },
+  {
+    key: 'ens-suivi', icon: ClipboardCheck, label: 'Suivi des séances',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/suivi', label: 'Suivi des séances' }],
+  },
+  {
+    key: 'ens-avancement', icon: TrendingUp, label: 'Avancement',
+    roles: ENSEIGNANT_ONLY,
+    items: [
+      { href: '/dashboard/enseignant/avancement',           label: 'Avancement par matière' },
+      { href: '/dashboard/enseignant/detail-enseignements', label: 'Détail séances' },
+    ],
+  },
+  {
+    key: 'ens-notes', icon: Edit3, label: 'Saisie des notes',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/notes', label: 'Saisie des notes' }],
+  },
+  // Publier un cours et répondre aux étudiants : le pendant enseignant du fil
+  // que les étudiants lisent depuis leur portail.
+  {
+    key: 'ens-cours', icon: BookOpenCheck, label: 'Cours',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/cours', label: 'Cours & échanges' }],
+  },
+  {
+    key: 'ens-reclamations', icon: AlertCircle, label: 'Réclamations',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/reclamations', label: 'Réclamations' }],
+  },
+  {
+    key: 'ens-vacations', icon: Banknote, label: 'Vacations',
+    roles: ENSEIGNANT_ONLY,
+    items: [{ href: '/dashboard/enseignant/vacations', label: 'Vacations' }],
+  },
+
+  // ═══ Couche LMD — masquée par le fork ═════════════════════════════════════
+  // Conservée telle quelle : `GROUPES_NAV_LMD` la retire du menu effectif, et
+  // `AFFICHER_MENU_LMD` la rétablit sans autre changement. Ces groupes ne sont
+  // pas réorganisés — ils ne s'affichent pas.
   {
     key: 'emplois', icon: Calendar, label: 'Emplois du temps',
     roles: ALL, module: 'emplois',
@@ -217,55 +543,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/emplois/filiere',  label: 'Emplois filière' },
       { href: '/dashboard/emplois/salle',    label: 'Emplois salle' },
       { href: '/dashboard/emplois/prof',     label: 'Emplois professeur' },
-    ],
-  },
-  {
-    key: 'suivi', icon: ClipboardList, label: 'Suivi',
-    roles: ALL, module: 'suivi_fiches',
-    items: [
-      { href: '/dashboard/suivi/ajouter',              label: 'Ajouter suivi',         module: 'suivi_saisie',  action: 'modifier' },
-      { href: '/dashboard/suivi/fiches-individuelles', label: 'Fiches individuelles',  module: 'suivi_fiches',  action: 'voir' },
-      { href: '/dashboard/suivi/fiches-collectives',   label: 'Fiches collectives',    module: 'suivi_fiches',  action: 'voir' },
-      { href: '/dashboard/suivi/remplissage',          label: 'Remplissage',           module: 'suivi_saisie',  action: 'modifier' },
-      { href: '/dashboard/suivi/rattrapage',           label: 'Rattrapage',            module: 'suivi_saisie',  action: 'voir' },
-      { href: '/dashboard/suivi/charges',              label: 'Charges GP',            module: 'suivi_charges', action: 'voir' },
-    ],
-  },
-  {
-    key: 'avancement', icon: TrendingUp, label: 'Avancement',
-    roles: MANAGE, module: 'avancement',
-    items: [
-      { href: '/dashboard/avancement/em',         label: 'Avancement par matière' },
-      { href: '/dashboard/avancement/profs',      label: 'Avancement profs' },
-      { href: '/dashboard/avancement/permanents', label: 'Charge profs permanents' },
-      { href: '/dashboard/avancement/details',    label: 'Détails des enseignements' },
-    ],
-  },
-  {
-    key: 'absences', icon: UserX, label: 'Absences',
-    roles: ALL,
-    items: [
-      { href: '/dashboard/absences/importer',        label: 'Importer les étudiants', module: 'abs_import',        action: 'modifier' },
-      { href: '/dashboard/absences/saisir',          label: 'Marquer absences',        module: 'abs_saisie',        action: 'modifier' },
-      { href: '/dashboard/absences/saisir/salle',    label: 'Mode Salle (mobile)',     module: 'abs_saisie',        action: 'modifier' },
-      { href: '/dashboard/absences/etudiant',        label: 'ABS par étudiant(e)',     module: 'abs_rapport',       action: 'voir' },
-      { href: '/dashboard/absences/rapport',         label: 'Rapport absences',        module: 'abs_rapport',       action: 'voir' },
-      { href: '/dashboard/absences/stats',           label: 'Statistiques ABS',        module: 'abs_rapport',       action: 'voir' },
-      { href: '/dashboard/absences/fiches',          label: 'Fiches de présence',      module: 'abs_rapport',       action: 'voir' },
-      { href: '/dashboard/absences/justificatifs',   label: 'Justificatifs (DA)',      module: 'abs_justificatifs', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'vacations', icon: Banknote, label: 'Vacations',
-    roles: MANAGE, module: 'vac_saisie',
-    items: [
-      { href: '/dashboard/payement/ajouter',     label: 'Ajouter vacation',          module: 'vac_saisie',     action: 'modifier' },
-      { href: '/dashboard/payement/liste',       label: 'Liste des vacations',       module: 'vac_saisie',     action: 'voir' },
-      { href: '/dashboard/payement/fiches',      label: 'Fiches vacataires',         module: 'vac_saisie',     action: 'voir' },
-      { href: '/dashboard/payement/etat',        label: 'État de vacation',          module: 'vac_validation', action: 'voir' },
-      { href: '/dashboard/payement/details',     label: 'Détails de vacation',       module: 'vac_validation', action: 'voir' },
-      { href: '/dashboard/payement/heures-supp', label: 'Heures supp. permanents',   module: 'vac_validation', action: 'voir' },
-      { href: '/dashboard/payement/attestation', label: 'Attestation',               module: 'vac_paiement',   action: 'modifier' },
     ],
   },
   {
@@ -283,184 +560,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/em',         label: 'Liste des matières' },
       { href: '/dashboard/em/ajouter', label: 'Ajouter une matière', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'salles', icon: DoorOpen, label: 'Salles',
-    roles: MANAGE, module: 'salles',
-    items: [
-      { href: '/dashboard/salles',         label: 'Liste des salles' },
-      { href: '/dashboard/salles/ajouter', label: 'Ajouter salle', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'banques', icon: Landmark, label: 'Banques',
-    section: 'Administration', roles: MANAGE, module: 'banques',
-    items: [
-      { href: '/dashboard/banque',         label: 'Liste des banques' },
-      { href: '/dashboard/banque/ajouter', label: 'Ajouter banque', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'comptes', icon: UserCog, label: 'Comptes',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/comptes/ajouter',     label: 'Ajouter utilisateur' },
-      { href: '/dashboard/comptes',             label: 'Liste utilisateurs' },
-      { href: '/dashboard/comptes/permissions', label: 'Permissions' },
-      { href: '/dashboard/comptes/defaults',    label: 'Defaults par rôle' },
-    ],
-  },
-  {
-    key: 'deblocage', icon: Unlock, label: 'Déblocage',
-    roles: ADMIN_IT,
-    items: [
-      { href: '/dashboard/deblocage', label: 'Débloquer utilisateur' },
-    ],
-  },
-  {
-    key: 'historique', icon: History, label: 'Journal d\'audit',
-    roles: ADMIN_IT,
-    items: [
-      { href: '/dashboard/historique', label: 'Tous les évènements' },
-    ],
-  },
-  // ── Ce qui vient du portail en ligne ────────────────────────────────────────
-  // Le VPS est un miroir en lecture seule, à deux exceptions près : la
-  // réclamation de séance et la saisie de notes. Ces deux dépôts n'ont pas
-  // d'équivalent local — ils arrivent d'ailleurs, et c'est ici qu'on les traite.
-  {
-    key: 'portail-inbox', icon: Globe, label: 'Portail en ligne',
-    roles: ADMIN_IT,
-    items: [
-      { href: '/dashboard/suivi/reclamations-seance',   label: 'Réclamations séances' },
-      { href: '/dashboard/evaluations/saisie-en-ligne', label: 'Saisie de notes en ligne' },
-    ],
-  },
-  {
-    key: 'synchronisation', icon: RefreshCw, label: 'Synchronisation',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/synchronisation', label: 'Publier vers le portail' },
-    ],
-  },
-  // ── Paramétrage ──────────────────────────────────────────────────────────────
-  {
-    key: 'ipgei-parametres', icon: GraduationCap, label: 'Cursus prépa',
-    section: 'Paramétrage', roles: MANAGE, module: 'ipgei_parametres',
-    items: [
-      { href: '/dashboard/parametres/cursus',              label: "Vue d'ensemble" },
-      { href: '/dashboard/parametres/cursus/niveaux',      label: 'Niveaux du cursus' },
-      { href: '/dashboard/parametres/cursus/semestres',    label: "Semestres de l'année" },
-      { href: '/dashboard/parametres/cursus/deliberation', label: 'Règles de délibération' },
-    ],
-  },
-  {
-    key: 'param-institutions', icon: Building2, label: 'Institutions',
-    section: 'Paramétrage', roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/institutions', label: 'Gérer les institutions' },
-    ],
-  },
-  {
-    key: 'annees', icon: CalendarDays, label: 'Années universitaires',
-    section: 'Paramétrage', roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/annees',         label: 'Liste des années' },
-      { href: '/dashboard/parametres/annees/ajouter', label: 'Ajouter année' },
-    ],
-  },
-  {
-    key: 'niveaux', icon: Layers, label: 'Niveaux',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/niveaux',         label: 'Liste des niveaux' },
-      { href: '/dashboard/parametres/niveaux/ajouter', label: 'Ajouter niveau' },
-    ],
-  },
-  {
-    key: 'semaines', icon: CalendarRange, label: 'Semaines',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/semaines',         label: 'Liste des semaines' },
-      { href: '/dashboard/parametres/semaines/ajouter', label: 'Ajouter semaine' },
-      { href: '/dashboard/parametres/semaines/generer', label: 'Générer les semaines' },
-    ],
-  },
-  {
-    key: 'periodes-reclamation', icon: MessageSquareWarning, label: 'Périodes de réclamation',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/periodes-reclamation', label: 'Gérer les périodes' },
-    ],
-  },
-  {
-    key: 'creneaux', icon: Clock, label: 'Créneaux',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/creneaux',         label: 'Liste des créneaux' },
-      { href: '/dashboard/parametres/creneaux/ajouter', label: 'Ajouter créneau' },
-    ],
-  },
-  {
-    key: 'seances', icon: Presentation, label: 'Séance',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/seances',         label: 'Liste des séances' },
-      { href: '/dashboard/parametres/seances/ajouter', label: 'Ajouter séance' },
-    ],
-  },
-  {
-    key: 'paiements', icon: Coins, label: 'Paiement',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/paiements',         label: 'Liste des paiements' },
-      { href: '/dashboard/parametres/paiements/ajouter', label: 'Ajouter paiement' },
-    ],
-  },
-  {
-    key: 'jours', icon: Sun, label: 'Jours',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/jours',         label: 'Liste des jours' },
-      { href: '/dashboard/parametres/jours/ajouter', label: 'Ajouter jour' },
-    ],
-  },
-  {
-    key: 'ramadan', icon: Moon, label: 'Ramadan',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/ramadan', label: 'Détail' },
-    ],
-  },
-  {
-    key: 'permissions-edt', icon: Shield, label: 'Permissions EDT',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/permissions-edt', label: 'Délégation par groupe' },
-    ],
-  },
-  {
-    key: 'permissions-suivi', icon: Unlock, label: 'Rattrapage suivi',
-    roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/parametres/permissions-suivi', label: 'Autoriser un rattrapage' },
-    ],
-  },
-  {
-    key: 'backups', icon: Database, label: 'Sauvegardes BD',
-    roles: ADMIN_ONLY,  // les non-admin avec grant accedent via URL directe
-    items: [
-      { href: '/dashboard/parametres/backups',             label: 'Liste & téléchargement' },
-      { href: '/dashboard/parametres/permissions-backup',  label: 'Utilisateurs autorisés' },
-    ],
-  },
-  // ── Scolarite LMD ────────────────────────────────────────────────────────────
-  {
-    key: 'institution', icon: Globe, label: 'Institution',
-    section: 'Scolarité', roles: ADMIN_ONLY,
-    items: [
-      { href: '/dashboard/institution', label: 'Paramétrage établissement' },
     ],
   },
   {
@@ -484,19 +583,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/scolarite/modules',         label: 'Liste des modules' },
       { href: '/dashboard/scolarite/modules/ajouter', label: 'Ajouter module', action: 'modifier' },
-    ],
-  },
-  {
-    key: 'etudiants', icon: Users, label: 'Étudiants',
-    roles: SCOLARITE, module: 'scolarite_etudiants',
-    items: [
-      { href: '/dashboard/scolarite/etudiants/chercher', label: 'Chercher un étudiant' },
-      { href: '/dashboard/scolarite/etudiants',          label: 'Liste des étudiants' },
-      // Un étudiant d'IPGEI n'entre pas par ici : il arrive par l'inscription
-      // IPGEI, qui lui donne son année, son niveau et sa classe d'un seul
-      // geste. La saisie unitaire et l'import Excel du socle créaient un
-      // dossier hors cursus — visible dans la liste, inscrit nulle part.
-      { href: '/dashboard/scolarite/etudiants/comptes',  label: 'Comptes portail' },
     ],
   },
   {
@@ -558,124 +644,6 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/documents/consultation-notes', label: 'Consulter les notes', module: 'doc_releve',       action: 'voir' },
       { href: '/dashboard/documents/registre',           label: 'Registre diplômes',   module: 'doc_registre',     action: 'voir' },
     ],
-  },
-  {
-    key: 'notifications', icon: BellRing, label: 'Notifications',
-    roles: ALL, module: 'notifications',
-    items: [
-      { href: '/dashboard/notifications', label: 'Toutes les notifications' },
-    ],
-  },
-  // ── Portail Étudiant ─────────────────────────────────────────────────────────
-  {
-    key: 'portail-accueil', icon: LayoutDashboard, label: 'Tableau de bord',
-    section: 'Portail Étudiant', roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail', label: 'Accueil' }],
-  },
-  {
-    key: 'portail-profil', icon: User, label: 'Mon profil',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/profil', label: 'Mon profil' }],
-  },
-  {
-    key: 'portail-emploi', icon: Calendar, label: 'Emploi du temps',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/emploi', label: 'Emploi du temps' }],
-  },
-  {
-    key: 'portail-absences', icon: UserX, label: 'Mes absences',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/absences', label: 'Mes absences' }],
-  },
-  {
-    key: 'portail-notes', icon: ClipboardList, label: 'Mes notes',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/notes', label: 'Mes notes' }],
-  },
-  // Le fil pédagogique vit EN LIGNE : il n'existe que sur le portail, où
-  // l'enseignant publie et où l'étudiant répond. Rien de tout cela ne redescend
-  // sur le serveur local, qui ne le connaît pas.
-  {
-    key: 'portail-cours', icon: BookOpenCheck, label: 'Cours',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/cours', label: 'Cours & échanges' }],
-  },
-  {
-    key: 'portail-documents', icon: FileBadge, label: 'Documents',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/documents', label: 'Mes documents' }],
-  },
-  {
-    key: 'portail-reclamations', icon: AlertCircle, label: 'Réclamations',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/reclamations', label: 'Mes réclamations' }],
-  },
-  {
-    key: 'portail-releve', icon: BookMarked, label: 'Mon relevé',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/releve', label: 'Relevé de notes annuel' }],
-  },
-  {
-    key: 'portail-progression', icon: ArrowUpCircle, label: 'Ma progression',
-    roles: ETUDIANT_ONLY,
-    items: [{ href: '/dashboard/portail/progression', label: 'Décision de passage' }],
-  },
-  // ── Portail Enseignant ───────────────────────────────────────────────────────
-  {
-    key: 'ens-accueil', icon: LayoutDashboard, label: 'Tableau de bord',
-    section: 'Portail Enseignant', roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant', label: 'Accueil' }],
-  },
-  {
-    key: 'ens-profil', icon: User, label: 'Mon profil',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/profil', label: 'Mon profil' }],
-  },
-  {
-    key: 'ens-emploi', icon: Calendar, label: 'Emploi du temps',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/emploi', label: 'Emploi du temps' }],
-  },
-  {
-    key: 'ens-suivi', icon: ClipboardCheck, label: 'Suivi des séances',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/suivi', label: 'Suivi des séances' }],
-  },
-  {
-    key: 'ens-avancement', icon: TrendingUp, label: 'Avancement',
-    roles: ENSEIGNANT_ONLY,
-    items: [
-      { href: '/dashboard/enseignant/avancement',           label: 'Avancement par matière' },
-      { href: '/dashboard/enseignant/detail-enseignements', label: 'Détail séances' },
-    ],
-  },
-  {
-    key: 'ens-notes', icon: Edit3, label: 'Saisie des notes',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/notes', label: 'Saisie des notes' }],
-  },
-  // Publier un cours et répondre aux étudiants : le pendant enseignant du fil
-  // que les étudiants lisent depuis leur portail.
-  {
-    key: 'ens-cours', icon: BookOpenCheck, label: 'Cours',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/cours', label: 'Cours & échanges' }],
-  },
-  {
-    key: 'ens-reclamations', icon: AlertCircle, label: 'Réclamations',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/reclamations', label: 'Réclamations' }],
-  },
-  {
-    key: 'ens-vacations', icon: Banknote, label: 'Vacations',
-    roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/vacations', label: 'Vacations' }],
-  },
-  // ── Staff : gestion réclamations ────────────────────────────────────────────
-  {
-    key: 'reclamations-admin', icon: AlertCircle, label: 'Réclamations',
-    section: 'Scolarité', roles: SCOLARITE, module: 'reclamations',
-    items: [{ href: '/dashboard/reclamations', label: 'Gestion réclamations' }],
   },
 ];
 

@@ -25,6 +25,12 @@ export default function NavTree({
         const isOpen   = openKey === group.key;
         const isActive = isGroupActive(group, pathname);
         const Icon     = group.icon;
+        // Un groupe qui ne groupe rien devrait être un lien : déplier pour
+        // découvrir qu'il n'y avait rien à déplier coûte un clic à chaque fois.
+        // Le cas se produit par construction — « Classes », « Permutations » —
+        // mais AUSSI par filtrage : un groupe de six entrées peut n'en laisser
+        // qu'une à qui n'a qu'un droit. Le test porte donc sur ce qui reste.
+        const seul = group.items.length === 1 ? group.items[0] : null;
 
         return (
           <div key={group.key}>
@@ -44,6 +50,31 @@ export default function NavTree({
               </div>
             )}
 
+            {/* Lien direct — le groupe n'a qu'une destination */}
+            {seul ? (
+              <Link
+                href={seul.href}
+                onClick={onLinkClick}
+                title={hideText ? group.label : undefined}
+                aria-current={isActive ? 'page' : undefined}
+                className={`w-full flex items-center ${hideText ? 'justify-center px-0' : 'gap-2.5 px-3'} py-2 rounded-xl mb-0.5 font-medium transition-all relative group ${
+                  isActive
+                    ? 'text-white'
+                    : 'text-iss-dark-soft hover:bg-gray-50 hover:text-iss-primary'
+                }`}
+                style={isActive ? { background: 'linear-gradient(135deg, #006633, #008844)' } : {}}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                    style={{ background: '#E5C018' }} />
+                )}
+                <Icon size={17} className={isActive ? 'text-white shrink-0' : 'text-iss-gray group-hover:text-iss-primary shrink-0'} />
+                {!hideText && (
+                  <span className="flex-1 text-left text-[15px] truncate">{group.label}</span>
+                )}
+              </Link>
+            ) : (
+            <>
             {/* Group toggle */}
             <button
               onClick={() => {
@@ -108,6 +139,8 @@ export default function NavTree({
                   );
                 })}
               </div>
+            )}
+            </>
             )}
           </div>
         );
