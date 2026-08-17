@@ -604,6 +604,12 @@ export interface LigneClassementS3 {
   moyenne_annee1: string | null;
   annee1:         string;
   moyenne_s3:     string | null;
+  /**
+   * Ce qui range la liste : `(moyenne de 1re année + moyenne S3) / 2`, les deux
+   * termes à parts égales. Nulle si l'un des deux manque — l'étudiant n'est
+   * alors pas classable, et il ferme la marche sans rang.
+   */
+  moyenne_classement: string | null;
 }
 
 export const classementApi = {

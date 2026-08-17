@@ -135,7 +135,9 @@ export default function SaisieNotesPage() {
   // Les devoirs se saisissent au fil du semestre, les examens à la fin : les
   // mettre dans la même grille obligeait à défiler devant des colonnes qu'on ne
   // remplit pas ce jour-là, et exposait le reste aux fautes de frappe.
-  const [epreuve, setEpreuve] = useState<'ds' | 'exam'>('ds');
+  // Le rattrapage a son propre onglet : il relève de l'autre campagne et ne se
+  // saisit qu'après les résultats, jamais le jour où l'on rend un DS.
+  const [epreuve, setEpreuve] = useState<'ds' | 'exam' | 'rattrapage'>('ds');
   const [toast, setToast]         = useState<string | null>(null);
   const [erreurSauvegarde, setErreurSauvegarde] = useState<string | null>(null);
 
@@ -162,12 +164,12 @@ export default function SaisieNotesPage() {
 
   // Passer d'un onglet à l'autre masque des saisies non enregistrées : les
   // compter par épreuve évite de croire qu'on a tout envoyé.
-  const enAttente = (cible: 'ds' | 'exam') =>
+  const enAttente = (cible: 'ds' | 'exam' | 'rattrapage') =>
     Object.keys(brouillon).filter(k => {
       const champ = k.split(':')[1] ?? '';
-      return cible === 'ds'
-        ? champ.startsWith('ds-') || champ === 'tp'
-        : champ.startsWith('exam-');
+      if (cible === 'ds')   return champ.startsWith('ds-') || champ === 'tp';
+      if (cible === 'exam') return champ.startsWith('exam-');
+      return champ === 'rattrapage';
     }).length;
 
   const valeurCellule = (note: Note, champ: string, valeurBase: string | null) => {
@@ -372,7 +374,7 @@ export default function SaisieNotesPage() {
               </>
             )}
 
-            {!verrouillee && (
+            {!verrouillee && epreuve !== 'rattrapage' && (
               <div className="ml-auto flex items-center gap-4">
                 {epreuve === 'ds'
                   ? <CompteurColonnes label="DS" valeur={colonnesDS} min={grille.nb_ds} onChange={setColonnesDS} />
@@ -382,12 +384,13 @@ export default function SaisieNotesPage() {
           </div>
 
           {/* Une épreuve à la fois : on corrige un paquet de copies, pas une
-              matière entière. Les colonnes calculées restent visibles des deux
-              côtés — c'est ce qu'on vérifie en saisissant. */}
+              matière entière. « Moy. » et « Retenue » restent visibles partout —
+              c'est ce qu'on vérifie en saisissant. */}
           <div className="flex gap-1.5">
             {([
               { cle: 'ds',   label: `Devoirs surveillés (${colonnesDS})` },
               { cle: 'exam', label: `Examens (${colonnesExam})` },
+              { cle: 'rattrapage', label: 'Rattrapage' },
             ] as const).map(onglet => {
               const attente = enAttente(onglet.cle);
               return (
@@ -423,16 +426,19 @@ export default function SaisieNotesPage() {
                       {epreuve === 'ds' && Array.from({ length: colonnesDS }, (_, i) => (
                         <th key={`ds-${i}`} className="px-2 py-3 text-center w-[70px]">DS {i + 1}</th>
                       ))}
-                      {/* Le TP accompagne les devoirs : c'est du contrôle
-                          continu, pas une épreuve de fin de semestre. */}
+                      {/* TP et colles partagent la même case : ce sont deux
+                          formes du contrôle continu, notées ensemble, pas une
+                          épreuve de fin de semestre. */}
                       {epreuve === 'ds' && aDesTP && (
-                        <th className="px-2 py-3 text-center w-[70px] bg-amber-50/60">TP</th>
+                        <th className="px-2 py-3 text-center w-[86px] bg-amber-50/60">TP/Colle</th>
                       )}
                       {epreuve === 'exam' && Array.from({ length: colonnesExam }, (_, i) => (
                         <th key={`ex-${i}`} className="px-2 py-3 text-center w-[70px]">Exam {i + 1}</th>
                       ))}
                       <th className="px-2 py-3 text-center w-[70px] bg-gray-50">Moy.</th>
-                      <th className="px-2 py-3 text-center w-[75px]">Rattr.</th>
+                      {epreuve === 'rattrapage' && (
+                        <th className="px-2 py-3 text-center w-[75px]">Rattr.</th>
+                      )}
                       <th className="px-2 py-3 text-center w-[80px] bg-[#006633]/5">Retenue</th>
                     </tr>
                   </thead>
@@ -480,13 +486,15 @@ export default function SaisieNotesPage() {
                           <td className="px-2 py-2 text-center bg-gray-50 text-iss-gray font-semibold">
                             {fmtNote(note.moyenne)}
                           </td>
-                          <td className="px-1 py-2">
-                            <CelluleNote
-                              valeur={valeurCellule(note, 'rattrapage', note.note_rattrapage)}
-                              onChange={v => majCellule(note.id, 'rattrapage', v)}
-                              desactive={geleRattrapage}
-                            />
-                          </td>
+                          {epreuve === 'rattrapage' && (
+                            <td className="px-1 py-2">
+                              <CelluleNote
+                                valeur={valeurCellule(note, 'rattrapage', note.note_rattrapage)}
+                                onChange={v => majCellule(note.id, 'rattrapage', v)}
+                                desactive={geleRattrapage}
+                              />
+                            </td>
+                          )}
                           <td className="px-2 py-2 text-center bg-[#006633]/5 font-bold text-[#006633]">
                             {fmtNote(note.note_retenue)}
                             {note.verrouillee && <Lock size={10} className="inline ml-1 text-iss-gray" />}

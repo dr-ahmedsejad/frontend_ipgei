@@ -146,6 +146,12 @@ export default function ClassementS3Page() {
                   <th className="px-4 py-3">Étudiant</th>
                   <th className="px-4 py-3 text-center">Moyenne 1re année</th>
                   <th className="px-4 py-3 text-center">Moyenne S3</th>
+                  {/* Ce qui range la liste, posé après ses deux termes : on
+                      vérifie la moyenne de classement d'un coup d'œil. */}
+                  <th className="px-4 py-3 text-center"
+                      title="(moyenne de 1re année + moyenne S3) / 2">
+                    Moyenne de classement
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -168,18 +174,17 @@ export default function ClassementS3Page() {
                         <span className="text-[11px] text-iss-gray"> ({ligne.annee1})</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-[#006633]">
+                    <td className="px-4 py-2.5 text-center tabular-nums">
                       {fmtNote(ligne.moyenne_s3)}
+                    </td>
+                    <td className="px-4 py-2.5 text-center tabular-nums font-bold text-[#006633]">
+                      {fmtNote(ligne.moyenne_classement)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="px-5 py-3 text-xs text-iss-gray border-t border-gray-100">
-            Les colonnes <b>Décision</b> et <b>Affectation</b> n&apos;apparaissent
-            que sur le document édité — elles y sont vides, à remplir.
-          </p>
         </div>
       )}
     </div>
