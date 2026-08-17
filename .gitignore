@@ -38,3 +38,12 @@ Thumbs.db
 
 # Test coverage
 /coverage
+
+# Documentation hors périmètre — conservée sur disque, hors du dépôt.
+#   docs_siga/  vestiges SIGA / GesAFPED antérieurs au fork
+#   docs_lmd/   couche LMD remplacée par IPGEI (cf. AFFICHER_MENU_LMD)
+#   docs/       notes de travail et questionnaires d'audit
+# Ces fichiers restent dans l'historique : `git log -- docs/…` les retrouve.
+docs_siga/
+docs_lmd/
+docs/
