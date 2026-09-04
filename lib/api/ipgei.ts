@@ -420,6 +420,19 @@ export const notesApi = {
   },
 
   /**
+   * Fiche d'émargement : la feuille que le surveillant fait signer en salle.
+   * Mêmes candidats et même ordre que la fiche de collecte de l'épreuve.
+   * `matiere` omise, le serveur édite le jeu complet du semestre.
+   */
+  ficheEmargement: (f: FiltresEmargement) => {
+    const params: Record<string, string> = {};
+    for (const [cle, valeur] of Object.entries(nettoyer(f))) {
+      params[cle] = String(valeur);
+    }
+    return apiFetchBlob(`${BASE}/notes/fiche-emargement/`, params);
+  },
+
+  /**
    * Verse les notes d'un classeur de collecte rempli — le RETOUR de la fiche.
    *
    * La matière n'est pas transmise : le serveur la lit dans chaque onglet. Un
@@ -470,6 +483,38 @@ export interface FiltresCollecte extends Params {
    * contenu et répond 404 pour un suffixe qu'aucun renderer ne connaît.
    */
   sortie?:   'pdf' | 'excel';
+}
+
+/**
+ * Fiche d'émargement. Ni anonymat — on émarge sous son nom, c'est la pièce qui
+ * rattache un présent à sa copie — ni format : la feuille se signe au stylo,
+ * un classeur n'aurait pas d'usage.
+ *
+ * `groupe` et `salle` sont libres et seulement imprimés : la répartition des
+ * candidats se fait le jour de l'épreuve et n'est pas conservée.
+ */
+export interface FiltresEmargement extends Params {
+  semestre:  number;
+  classe:    number;
+  /**
+   * Classes MELANGEES, ids separes par des virgules. A l'examen la scolarite
+   * fait composer MPSI A avec MPSI B pour que des camarades ne soient pas
+   * voisins ; la liste est alors brassee. Omis, `classe` seule fait foi et la
+   * feuille garde l'ordre de la fiche de collecte.
+   */
+  classes?:  string;
+  matiere?:  number;
+  type_note: TypeNoteCollecte;
+  /**
+   * Salles retenues, ids separes par des virgules et DANS L'ORDRE du choix :
+   * les candidats s'y repartissent au prorata des capacites, une fiche par
+   * salle. L'ordre decide quel groupe compose ou — le transmettre autrement
+   * deplacerait les candidats d'une edition a l'autre.
+   */
+  salles?:   string;
+  /** Mentions libres, seulement imprimees, quand aucune salle n'est retenue. */
+  groupe?:   string;
+  salle?:    string;
 }
 
 // ── Délibération ─────────────────────────────────────────────────────────────
@@ -983,6 +1028,13 @@ export const documentsApi = {
    */
   attestationCnim:(deliberation: number, inscription: number, signataire?: number) =>
     emettreDocument('attestation-cnim', nettoyer({ deliberation, inscription, signataire })),
+  /**
+   * Attestation de reussite : elle DIT la moyenne annuelle ponderee, la ou le
+   * CNIM n'en dit aucune. Elle exige donc la meme deliberation validee, et une
+   * decision de reussite — admis en 2e annee, ou autorise a concourir.
+   */
+  attestationReussite:(deliberation: number, inscription: number, signataire?: number) =>
+    emettreDocument('attestation-reussite', nettoyer({ deliberation, inscription, signataire })),
   /** Attestation de scolarité de l'année en cours, maquette comprise. */
   attestationInscription: (inscription: number, signataire?: number) =>
     emettreDocument('attestation-inscription', nettoyer({ inscription, signataire })),

@@ -21,7 +21,7 @@ import {
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
   type EpreuveChoisie,
   type SaisieRattrapage,
-  type FiltresCollecte, type FiltresGrilleAnonyme, type LotCorrection,
+  type FiltresCollecte, type FiltresEmargement, type FiltresGrilleAnonyme, type LotCorrection,
   type Params,
   type TriDetailNotes,
   type DocumentFilters, type InscriptionFilters, type MatiereFilters,
@@ -722,6 +722,12 @@ export function useFicheCollecte() {
   });
 }
 
+export function useFicheEmargement() {
+  return useMutation({
+    mutationFn: (filtres: FiltresEmargement) => notesApi.ficheEmargement(filtres),
+  });
+}
+
 /**
  * Import d'un classeur de collecte rempli.
  *
@@ -1349,6 +1355,12 @@ export function useDocumentMutations() {
       mutationFn: ({ deliberation, inscription, signataire }:
                    { deliberation: number; inscription: number; signataire?: number }) =>
         documentsApi.attestationCnim(deliberation, inscription, signataire),
+      onSuccess:  invalider,
+    }),
+    attestationReussite: useMutation({
+      mutationFn: ({ deliberation, inscription, signataire }:
+                   { deliberation: number; inscription: number; signataire?: number }) =>
+        documentsApi.attestationReussite(deliberation, inscription, signataire),
       onSuccess:  invalider,
     }),
     attestationInscription: useMutation({

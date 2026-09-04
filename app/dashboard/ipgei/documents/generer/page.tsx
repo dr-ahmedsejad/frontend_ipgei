@@ -41,7 +41,8 @@ const ETAPES = [
 
 type CleDocument =
   | 'attestation_inscription' | 'releve_semestre' | 'releve_annuel'
-  | 'decision_deliberation'   | 'attestation_cnim' | 'recu_paiement';
+  | 'decision_deliberation'   | 'attestation_cnim' | 'attestation_reussite'
+  | 'recu_paiement';
 
 interface TypeDocument {
   cle:       CleDocument;
@@ -83,6 +84,11 @@ const TYPES: TypeDocument[] = [
   {
     cle: 'attestation_cnim', label: 'Attestation CNIM',
     detail: 'Autorisation à concourir, pour les admis de deuxième année.',
+    besoin: 'deliberation', module: 'ipgei_deliberation', signee: true,
+  },
+  {
+    cle: 'attestation_reussite', label: 'Attestation de réussite',
+    detail: "Année suivie et moyenne annuelle pondérée — exige une décision de réussite.",
     besoin: 'deliberation', module: 'ipgei_deliberation', signee: true,
   },
   {
@@ -167,6 +173,10 @@ export default function GenererDocumentIPGEIPage() {
         return mutations.attestationCnim.mutate(
           { deliberation: deliberationId as number, inscription: inscription.id, signataire },
           options('cnim'));
+      case 'attestation_reussite':
+        return mutations.attestationReussite.mutate(
+          { deliberation: deliberationId as number, inscription: inscription.id, signataire },
+          options('reussite'));
       case 'recu_paiement':
         return mutations.recuPaiement.mutate(inscription.id, options('recu'));
     }
@@ -417,8 +427,11 @@ function Parametres({
                 ))}
               </select>
               <p className="text-xs text-iss-gray mt-1.5">
-                {choisi.cle === 'attestation_cnim'
-                  ? "L'autorisation de concourir est signée par le directeur : "
+                {/* Les deux pièces qui sortent de l'établissement — autorisation de
+                    concourir, attestation de réussite — sont signées par le
+                    directeur, non par la scolarité. */}
+                {choisi.cle === 'attestation_cnim' || choisi.cle === 'attestation_reussite'
+                  ? 'Cette pièce est signée par le directeur : '
                     + "ne désignez quelqu'un que s'il signe à sa place, son nom "
                     + 'prendra alors le pas sur le sien.'
                   : 'Son nom et sa fonction seront imprimés au-dessus du trait ; la '

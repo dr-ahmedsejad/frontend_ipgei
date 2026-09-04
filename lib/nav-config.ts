@@ -268,6 +268,9 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
       { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
       { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',  module: 'ipgei_notes' },
+      // La fiche d'emargement accompagne la collecte le jour de l'epreuve :
+      // memes candidats, meme ordre. Elle vit donc a cote d'elle.
+      { href: '/dashboard/ipgei/notes/fiche-emargement', label: "Fiches d'émargement", module: 'ipgei_notes' },
       // L'import ÉCRIT des notes : il exige « modifier », là où éditer une
       // fiche vierge se contente de « voir ».
       { href: '/dashboard/ipgei/notes/import',   label: 'Import Excel des notes',
