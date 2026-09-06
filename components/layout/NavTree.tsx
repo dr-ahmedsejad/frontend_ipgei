@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { NavGroupResolved } from '@/lib/nav-config';
-import { isGroupActive } from '@/lib/nav-filter';
+import { hrefActif, isGroupActive } from '@/lib/nav-filter';
 
 interface Props {
   groups:         NavGroupResolved[];
@@ -119,7 +119,11 @@ export default function NavTree({
             {isOpen && !hideText && (
               <div className="pl-4 mb-1">
                 {group.items.map(item => {
-                  const activeSub = pathname === item.href || pathname.startsWith(item.href + '/');
+                  // UN seul lien actif par groupe : celui qui décrit le mieux
+                  // l'URL. Un simple préfixe allumait aussi les entrées qui
+                  // englobent la page — « Liste des étudiants » en même temps
+                  // que « Affectation aux groupes ».
+                  const activeSub = item.href === hrefActif(group, pathname);
                   return (
                     <Link
                       key={item.href}

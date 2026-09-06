@@ -12,18 +12,33 @@ export type UserRole =
   | 'responsable_filiere'
   | 'jury_president'
   | 'etudiant'
-  | 'enseignant';
+  | 'enseignant'
+  | 'chef_departement';
 
+/**
+ * Libelles affiches, dans le vocabulaire de l'IPGEI — ceux du repertoire du
+ * personnel, non ceux du socle SIGA dont viennent les CODES.
+ *
+ * Seuls les libelles changent : les codes (`DG`, `DE`, `responsable_filiere`)
+ * sont ecrits en dur dans les deux depots et commandent les acces. Les
+ * renommer supposerait une migration de donnees et une reprise de chaque
+ * litteral — un oubli n'y casserait rien de visible, il ouvrirait ou fermerait
+ * un acces en silence.
+ */
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin:               'Administrateur',
-  DG:                  'Directeur général',
-  DA:                  'Dir. administrative',
-  DE:                  'Dir. des études',
-  AA:                  'Asst. admin',
-  IT:                  'Informatique',
+  DG:                  'Directeur',
+  DA:                  'Directeur Adjoint',
+  DE:                  'Directeur des Études',
+  AA:                  'Secrétariat',
+  IT:                  'Service SI',
   scolarite:           'Scolarité',
-  responsable_filiere: 'Resp. filière',
-  jury_president:      'Président jury',
+  chef_departement:    'Chef de département',
+  // Le socle SIGA raisonne par filieres ; l'IPGEI, lui, a deux niveaux et des
+  // departements par discipline. Le role reste — le code le connait — mais son
+  // libelle dit qu'il ne s'attribue pas ici.
+  responsable_filiere: 'Resp. filière (SIGA)',
+  jury_president:      'Président du jury',
   etudiant:            'Étudiant',
   enseignant:          'Enseignant',
 };

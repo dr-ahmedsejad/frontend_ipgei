@@ -10,7 +10,7 @@ import {
   Erreur, INPUT, SELECT, Toast, Vide, fmtCoef,
 } from '../_ui';
 import {
-  useMatiereMutations, useMatieres, useNiveauxCursus,
+  useMatiereMutations, useMatieres, useMatieresCompletes, useNiveauxCursus,
 } from '@/lib/api/ipgei-hooks';
 import { CODES_SEMESTRE, type CodeSemestre, type Matiere } from '@/types/ipgei';
 
@@ -19,6 +19,10 @@ type Formulaire = {
   /** Niveau dont cette matière fait partie de la maquette. */
   niveau_ref: number | null;
   coefficient: string; volume_cm: string; volume_td: string; volume_tp: string; has_tp: boolean;
+  /** ST ou Langues : le département dont le chef répond de cette matière. */
+  departement: '' | 'ST' | 'LANGUES';
+  /** Même enseignement qu'une autre matière : la porteuse où DS et TP se saisissent. */
+  partage_avec: number | null;
   pct_ds: string; pct_tp: string; pct_exam: string; ordre: string; actif: boolean;
 };
 
@@ -29,7 +33,7 @@ const PCT_AVEC_TP = { pct_ds: '20', pct_tp: '10', pct_exam: '70' };
 const VIDE: Formulaire = {
   code: '', intitule: '', code_semestre: 'S1', niveau_ref: null, coefficient: '1',
   volume_cm: '0', volume_td: '0', volume_tp: '0',
-  has_tp: false, ...PCT_SANS_TP, ordre: '0', actif: true,
+  has_tp: false, departement: '', partage_avec: null, ...PCT_SANS_TP, ordre: '0', actif: true,
 };
 
 export default function MatieresIPGEIPage() {
@@ -60,6 +64,21 @@ export default function MatieresIPGEIPage() {
     [form.pct_ds, form.pct_tp, form.pct_exam],
   );
 
+  // Enseignements auxquels se rattacher : le même semestre, le même niveau, et
+  // qui portent leur propre cours. On exclut celles qui sont DÉJÀ rattachées —
+  // sinon il faudrait décider où le devoir est vraiment composé — et la matière
+  // en cours d'édition, qui ne peut pas se rattacher à elle-même.
+  const { data: matieresDuSemestre = [] } = useMatieresCompletes(
+    { code_semestre: form.code_semestre }, formOuvert,
+  );
+  const matieresPorteuses = useMemo(
+    () => matieresDuSemestre.filter(m =>
+      m.id !== edition?.id
+      && m.partage_avec === null
+      && (form.niveau_ref === null || m.niveau_ref === form.niveau_ref)),
+    [matieresDuSemestre, edition, form.niveau_ref],
+  );
+
   const ouvrirAjout = () => {
     setEdition(null); setForm(VIDE); setErreurForm(null); setFormOuvert(true);
   };
@@ -71,7 +90,9 @@ export default function MatieresIPGEIPage() {
       niveau_ref: m.niveau_ref ?? null,
       coefficient: m.coefficient,
       volume_cm: String(m.volume_cm), volume_td: String(m.volume_td), volume_tp: String(m.volume_tp),
-      has_tp: m.has_tp, pct_ds: m.pct_ds, pct_tp: m.pct_tp, pct_exam: m.pct_exam,
+      has_tp: m.has_tp, departement: m.departement ?? '',
+      partage_avec: m.partage_avec ?? null,
+      pct_ds: m.pct_ds, pct_tp: m.pct_tp, pct_exam: m.pct_exam,
       ordre: String(m.ordre), actif: m.actif,
     });
     setErreurForm(null); setFormOuvert(true);
@@ -97,6 +118,8 @@ export default function MatieresIPGEIPage() {
       volume_td:      Number(form.volume_td) || 0,
       volume_tp:      Number(form.volume_tp) || 0,
       has_tp:         form.has_tp,
+      departement:    form.departement,
+      partage_avec:   form.partage_avec,
       pct_ds:         form.pct_ds,
       pct_tp:         form.has_tp ? form.pct_tp : '0',
       pct_exam:       form.pct_exam,
@@ -221,6 +244,42 @@ export default function MatieresIPGEIPage() {
               <input type="number" min="0" value={form.ordre} className={INPUT}
                      onChange={e => setForm(f => ({ ...f, ordre: e.target.value }))} />
             </div>
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">Département</label>
+              {/* L'axe du périmètre des chefs : le chef de ST ne voit que les
+                  matières ST. Vide, aucun chef ne la revendique. */}
+              <select value={form.departement} className={INPUT}
+                      onChange={e => setForm(f => ({ ...f, departement: e.target.value as Formulaire['departement'] }))}>
+                <option value="">— Aucun —</option>
+                <option value="ST">Sciences et techniques</option>
+                <option value="LANGUES">Langues</option>
+              </select>
+            </div>
+            {/* Deux lignes de maquette pour UN SEUL cours : en S3,
+                « Mathématiques 2 » et « Mathématiques » sont le même
+                enseignement — mêmes DS, même TP —, scindé parce que chacune
+                porte son examen et son coefficient. Le rattachement dit où les
+                devoirs se saisissent : ici, on ne saisira que l'examen. */}
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+                Même enseignement que
+              </label>
+              <select value={form.partage_avec ?? ''} className={SELECT}
+                      onChange={e => setForm(f => ({
+                        ...f, partage_avec: e.target.value ? Number(e.target.value) : null,
+                      }))}>
+                <option value="">— Enseignement propre —</option>
+                {matieresPorteuses.map(m => (
+                  <option key={m.id} value={m.id}>{m.code} — {m.intitule}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-iss-gray leading-snug">
+                Les DS et le TP seront saisis sur cette matière-là et vaudront pour
+                les deux. Seul l’examen se saisira ici. Le coefficient reste propre
+                à chacune.
+              </p>
+            </div>
+
             <div className="sm:col-span-3 flex items-end pb-2 gap-5">
               <label className="flex items-center gap-2 text-sm text-iss-dark cursor-pointer">
                 <input type="checkbox" checked={form.has_tp} className="w-4 h-4 accent-[#006633]"

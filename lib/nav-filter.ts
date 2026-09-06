@@ -60,6 +60,28 @@ export function isGroupActive(group: NavGroup, pathname: string): boolean {
 }
 
 /**
+ * Le lien du groupe qui décrit LE MIEUX l'URL courante, ou null.
+ *
+ * La correspondance par préfixe, seule, allumait plusieurs entrées d'un même
+ * groupe : « Liste des étudiants » (`/dashboard/scolarite/etudiants`) préfixe
+ * « Affectation aux groupes » (`…/etudiants/groupes`), et les deux
+ * s'affichaient en gras — impossible de savoir où l'on est.
+ *
+ * On applique donc aux items le départage déjà fait entre groupes : le lien
+ * retenu est le plus long qui corresponde, c'est-à-dire le plus précis.
+ */
+export function hrefActif(group: NavGroup, pathname: string): string | null {
+  let meilleur: string | null = null;
+  for (const item of group.items) {
+    const correspond = pathname === item.href || pathname.startsWith(item.href + '/');
+    if (correspond && (meilleur === null || item.href.length > meilleur.length)) {
+      meilleur = item.href;
+    }
+  }
+  return meilleur;
+}
+
+/**
  * Groupe auquel appartient réellement l'URL courante.
  *
  * Prendre le premier groupe « actif » ouvrait le mauvais : l'accueil IPGEI,

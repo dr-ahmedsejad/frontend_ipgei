@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  FileSpreadsheet, GraduationCap, Lock, Minus, Plus, RefreshCw, Save,
+  FileSpreadsheet, GraduationCap, Link2, Lock, Minus, Plus, RefreshCw, Save,
 } from 'lucide-react';
 
 import {
@@ -154,6 +154,19 @@ export default function SaisieNotesPage() {
   const verrouillee = grille?.verrouillee ?? false;
   const aDesTP      = grille?.matiere.has_tp ?? false;
   const modifie     = Object.keys(brouillon).length > 0;
+
+  // Enseignement partagé : cette matière suit le même cours qu'une autre. Les
+  // DS et le TP sont composés là-bas et valent ici — on les AFFICHE, en lecture
+  // seule, plutôt que de laisser des colonnes vides qui inviteraient à
+  // ressaisir un devoir déjà noté. Seul l'examen se saisit sur cet écran.
+  const partage       = grille?.partage ?? null;
+  const notesPartagees = useMemo(() => {
+    const index = new Map<number, Note>();
+    for (const n of partage?.notes ?? []) index.set(n.inscription, n);
+    return index;
+  }, [partage]);
+  /** La ligne où lire les DS et le TP : celle de la porteuse, ou la sienne. */
+  const source = (note: Note) => (partage ? notesPartagees.get(note.inscription) : note);
 
   // Chaque campagne a sa fenêtre : les DS relèvent de la session normale, le
   // rattrapage de la sienne. Griser la bonne colonne évite de laisser saisir
@@ -374,6 +387,13 @@ export default function SaisieNotesPage() {
               </>
             )}
 
+            {partage && (
+              <Badge ton="ambre">
+                <Link2 size={10} className="inline mr-1" />
+                Même enseignement que {partage.matiere.code}
+              </Badge>
+            )}
+
             {!verrouillee && epreuve !== 'rattrapage' && (
               <div className="ml-auto flex items-center gap-4">
                 {epreuve === 'ds'
@@ -388,7 +408,10 @@ export default function SaisieNotesPage() {
               c'est ce qu'on vérifie en saisissant. */}
           <div className="flex gap-1.5">
             {([
-              { cle: 'ds',   label: `Devoirs surveillés (${colonnesDS})` },
+              { cle: 'ds',
+                label: partage
+                  ? `Devoirs surveillés — ${partage.matiere.code}`
+                  : `Devoirs surveillés (${colonnesDS})` },
               { cle: 'exam', label: `Examens (${colonnesExam})` },
               { cle: 'rattrapage', label: 'Rattrapage' },
             ] as const).map(onglet => {
@@ -453,22 +476,29 @@ export default function SaisieNotesPage() {
                             <div className="text-xs text-iss-gray">{note.etudiant_matricule}</div>
                           </td>
 
-                          {epreuve === 'ds' && Array.from({ length: colonnesDS }, (_, i) => (
-                            <td key={`ds-${i}`} className="px-1 py-2">
-                              <CelluleNote
-                                valeur={valeurCellule(note, `ds-${i + 1}`, valeurEvaluation(note, 'ds', i + 1))}
-                                onChange={v => majCellule(note.id, `ds-${i + 1}`, v)}
-                                desactive={geleNormale}
-                              />
-                            </td>
-                          ))}
+                          {epreuve === 'ds' && Array.from({ length: colonnesDS }, (_, i) => {
+                            const lue = source(note);
+                            return (
+                              <td key={`ds-${i}`} className="px-1 py-2">
+                                <CelluleNote
+                                  valeur={partage
+                                    ? (lue ? valeurEvaluation(lue, 'ds', i + 1) ?? '' : '')
+                                    : valeurCellule(note, `ds-${i + 1}`, valeurEvaluation(note, 'ds', i + 1))}
+                                  onChange={v => majCellule(note.id, `ds-${i + 1}`, v)}
+                                  desactive={geleNormale || !!partage}
+                                />
+                              </td>
+                            );
+                          })}
 
                           {epreuve === 'ds' && aDesTP && (
                             <td className="px-1 py-2 bg-amber-50/40">
                               <CelluleNote
-                                valeur={valeurCellule(note, 'tp', note.note_tp)}
+                                valeur={partage
+                                  ? (source(note)?.note_tp ?? '')
+                                  : valeurCellule(note, 'tp', note.note_tp)}
                                 onChange={v => majCellule(note.id, 'tp', v)}
-                                desactive={geleNormale}
+                                desactive={geleNormale || !!partage}
                               />
                             </td>
                           )}
@@ -507,6 +537,23 @@ export default function SaisieNotesPage() {
               </div>
             )}
           </div>
+
+          {partage && (
+            <div className={`${CARTE} px-4 py-3`} style={{ borderLeft: '3px solid #b45309' }}>
+              <p className="text-xs text-iss-gray leading-relaxed">
+                <strong className="text-iss-dark">
+                  {grille.matiere.code} et {partage.matiere.code} sont un seul enseignement.
+                </strong>{' '}
+                Les devoirs surveillés et le TP sont composés une fois, sur{' '}
+                <strong>{partage.matiere.code}</strong>, et valent pour les deux — ils
+                s&apos;affichent ici en lecture seule.{' '}
+                <strong>Seul l&apos;examen se saisit sur cet écran</strong>, et chaque
+                matière garde son coefficient. Pour corriger un DS ou un TP, ouvrez la
+                grille de {partage.matiere.code} : {grille.matiere.code} suivra
+                automatiquement.
+              </p>
+            </div>
+          )}
 
           <p className="text-xs text-iss-gray leading-relaxed">
             Une case vide n&apos;est pas comptée : sa part est redistribuée sur les composantes

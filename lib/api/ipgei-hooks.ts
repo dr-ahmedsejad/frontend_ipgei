@@ -465,6 +465,14 @@ export function useInscriptionMutations() {
         inscriptionsApi.affecter(id, classe),
       onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
     }),
+    // Les sous-groupes d'une classe : la classe ne change pas, mais le
+    // département de l'étudiant suit le groupe — donc les listes d'appel et les
+    // séances dédoublées. On invalide large, comme pour l'affectation.
+    affecterGroupes: useMutation({
+      mutationFn: (affectations: { inscription: number; sous_groupe: number | null }[]) =>
+        inscriptionsApi.affecterGroupes(affectations),
+      onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.all }),
+    }),
     // Inscription complète : c'est le chemin normal d'une rentrée, l'étudiant
     // pouvant être créé au passage.
     nouvelle: useMutation({
@@ -506,6 +514,21 @@ export function useMatieresSelect(filters: MatiereFilters = {}) {
   return useQuery({
     queryKey: ipgeiKeys.matieresSelect(filters),
     queryFn:  () => matieresApi.select(filters),
+  });
+}
+
+/**
+ * Toutes les matières d'un filtre, sans pagination — la forme COMPLÈTE.
+ *
+ * `useMatieresSelect` ne rend qu'un extrait (code, coefficient, volumes) : il
+ * ne porte pas `partage_avec`, dont l'écran des matières a besoin pour proposer
+ * les enseignements auxquels se rattacher.
+ */
+export function useMatieresCompletes(filters: MatiereFilters = {}, actif = true) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.matieres.lists(), 'completes', filters] as const,
+    queryFn:  () => matieresApi.all(filters),
+    enabled:  actif,
   });
 }
 

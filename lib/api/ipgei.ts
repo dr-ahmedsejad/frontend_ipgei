@@ -155,6 +155,20 @@ export const inscriptionsApi = {
     ),
 
   /**
+   * Place plusieurs inscrits dans les sous-groupes de LEUR classe.
+   *
+   * La classe ne bouge pas — c'est ce qui distingue ce geste de `repartir`.
+   * `sous_groupe: null` sort l'élève de son groupe sans le sortir de sa classe.
+   */
+  affecterGroupes: (
+    affectations: { inscription: number; sous_groupe: number | null }[],
+  ) =>
+    apiFetch<{ affectees: number; mouvements: { etudiant: string; vers: string | null }[] }>(
+      `${BASE}/inscriptions/affecter-groupes/`,
+      { method: 'POST', body: { affectations } },
+    ),
+
+  /**
    * Repose le tarif de la grille sur les inscriptions d'une année.
    *
    * Le montant est figé à la création : c'est ce qui garde un reçu exact quand

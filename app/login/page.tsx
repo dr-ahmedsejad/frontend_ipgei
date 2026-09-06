@@ -11,6 +11,24 @@ import { safeImageSrc } from '@/lib/safe-image';
 interface Year { id: number; annee: string; }
 interface Institution { nom_fr: string; acronyme: string; logo_url: string | null; }
 
+/**
+ * Dernière institution connue, gardée d'une visite à l'autre.
+ *
+ * Sans elle, l'URL du logo n'existe qu'une fois l'appel API revenu : la requête
+ * d'image ne peut alors PAS commencer avant, et les deux attentes s'additionnent
+ * au lieu de se chevaucher — d'où un logo qui apparaît une demi-seconde après le
+ * reste de la page.
+ *
+ * `localStorage` et non le cache mémoire : la page de connexion est justement
+ * l'écran qu'on voit après avoir tout purgé, et la déconnexion n'a donc pas à
+ * l'effacer.
+ *
+ * On n'y garde que les TROIS champs affichés. La réponse du serveur en porte
+ * quarante — nom du directeur, sa signature, téléphone, courriel — qui n'ont
+ * rien à séjourner dans le navigateur de qui n'est pas encore connecté.
+ */
+const CLE_INSTITUTION = 'ipgei.institution.active';
+
 function LoginForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -68,9 +86,26 @@ function LoginForm() {
   }, []);
 
   useEffect(() => {
+    // Affichage immédiat depuis la dernière réponse connue. Lu ici et non dans
+    // l'initialiseur d'état : le serveur ne connaît pas `localStorage`, et les
+    // deux rendus divergeraient.
+    try {
+      const garde = localStorage.getItem(CLE_INSTITUTION);
+      if (garde) setInstitution(JSON.parse(garde) as Institution);
+    } catch { /* stockage indisponible : on attend le réseau, comme avant */ }
+
+    // Puis la vérité du serveur, qui corrige l'affichage si le logo a changé.
     fetch(`${API}/api/v1/parametres/institutions/active/`)
       .then(r => r.ok ? r.json() : null)
-      .then((data: Institution | null) => { if (data) setInstitution(data); })
+      .then((data: Institution | null) => {
+        if (!data) return;
+        setInstitution(data);
+        try {
+          const { nom_fr, acronyme, logo_url } = data;
+          localStorage.setItem(CLE_INSTITUTION,
+            JSON.stringify({ nom_fr, acronyme, logo_url }));
+        } catch { /* quota ou mode privé : rien à garder, rien à signaler */ }
+      })
       .catch(() => {});
   }, []);
 

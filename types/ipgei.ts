@@ -170,6 +170,17 @@ export interface Matiere {
   /** Total calculé côté serveur : CM + TD + TP. Jamais saisi. */
   volume_horaire: number;
   has_tp:         boolean;
+  /** Département disciplinaire — « ST », « LANGUES », ou vide. Axe du périmètre des chefs. */
+  departement:    '' | 'ST' | 'LANGUES';
+  /**
+   * Même enseignement qu'une autre matière : identifiant de la matière PORTEUSE,
+   * celle où les DS et le TP se saisissent. En S3, « Mathématiques 2 » pointe sur
+   * « Mathématiques » — un seul cours, un seul volume horaire, mais deux examens
+   * et deux coefficients. `null` pour une matière ordinaire.
+   */
+  partage_avec:          number | null;
+  partage_avec_code:     string;
+  partage_avec_intitule: string;
   pct_ds:         string;
   pct_tp:         string;
   pct_exam:       string;
@@ -544,6 +555,13 @@ export interface GrilleNotes {
   /** Et celle du rattrapage ? Les deux ne sont jamais ouvertes en même temps. */
   saisie_rattrapage: boolean;
   notes:       Note[];
+  /**
+   * Enseignement partagé : renseigné quand la matière consultée est RATTACHÉE à
+   * une autre. `matiere` est la porteuse, `notes` ses lignes — les mêmes
+   * étudiants, avec les DS et le TP qui valent aussi ici. La grille les affiche
+   * en lecture seule ; seul l'examen se saisit. `null` sinon.
+   */
+  partage: { matiere: Matiere; notes: Note[] } | null;
 }
 
 export interface SaisieEvaluation {

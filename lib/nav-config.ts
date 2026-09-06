@@ -95,9 +95,16 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Pilotage', roles: MANAGE, module: 'avancement',
     items: [
       { href: '/dashboard/avancement/em',         label: 'Avancement par matière' },
-      { href: '/dashboard/avancement/profs',      label: 'Avancement par enseignant' },
-      { href: '/dashboard/avancement/permanents', label: 'Charge des permanents' },
-      { href: '/dashboard/avancement/details',    label: 'Détail des enseignements' },
+      // Meme donnee, sans l'ecrasement par le maximum : c'est ici qu'on voit
+      // quel groupe est en retard, et sur quelle seance.
+      { href: '/dashboard/avancement/groupes',    label: 'Avancement par groupe' },
+      // Ces trois ecrans regardent les ENSEIGNANTS et leurs heures — charge,
+      // vacations —, non l'avancement d'une matiere. Ils relevent donc de
+      // `statistiques`, que la direction detient et pas un chef de departement :
+      // celui-ci suit ses matieres, il ne consulte pas la charge de l'institut.
+      { href: '/dashboard/avancement/profs',      label: 'Avancement par enseignant', module: 'statistiques' },
+      { href: '/dashboard/avancement/permanents', label: 'Charge des permanents',     module: 'statistiques' },
+      { href: '/dashboard/avancement/details',    label: 'Détail des enseignements',  module: 'statistiques' },
     ],
   },
 
@@ -109,6 +116,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/scolarite/etudiants/chercher', label: 'Chercher un étudiant' },
       { href: '/dashboard/scolarite/etudiants',          label: 'Liste des étudiants' },
+      // Composer les demi-groupes d'une classe : le geste de la rentrée, et
+      // celui d'après chaque répartition entre classes, qui les vide.
+      { href: '/dashboard/scolarite/etudiants/groupes',  label: 'Affectation aux groupes',
+        module: 'ipgei_inscriptions', action: 'modifier' },
       // Un étudiant d'IPGEI n'entre pas par ici : il arrive par l'inscription
       // IPGEI, qui lui donne son année, son niveau et sa classe d'un seul
       // geste. La saisie unitaire et l'import Excel du socle créaient un
@@ -266,7 +277,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Notes & jurys', roles: ALL,
     items: [
       { href: '/dashboard/ipgei/notes',          label: 'Saisie des notes',    module: 'ipgei_notes', action: 'modifier' },
-      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_notes' },
+      // Ouvrir ou clore une campagne engage tout l'etablissement : c'est un
+      // acte de scolarite, sous son propre module — un chef de departement
+      // lit les notes de sa discipline, il ne decide pas des campagnes.
+      { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_sessions' },
       { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',  module: 'ipgei_notes' },
       // La fiche d'emargement accompagne la collecte le jour de l'epreuve :
       // memes candidats, meme ordre. Elle vit donc a cote d'elle.

@@ -338,6 +338,13 @@ export default function PermissionsPage() {
                 {isAdminUser && <Lock size={18} className="text-amber-600 shrink-0" />}
               </div>
 
+              {/* Le périmètre disciplinaire : quelles matières ce responsable voit
+                  et modifie. Le RBAC ouvre des modules ; c'est ici qu'on dit,
+                  dans ces modules, lesquelles des matières sont les siennes. */}
+              {permsQ.data.user.role === 'chef_departement' && (
+                <PerimetrePanel userId={permsQ.data.user.id} />
+              )}
+
               {/* Arbre */}
               <div className="overflow-y-auto max-h-[calc(100vh-340px)]">
                 {groupsBySection.map(section => (
@@ -441,5 +448,104 @@ function SubItemRow({
         </span>
       </button>
     </li>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Périmètre d'un chef de département ou d'un coordinateur
+// ─────────────────────────────────────────────────────────────────────────────
+interface Perimetre { departement: '' | 'ST' | 'LANGUES'; matieres: number[] }
+interface MatiereOption { id: number; code: string; intitule: string; code_semestre: string; departement: string }
+
+function PerimetrePanel({ userId }: { userId: number }) {
+  const qc = useQueryClient();
+  const cle = ['ipgei', 'perimetre', userId] as const;
+
+  const perimetreQ = useQuery({
+    queryKey: cle,
+    queryFn:  () => apiFetch<Perimetre>(`/api/v1/ipgei/perimetres/${userId}/`),
+  });
+  const matieresQ = useQuery({
+    queryKey: ['ipgei', 'matieres', 'all', 'perimetre'] as const,
+    queryFn:  () => apiFetch<MatiereOption[]>('/api/v1/ipgei/matieres/all/?actif=true'),
+  });
+
+  const enregistrer = useMutation({
+    mutationFn: (p: Perimetre) =>
+      apiFetch<Perimetre>(`/api/v1/ipgei/perimetres/${userId}/`, { method: 'PUT', body: p }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: cle }),
+  });
+
+  const p = perimetreQ.data;
+  const matieres = matieresQ.data ?? [];
+  if (!p) return null;
+
+  const setDepartement = (departement: Perimetre['departement']) =>
+    enregistrer.mutate({ ...p, departement });
+  const basculerMatiere = (id: number) =>
+    enregistrer.mutate({
+      ...p,
+      matieres: p.matieres.includes(id) ? p.matieres.filter(x => x !== id) : [...p.matieres, id],
+    });
+
+  // Les matières déjà couvertes par le département n'ont pas à être cochées
+  // une à une : on les montre acquises, pour que l'écran dise la vérité.
+  const couverte = (m: MatiereOption) => !!p.departement && m.departement === p.departement;
+  const vide = !p.departement && p.matieres.length === 0;
+
+  return (
+    <div className="px-5 py-4 border-b border-gray-100 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-bold uppercase tracking-wider text-iss-gray/70">Périmètre</div>
+        {enregistrer.isPending && <span className="text-xs text-iss-gray">Enregistrement…</span>}
+      </div>
+
+      {vide && (
+        <p className="text-xs rounded px-3 py-2" style={{ background: 'rgba(234,179,8,0.12)', color: '#b45309' }}>
+          Aucun périmètre : ce responsable ne voit aucune matière tant que vous
+          n&apos;en désignez pas.
+        </p>
+      )}
+
+      <div>
+        <label className="block text-xs font-semibold text-iss-dark mb-1.5">Chef de département</label>
+        <div className="flex flex-wrap gap-2">
+          {([['', 'Aucun'], ['ST', 'Sciences et techniques'], ['LANGUES', 'Langues']] as const).map(([v, l]) => (
+            <button key={v} onClick={() => setDepartement(v)}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+                    style={p.departement === v
+                      ? { background: '#006633', color: '#fff', borderColor: '#006633' }
+                      : { borderColor: '#e5e7eb', color: '#374151' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+          Coordinateur — matières confiées
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+          {matieres.map(m => {
+            const acquise = couverte(m);
+            return (
+              <label key={m.id}
+                     className={`flex items-center gap-2 text-xs ${acquise ? 'text-iss-gray' : 'text-iss-dark cursor-pointer'}`}
+                     title={acquise ? 'Déjà couverte par le département' : undefined}>
+                <input type="checkbox" className="accent-[#006633]"
+                       checked={acquise || p.matieres.includes(m.id)}
+                       disabled={acquise}
+                       onChange={() => basculerMatiere(m.id)} />
+                <span>
+                  <span className="font-mono">{m.code}</span>
+                  <span className="ml-1 text-iss-gray">{m.code_semestre}</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
