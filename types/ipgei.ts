@@ -850,6 +850,14 @@ export interface ResultatDuplication {
   ignorees:          number;
   remplacees:        number;
   semaines_traitees: number;
+  /**
+   * Cases ECARTEES parce qu'elles auraient mis un enseignant ou une salle a
+   * deux endroits au meme moment. Distinct d'`ignorees`, qui compte les cases
+   * deja posees et volontairement laissees intactes.
+   */
+  conflits?:         number;
+  /** Les vingt premieres, pour les nommer plutot que les compter. */
+  details_conflits?: string[];
 }
 
 // ── Permutations ─────────────────────────────────────────────────────────────

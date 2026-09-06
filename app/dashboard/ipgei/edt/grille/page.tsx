@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CalendarRange, CheckCircle, ChevronLeft, ChevronRight, CopyPlus,
-  Loader2, Lock, Repeat, Save, Trash2, X,
+  AlertTriangle, CalendarRange, CheckCircle, ChevronLeft, ChevronRight,
+  CopyPlus, Loader2, Lock, Repeat, Save, Trash2, X,
 } from 'lucide-react';
 
 import {
@@ -26,7 +26,10 @@ import {
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
-import { type NiveauIPGEI, type SeanceReelle, type TypeSemestre } from '@/types/ipgei';
+import {
+  type NiveauIPGEI, type ResultatDuplication, type SeanceReelle,
+  type TypeSemestre,
+} from '@/types/ipgei';
 import {
   ModalePermutation,
 } from '../_seance-modales';
@@ -67,6 +70,12 @@ const cle = (jour: number, creneau: number, sousGroupe: string) =>
  */
 const BOUTON_CASE =
   'p-1.5 rounded-lg text-iss-gray transition-colors flex items-center gap-1';
+
+/** Les deux gestes qui rechargent la grille depuis le serveur. */
+const MSG_CLASSE =
+  'Changer de classe abandonnera les modifications non enregistrées.';
+const MSG_PERIODE =
+  'Changer de période abandonnera les modifications non enregistrées.';
 
 export default function GrilleTypePage() {
   const qc = useQueryClient();
@@ -189,8 +198,33 @@ export default function GrilleTypePage() {
   );
   const [toast, setToast]   = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  /**
+   * Geste mis en attente parce qu'il ferait perdre des modifications.
+   *
+   * Changer de classe ou de semaine recharge la grille depuis le serveur :
+   * tout ce qui n'est pas enregistré disparaît. Le badge le disait, personne
+   * ne le lisait — il fallait le demander.
+   */
+  const [aConfirmer, setAConfirmer] = useState<{
+    message: string; faire: () => void;
+  } | null>(null);
 
   const notifier = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3500); };
+
+  // Même protection que les autres écrans de saisie de l'application.
+  // `modifie` est calculé plus bas ; l'effet le relit à chaque rendu, ce qui
+  // suffit — le navigateur n'appelle le gestionnaire qu'à la fermeture.
+  const modifieRef = useRef(false);
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (modifieRef.current) {
+        e.preventDefault();
+        e.returnValue = 'Modifications non enregistrées. Quitter ?';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // `originaux` fige l'état serveur : c'est lui qui permet, à l'enregistrement,
   // de distinguer un ajout d'une modification et d'une suppression.
@@ -448,7 +482,19 @@ export default function GrilleTypePage() {
   };
 
   const modifie   = JSON.stringify(cases) !== JSON.stringify(originaux.current);
+  // Le gestionnaire `beforeunload` est posé une seule fois : il lit la
+  // référence, pas la valeur figée à l'enregistrement de l'écouteur.
+  modifieRef.current = modifie;
   const nbSeances = Object.values(cases).filter(c => c.matiereId).length;
+
+  /**
+   * Exécute un geste qui recharge la grille, en demandant d'abord si des
+   * modifications non enregistrées sont en jeu.
+   */
+  const siEnregistre = (message: string, faire: () => void) => {
+    if (!modifie) { faire(); return; }
+    setAConfirmer({ message, faire });
+  };
 
   // Compte du plan affiche, distinct du total : sans lui on ne saurait pas si
   // une grille vide l'est vraiment ou si l'on regarde simplement un autre plan.
@@ -495,14 +541,17 @@ export default function GrilleTypePage() {
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Classe</label>
             <select value={classeId ?? ''} className={SELECT}
                     onChange={e => {
-                      setClasseId(e.target.value ? Number(e.target.value) : null);
-                      setVue('');           // la vue d'une classe n'a pas de sens sur une autre
-                      // La semaine non plus : chaque niveau a ses propres
-                      // semaines. Garder l'identifiant de l'ancienne faisait
-                      // interroger la nouvelle classe sur une semaine qui ne
-                      // lui appartient pas — grille vide, et bandeau décrivant
-                      // une semaine qu'on ne regarde pas.
-                      setPeriodeId(null);
+                      const cible = e.target.value ? Number(e.target.value) : null;
+                      siEnregistre(MSG_CLASSE, () => {
+                        setClasseId(cible);
+                        setVue('');   // la vue d'une classe n'a pas de sens sur une autre
+                        // La semaine non plus : chaque niveau a ses propres
+                        // semaines. Garder l'identifiant de l'ancienne faisait
+                        // interroger la nouvelle classe sur une semaine qui ne
+                        // lui appartient pas — grille vide, et bandeau décrivant
+                        // une semaine qu'on ne regarde pas.
+                        setPeriodeId(null);
+                      });
                     }}>
               <option value="">— Classe —</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
@@ -515,17 +564,20 @@ export default function GrilleTypePage() {
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Période</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => {
+              <button onClick={() => siEnregistre(MSG_PERIODE, () => {
                         const i = semainesCours.findIndex(s => s.id === periodeId);
                         setPeriodeId(i <= 0 ? null : semainesCours[i - 1].id);
-                      }}
+                      })}
                       disabled={periodeId === null}
                       title="Période précédente"
                       className="p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 disabled:opacity-40 transition-colors">
                 <ChevronLeft size={14} />
               </button>
               <select value={periodeId ?? ''} className={SELECT} style={{ minWidth: 190 }}
-                      onChange={e => setPeriodeId(e.target.value ? Number(e.target.value) : null)}>
+                      onChange={e => {
+                        const cible = e.target.value ? Number(e.target.value) : null;
+                        siEnregistre(MSG_PERIODE, () => setPeriodeId(cible));
+                      }}>
                 <option value="">Grille type (toutes semaines)</option>
                 {semainesCours.map(s => (
                   <option key={s.id} value={s.id}>
@@ -533,10 +585,10 @@ export default function GrilleTypePage() {
                   </option>
                 ))}
               </select>
-              <button onClick={() => {
+              <button onClick={() => siEnregistre(MSG_PERIODE, () => {
                         const i = semainesCours.findIndex(s => s.id === periodeId);
                         if (i < semainesCours.length - 1) setPeriodeId(semainesCours[i + 1].id);
-                      }}
+                      })}
                       disabled={semainesCours.length === 0
                                 || periodeId === semainesCours[semainesCours.length - 1]?.id}
                       title="Période suivante"
@@ -885,6 +937,34 @@ export default function GrilleTypePage() {
         </>
       )}
 
+      {aConfirmer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+             onClick={() => setAConfirmer(null)} role="presentation">
+          <div className={`${CARTE} w-full max-w-sm p-5`}
+               onClick={e => e.stopPropagation()} role="presentation">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="text-amber-600" />
+              <h3 className="text-sm font-bold text-iss-dark">
+                Modifications non enregistrées
+              </h3>
+            </div>
+            <p className="text-sm text-iss-gray">{aConfirmer.message}</p>
+            {/* « Rester ici » porte le focus : le geste sûr est celui qu'on
+                obtient en appuyant sur Entrée sans lire. */}
+            <div className="flex gap-2 mt-5">
+              <button className={BTN_SECONDAIRE}
+                      onClick={() => { const g = aConfirmer.faire; setAConfirmer(null); g(); }}>
+                Abandonner les modifications
+              </button>
+              <button className={BTN_PRIMAIRE} style={{ background: DEGRADE }}
+                      autoFocus onClick={() => setAConfirmer(null)}>
+                Rester ici
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {duplicationOuverte && grilleId && (
         <ModaleDuplication
           grilleId={grilleId}
@@ -946,6 +1026,10 @@ function ModaleDuplication({
     if (!semestre && premierCandidat) setSemestre(premierCandidat);
   }, [premierCandidat, semestre]);
 
+  /** Rendu compte d'une duplication qui a écarté des cases. */
+  const [bilan, setBilan] = useState<
+    (ResultatDuplication & { resume: string }) | null>(null);
+
   const lancer = () => {
     if (!semestre) { setErreur('Choisissez un semestre.'); return; }
     if (portee === 'lot' && !semaineDebut) { setErreur('Choisissez la semaine de départ.'); return; }
@@ -961,10 +1045,16 @@ function ModaleDuplication({
         },
       },
       {
-        onSuccess: (r) => onFait(
-          `${r.creees} séance(s) créée(s) sur ${r.semaines_traitees} semaine(s)` +
-          (r.ignorees ? ` — ${r.ignorees} case(s) déjà occupée(s), laissée(s) intacte(s)` : ''),
-        ),
+        onSuccess: (r) => {
+          const resume =
+            `${r.creees} séance(s) créée(s) sur ${r.semaines_traitees} semaine(s)`
+            + (r.ignorees ? ` — ${r.ignorees} case(s) déjà occupée(s), laissée(s) intacte(s)` : '');
+          // Des cases écartées ne se disent pas dans un message qui s'efface :
+          // il manque des séances à la semaine, et il faut pouvoir lire
+          // lesquelles pour aller les replacer. La fenêtre reste donc ouverte.
+          if (r.conflits) { setBilan({ resume, ...r }); return; }
+          onFait(resume);
+        },
         onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
       },
     );
@@ -1062,12 +1152,44 @@ function ModaleDuplication({
 
         {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
 
+        {bilan && (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <div className="flex items-center gap-1.5 text-sm font-bold text-amber-800">
+              <AlertTriangle size={14} />
+              {bilan.conflits} case(s) écartée(s)
+            </div>
+            <p className="text-xs text-amber-800 mt-1">
+              {bilan.resume}. Ces créneaux mettraient un enseignant ou une salle
+              à deux endroits au même moment — replacez-les à la main.
+            </p>
+            <ul className="mt-2 space-y-0.5 max-h-44 overflow-y-auto">
+              {(bilan.details_conflits ?? []).map(d => (
+                <li key={d} className="text-xs text-amber-900 font-mono">{d}</li>
+              ))}
+            </ul>
+            {(bilan.conflits ?? 0) > (bilan.details_conflits?.length ?? 0) && (
+              <p className="text-xs text-amber-700 mt-1.5">
+                … et {(bilan.conflits ?? 0) - (bilan.details_conflits?.length ?? 0)} autre(s).
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 mt-5">
-          <button onClick={lancer} disabled={mutations.dupliquer.isPending}
-                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            <CopyPlus size={14} /> {mutations.dupliquer.isPending ? 'Duplication…' : 'Dupliquer'}
-          </button>
-          <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
+          {bilan ? (
+            <button onClick={() => onFait(bilan.resume)} className={BTN_PRIMAIRE}
+                    style={{ background: DEGRADE }}>
+              J&apos;ai noté
+            </button>
+          ) : (
+            <>
+              <button onClick={lancer} disabled={mutations.dupliquer.isPending}
+                      className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+                <CopyPlus size={14} /> {mutations.dupliquer.isPending ? 'Duplication…' : 'Dupliquer'}
+              </button>
+              <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
+            </>
+          )}
         </div>
       </div>
     </div>

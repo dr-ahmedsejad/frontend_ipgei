@@ -3,12 +3,26 @@
 /**
  * Autocomplétion de cellule d'emploi du temps.
  *
- * Reprise à l'identique du comportement de la grille « Gérer emplois » de SIGA
+ * Reprise du comportement de la grille « Gérer emplois » de SIGA
  * (`app/dashboard/emplois/gerer/page.tsx`) : saisie libre filtrante, liste
  * déroulante au focus, bordure bleue quand la case est remplie. L'objectif est
  * qu'un utilisateur passant de SIGA à IPGEI retrouve exactement les mêmes gestes.
+ *
+ * Deux défauts corrigés depuis, qui tenaient tous deux au fait que la sélection
+ * n'existait qu'à la souris :
+ *
+ *  - **Le champ pouvait mentir.** Taper le libellé EXACT — « MATH », une salle
+ *    « A1 » — puis Tab ne sélectionnait rien : `onChange` n'était appelé que
+ *    par un clic. Or la bordure « rempli » suit le TEXTE affiché, pas la
+ *    valeur : le champ avait l'air renseigné et ne l'était pas. Sur la matière,
+ *    c'est elle qui matérialise la case — la séance n'était pas créée.
+ *
+ *  - **Le clavier ne servait à rien.** Ni flèches, ni Entrée, ni Échap, et les
+ *    options ne réagissaient qu'à `onMouseDown`. Sur une grille où l'on
+ *    enchaîne quatre champs par case, c'est le geste le plus fréquent qui était
+ *    le moins servi.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { useTimeout } from '@/hooks/useTimeout';
 
@@ -26,8 +40,12 @@ export function AC({
   const [texte, setTexte]     = useState('');
   const [ouvert, setOuvert]   = useState(false);
   const [filtre, setFiltre]   = useState<OptionAC[]>([]);
+  /** Option sous le curseur clavier ; -1 = aucune. */
+  const [actif, setActif]     = useState(-1);
   const inputRef  = useRef<HTMLInputElement>(null);
+  const listeRef  = useRef<HTMLUListElement>(null);
   const blurTimer = useTimeout();
+  const idListe   = useId();
 
   /**
    * Le texte affiché suit la valeur sélectionnée.
@@ -45,37 +63,97 @@ export function AC({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  /** L'option dont le libellé est exactement le texte saisi, casse ignorée. */
+  const exacte = (t: string) =>
+    options.find(o => o.label.toLowerCase() === t.trim().toLowerCase());
+
   const saisir = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
     setTexte(q);
     setFiltre(q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options);
     setOuvert(true);
+    setActif(-1);
     if (!q) onChange('');
   };
 
-  const focus = () => { setFiltre(options); setOuvert(true); };
+  const focus = () => { setFiltre(options); setOuvert(true); setActif(-1); };
 
-  // Fermeture différée : sans ce délai, le blur précède le clic sur l'option et
-  // la sélection ne se ferait jamais.
+  /**
+   * Fermeture différée : sans ce délai, le blur précède le clic sur l'option et
+   * la sélection ne se ferait jamais.
+   *
+   * Un libellé exactement saisi VAUT une sélection. Sans cela, quitter le champ
+   * au clavier laissait la valeur vide sous un champ d'apparence remplie.
+   */
   const blur = () => {
     blurTimer.set(() => {
-      const exact = options.find(o => o.label.toLowerCase() === texte.toLowerCase());
-      if (!exact && texte) {
+      const opt = exacte(texte);
+      if (opt) {
+        if (opt.id !== value) onChange(opt.id);
+        setTexte(opt.label);
+      } else if (texte) {
         const courant = options.find(o => o.id === value);
         setTexte(courant ? courant.label : '');
       }
       setOuvert(false);
+      setActif(-1);
     }, 180);
   };
 
-  const choisir = (opt: OptionAC) => { setTexte(opt.label); onChange(opt.id); setOuvert(false); };
+  const choisir = (opt: OptionAC) => {
+    setTexte(opt.label); onChange(opt.id); setOuvert(false); setActif(-1);
+  };
+
+  const auClavier = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      // Revenir à la valeur retenue : Échap annule la saisie en cours, il ne
+      // vide pas la case.
+      const courant = options.find(o => o.id === value);
+      setTexte(courant ? courant.label : '');
+      setOuvert(false); setActif(-1);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!ouvert) { setFiltre(options); setOuvert(true); setActif(0); return; }
+      if (filtre.length === 0) return;
+      const pas = e.key === 'ArrowDown' ? 1 : -1;
+      setActif(i => (i + pas + filtre.length) % filtre.length);
+      return;
+    }
+    if (e.key === 'Enter') {
+      // Pas de formulaire ici, mais Entrée ne doit rien déclencher d'autre.
+      e.preventDefault();
+      if (ouvert && actif >= 0 && filtre[actif]) { choisir(filtre[actif]); return; }
+      const opt = exacte(texte);
+      if (opt) choisir(opt);
+      return;
+    }
+    if (e.key === 'Tab' && ouvert && actif >= 0 && filtre[actif]) {
+      // Tab valide ce qui est sous le curseur : c'est ce qu'on attend en
+      // enchaînant les champs d'une case.
+      choisir(filtre[actif]);
+    }
+  };
+
+  // Garder l'option active visible quand on parcourt une longue liste.
+  useEffect(() => {
+    if (actif < 0 || !listeRef.current) return;
+    const ligne = listeRef.current.children[actif] as HTMLElement | undefined;
+    ligne?.scrollIntoView({ block: 'nearest' });
+  }, [actif]);
 
   return (
     <div style={{ position: 'relative', marginBottom: 3 }}>
       <input
         ref={inputRef} type="text" value={texte} disabled={disabled}
-        onChange={saisir} onFocus={focus} onBlur={blur}
+        onChange={saisir} onFocus={focus} onBlur={blur} onKeyDown={auClavier}
         placeholder={placeholder} spellCheck={false} autoComplete="off"
+        role="combobox" aria-expanded={ouvert} aria-controls={idListe}
+        aria-autocomplete="list" aria-label={placeholder}
+        aria-activedescendant={
+          ouvert && actif >= 0 && filtre[actif] ? `${idListe}-${filtre[actif].id}` : undefined
+        }
         style={{
           width: '100%', padding: '3px 5px', fontSize: 11,
           border: texte ? '1px solid #3498db' : '1px solid #ccc',
@@ -84,18 +162,25 @@ export function AC({
         }}
       />
       {ouvert && filtre.length > 0 && (
-        <ul style={{
+        <ul ref={listeRef} id={idListe} role="listbox" style={{
           position: 'absolute', zIndex: 9999, left: 0, right: 0, top: '100%',
           background: 'white', border: '1px solid #ccc', borderTop: 'none',
           borderRadius: '0 0 4px 4px', maxHeight: 160, overflowY: 'auto',
           boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
           padding: 0, margin: 0, listStyle: 'none',
         }}>
-          {filtre.map(opt => (
-            <li key={opt.id} onMouseDown={() => choisir(opt)}
-                style={{ padding: '4px 8px', fontSize: 11, cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#eaf4fd')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'white')}>
+          {filtre.map((opt, i) => (
+            // `onMouseDown` et non `onClick` : le blur du champ précède le clic,
+            // et fermerait la liste avant que la sélection n'arrive.
+            <li key={opt.id} id={`${idListe}-${opt.id}`} role="option"
+                aria-selected={i === actif}
+                onMouseDown={() => choisir(opt)}
+                onMouseEnter={() => setActif(i)}
+                style={{
+                  padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+                  borderBottom: '1px solid #f0f0f0',
+                  background: i === actif ? '#eaf4fd' : 'white',
+                }}>
               {opt.label}
             </li>
           ))}
