@@ -29,6 +29,10 @@ const ACTION_OPTIONS = [
   { value: 'LOGIN_SUCCESS',     label: 'Connexion réussie' },
   { value: 'LOGIN_FAILED',      label: 'Échec connexion' },
   { value: 'LOGOUT',            label: 'Déconnexion' },
+  // Événements de sécurité : ils sont conservés indéfiniment, hors purge.
+  { value: 'PASSWORD_CHANGED',  label: 'Mot de passe modifié' },
+  { value: 'PASSWORD_RESET',    label: 'Réinitialisation MDP' },
+  { value: 'PERMISSION_DENIED', label: 'Accès refusé' },
 ];
 
 const PAGE_SIZE = 20;
