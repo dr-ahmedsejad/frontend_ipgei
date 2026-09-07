@@ -45,5 +45,16 @@ export function useComptesMutations() {
     },
   });
 
-  return { remove, toggleActive };
+  const reinitialiserMotDePasse = useMutation({
+    mutationFn: ({ id, nouveau }: { id: number; nouveau?: string }) =>
+      comptesApi.reinitialiserMotDePasse(id, nouveau),
+    // La liste n'affiche pas le mot de passe, mais `doit_changer_mdp` change :
+    // on la rafraîchit pour que rien ne reste en retard d'un état.
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: comptesKeys.lists() });
+      qc.invalidateQueries({ queryKey: comptesKeys.detail(id) });
+    },
+  });
+
+  return { remove, toggleActive, reinitialiserMotDePasse };
 }

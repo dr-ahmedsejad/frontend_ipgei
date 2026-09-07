@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { UserCog, Plus, Trash2, CheckCircle, Search, ToggleLeft, ToggleRight, Shield, Settings } from 'lucide-react';
+import { UserCog, Plus, Trash2, CheckCircle, Search, ToggleLeft,
+  ToggleRight, Shield, Settings, KeyRound, Copy, X } from 'lucide-react';
 import { ROLE_LABELS, type UserRole } from '@/lib/auth';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -27,11 +28,24 @@ export default function ComptesPage() {
   const [filterRole, setFilterRole] = useState('');
   const [toDelete,   setToDelete]   = useState<User | null>(null);
   const [toast,      setToast]      = useState<string | null>(null);
+  /** Compte dont on s'apprête à reposer le mot de passe. */
+  const [aReinitialiser, setAReinitialiser] = useState<User | null>(null);
+  /**
+   * Le mot de passe engendré, rendu UNE SEULE FOIS par le serveur.
+   *
+   * Il n'est stocké nulle part en clair et ne peut pas être relu : si
+   * l'administrateur ferme sans le noter, il refait l'opération. La fenêtre le
+   * dit, plutôt que de le laisser découvrir.
+   */
+  const [motDePasseRendu, setMotDePasseRendu] = useState<
+    { user: User; mot_de_passe: string } | null>(null);
+  const [erreurReinit, setErreurReinit] = useState<string | null>(null);
 
   const { data, isLoading, error: queryError } = useComptesList({
     page, search, role: filterRole,
   });
-  const { remove, toggleActive: toggleActiveMut } = useComptesMutations();
+  const { remove, toggleActive: toggleActiveMut,
+          reinitialiserMotDePasse } = useComptesMutations();
 
   const items   = data?.results ?? [];
   const count   = data?.count   ?? 0;
@@ -53,6 +67,19 @@ export default function ComptesPage() {
       onSuccess: () => showToast('Utilisateur supprimé'),
       onError:   (e) => alert(e instanceof Error ? e.message : 'Erreur'),
       onSettled: () => setToDelete(null),
+    });
+  };
+
+  const lancerReinitialisation = (user: User) => {
+    setErreurReinit(null);
+    reinitialiserMotDePasse.mutate({ id: user.id }, {
+      onSuccess: (r) => {
+        setAReinitialiser(null);
+        if (r.mot_de_passe) setMotDePasseRendu({ user, mot_de_passe: r.mot_de_passe });
+        else setToast(r.detail);
+      },
+      onError: (e) => setErreurReinit(
+        e instanceof Error ? e.message : 'Réinitialisation impossible'),
     });
   };
 
@@ -174,13 +201,18 @@ export default function ComptesPage() {
                         {item.is_active ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
-                    <td className="w-24">
+                    <td className="w-32">
                       <div className="flex items-center gap-1">
                         <button onClick={() => toggleActive(item)} title={item.is_active ? 'Désactiver' : 'Activer'}
                           className="p-1.5 rounded-lg text-iss-gray hover:text-iss-primary hover:bg-gray-100 transition-all">
                           {item.is_active
                             ? <ToggleRight size={16} style={{ color: '#006633' }} />
                             : <ToggleLeft size={16} />}
+                        </button>
+                        <button onClick={() => setAReinitialiser(item)}
+                          title="Réinitialiser le mot de passe"
+                          className="p-1.5 rounded-lg text-iss-gray hover:text-iss-primary hover:bg-gray-100 transition-all">
+                          <KeyRound size={13} />
                         </button>
                         <button onClick={() => setToDelete(item)}
                           className="p-1.5 rounded-lg text-iss-gray hover:text-iss-secondary hover:bg-red-50 transition-all">
@@ -206,6 +238,79 @@ export default function ComptesPage() {
         onConfirm={handleDelete}
         onCancel={() => setToDelete(null)}
       />
+
+      {/* Confirmation — l'ancien mot de passe sera perdu, on le dit. */}
+      <ConfirmModal
+        open={aReinitialiser !== null}
+        title="Réinitialiser le mot de passe ?"
+        message={aReinitialiser
+          ? `Un nouveau mot de passe sera engendré pour « ${aReinitialiser.username} ». `
+            + `L'ancien cessera de fonctionner immédiatement, et le compte devra `
+            + `en choisir un autre à sa prochaine connexion.`
+          : ''}
+        onConfirm={() => aReinitialiser && lancerReinitialisation(aReinitialiser)}
+        onCancel={() => { setAReinitialiser(null); setErreurReinit(null); }}
+      />
+
+      {/* Le mot de passe, rendu une seule fois. */}
+      {motDePasseRendu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+             onClick={() => setMotDePasseRendu(null)} role="presentation">
+          <div className="bg-white rounded-2xl shadow-card border border-gray-100 w-full max-w-md p-6"
+               onClick={e => e.stopPropagation()} role="presentation">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound size={18} style={{ color: '#006633' }} />
+                <h3 className="text-sm font-bold text-iss-dark">
+                  Mot de passe de {motDePasseRendu.user.username}
+                </h3>
+              </div>
+              <button onClick={() => setMotDePasseRendu(null)}
+                      className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
+              <code className="flex-1 font-mono text-base font-semibold text-iss-dark tracking-wide select-all">
+                {motDePasseRendu.mot_de_passe}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(motDePasseRendu.mot_de_passe);
+                  setToast('Mot de passe copié');
+                }}
+                title="Copier"
+                className="p-2 rounded-lg text-iss-gray hover:text-iss-primary hover:bg-white transition-all">
+                <Copy size={15} />
+              </button>
+            </div>
+
+            {/* Le point important : il ne se relit pas. */}
+            <p className="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              Notez-le maintenant : il n&apos;est stocké nulle part en clair et
+              ne pourra pas être retrouvé. Si vous fermez sans le transmettre,
+              il faudra recommencer.
+            </p>
+            <p className="mt-2 text-xs text-iss-gray">
+              {motDePasseRendu.user.name || motDePasseRendu.user.username} devra
+              en choisir un autre à sa prochaine connexion.
+            </p>
+
+            <button onClick={() => setMotDePasseRendu(null)}
+                    className="mt-5 w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white"
+                    style={{ background: 'linear-gradient(135deg,#006633,#008844)' }}>
+              J&apos;ai noté le mot de passe
+            </button>
+          </div>
+        </div>
+      )}
+
+      {erreurReinit && (
+        <div className="fixed top-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-semibold text-white shadow-xl bg-red-600">
+          {erreurReinit}
+        </div>
+      )}
 
       {toast && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white shadow-xl"
