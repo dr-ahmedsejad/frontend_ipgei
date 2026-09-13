@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Plus, Pencil, Trash2, X, Loader2, CheckCircle, Search, Power, Lock, Unlock } from 'lucide-react';
 import { Pagination } from '@/components/Pagination';
@@ -15,6 +15,11 @@ const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-g
 export default function AnneesPage() {
   const [page,    setPage]    = useState(1);
   const [search,  setSearch]  = useState('');
+
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search]);
 
   const { data, isLoading, error: queryError } = useAnneesList({ page, search });
   const { create, update, remove, activer, cloturer, rouvrir } = useAnneesMutations();

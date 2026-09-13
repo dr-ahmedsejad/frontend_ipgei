@@ -40,6 +40,11 @@ export default function ProfsPage() {
   const [page,       setPage]       = useState(1);
   const [search,     setSearch]     = useState('');
   const [filterType, setFilterType] = useState('');
+
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search, filterType]);
   const [showArchived, setShowArchived] = useState(false);
   const [toDelete,   setToDelete]   = useState<Prof | null>(null);
   const [toast,      setToast]      = useState<string | null>(null);

@@ -38,6 +38,11 @@ export default function EtudiantsPage() {
   const [filterGenre, setFilterGenre] = useState('');
   const [exporting, setExporting] = useState(false);
 
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search, filterStatut, filterGenre]);
+
   const filters = useMemo(() => {
     const f: Record<string, string | number> = { page };
     if (search)        f.search  = search;

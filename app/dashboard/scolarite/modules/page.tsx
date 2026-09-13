@@ -37,6 +37,11 @@ export default function ModulesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [filterFiliere, filterSem]);
+
   const filters = useMemo(() => {
     const f: Record<string, string | number> = { page, page_size: pageSize };
     if (filterFiliere) f['filiere']  = filterFiliere;

@@ -68,6 +68,11 @@ export default function EMPage() {
   const [filterFiliere, setFilterFiliere] = useState('');
   const [filterSem,     setFilterSem]     = useState('');
 
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search, filterFiliere, filterSem]);
+
   const [showForm,  setShowForm]  = useState(false);
   const [editing,   setEditing]   = useState<EM | null>(null);
   const [form,      setForm]      = useState<EMForm>(EMPTY);

@@ -26,6 +26,11 @@ export default function ComptesPage() {
   const [page,       setPage]       = useState(1);
   const [search,     setSearch]     = useState('');
   const [filterRole, setFilterRole] = useState('');
+
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search, filterRole]);
   const [toDelete,   setToDelete]   = useState<User | null>(null);
   const [toast,      setToast]      = useState<string | null>(null);
   /** Compte dont on s'apprête à reposer le mot de passe. */

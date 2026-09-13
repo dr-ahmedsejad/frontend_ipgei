@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRetour } from '@/lib/retour';
 import { ArrowLeft, Clock, Plus, Pencil, Trash2, X, Loader2, CheckCircle, Circle, Search } from 'lucide-react';
@@ -29,6 +29,11 @@ export default function CreneauxPage() {
   const retour = useRetour('/dashboard/parametres', 'Paramètres');
   const [page,    setPage]    = useState(1);
   const [search,  setSearch]  = useState('');
+
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [search]);
 
   const { data, isLoading, error: queryError } = useCreneauxList({ page, search });
   const { create, update, remove } = useCreneauxMutations();

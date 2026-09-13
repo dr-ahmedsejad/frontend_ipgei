@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus, PlayCircle, LockKeyhole, Unlock, CalendarDays, Scale } from 'lucide-react';
 import { useSessionsList, useSessionsMutations } from '@/lib/api/evaluations-hooks';
@@ -27,6 +27,11 @@ export default function SessionsPage() {
 
   const canEdit    = canAccess('evaluations_notes', 'modifier');
   const canRouvrir = isAdmin();
+
+  // Un filtre qui change ramène à la première page : sans cela, filtrer
+  // depuis la page 2 demande une page que la liste réduite n'a plus, et
+  // l'API répond 404 — ce que l'écran affiche comme une recherche cassée.
+  useEffect(() => { setPage(1); }, [filterType, filterSemestre]);
 
   const filters = useMemo(() => {
     const f: Record<string, string | number> = { page };
