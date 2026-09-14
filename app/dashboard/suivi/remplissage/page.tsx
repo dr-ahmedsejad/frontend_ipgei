@@ -395,7 +395,7 @@ export default function RemplissagePage() {
                                   }`}
                                 >
                                   <td className="px-4 py-3 text-xs font-mono text-iss-gray">
-                                    {sp.horaire_reel ?? sp.creneau_label ?? '—'}
+                                    {sp.horaire_reel || sp.creneau_label || '—'}
                                   </td>
                                   <td className="px-4 py-3 text-xs text-iss-gray">
                                     {filiere}
