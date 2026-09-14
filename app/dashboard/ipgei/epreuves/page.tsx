@@ -49,6 +49,11 @@ const DUREES = [
   { minutes: 240, libelle: '4h' },
 ];
 
+/**
+ * Pendant TypeScript de `LIBELLES_EPREUVE` (backend, `core/types_seance.py`).
+ * Les deux doivent bouger ensemble : le serveur nomme l'épreuve sur les fiches
+ * et les PDF, cet écran la nomme au moment où on la déclare.
+ */
 const TYPES: { code: TypeEpreuve; libelle: string }[] = [
   { code: 'DS', libelle: 'Devoir surveillé' },
   { code: 'EF', libelle: 'Examen final' },
