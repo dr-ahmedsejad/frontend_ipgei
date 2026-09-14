@@ -327,11 +327,11 @@ export default function ModifierVacationPage() {
   const handleSave = () => {
     if (!selectedProf)                            { setError('Le professeur est requis.');     return; }
     if (!selectedSeance)                          { setError('Le type de séance est requis.'); return; }
-    if (!isExemptSeance && !selectedEM)           { setError("L'élément de module (EM) est requis."); return; }
+    if (!isExemptSeance && !selectedEM)           { setError('La matière est requise.'); return; }
     if (!duree)                                   { setError('La durée est requise.');         return; }
     if (!date)                                    { setError('La date est requise.');          return; }
     if (!anneeUniv)                               { setError("L'année universitaire est requise."); return; }
-    if (!isExemptSeance && selDepts.length === 0) { setError('Sélectionnez au moins un groupe concerné.'); return; }
+    if (!isExemptSeance && selDepts.length === 0) { setError('Sélectionnez au moins une classe concernée.'); return; }
     setError(null);
     saveMut.mutate();
   };
@@ -383,7 +383,7 @@ export default function ModifierVacationPage() {
               onChange={setSelectedProf}
             />
             <AutocompleteField<EM>
-              label="Élément de module (EM)"
+              label="Matière"
               required={!isExemptSeance}
               placeholder={isExemptSeance ? 'Optionnel pour ce type…' : 'Code ou intitulé…'}
               localItems={ems}
@@ -423,15 +423,15 @@ export default function ModifierVacationPage() {
 
         <div className="p-5 space-y-3">
           <p className="text-xs font-bold uppercase tracking-widest text-iss-gray">
-            Groupes concernés {isExemptSeance && <span className="ml-1 normal-case font-medium text-iss-gray/60">(optionnel pour ce type)</span>}
+            Classes concernées {isExemptSeance && <span className="ml-1 normal-case font-medium text-iss-gray/60">(optionnel pour ce type)</span>}
           </p>
           {isExemptSeance && !selectedEM ? (
             <p className="text-xs text-iss-gray/50 italic">
-              Aucun groupe requis pour une séance de type «&nbsp;{selectedSeance?.type_seance}&nbsp;».
+              Aucune classe requise pour une séance de type «&nbsp;{selectedSeance?.type_seance}&nbsp;».
             </p>
           ) : !selectedEM ? (
             <p className="text-xs text-iss-gray/50 italic">
-              Choisissez un élément de module pour afficher les groupes éligibles.
+              Choisissez une matière pour afficher les classes éligibles.
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -449,7 +449,7 @@ export default function ModifierVacationPage() {
               ))}
               {visibleDepts.length === 0 && (
                 <p className="text-xs text-iss-gray/50">
-                  Aucun groupe ne correspond à la filière et au niveau de cet EM.
+                  Aucune classe ne correspond à la filière et au niveau de cette matière.
                 </p>
               )}
             </div>
