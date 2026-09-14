@@ -17,7 +17,7 @@ import {
   useSousGroupes, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
-import type { SeanceAffichable } from '@/types/ipgei';
+import type { EpreuveSurimpression, SeanceAffichable } from '@/types/ipgei';
 
 /**
  * Emploi du temps d'une classe, en lecture seule et imprimable.
@@ -86,23 +86,37 @@ export default function EdtParClassePage() {
    */
   const archive = useEdtPublie(semaineId, { classe: classeId });
   const vivant  = useEdtSemaine(classeId, semaineId);
-  // Tant que l'archive n'a pas répondu, on ne tranche pas : sans cette
-  // attente, l'écran montrerait le prévisionnel une fraction de seconde avant
-  // de basculer sur la version publiée.
-  const enAttente = archive.isLoading;
-  const archivee  = !enAttente && (archive.data?.length ?? 0) > 0;
-  const source    = archivee ? archive : vivant;
+  // Les épreuves ne sont pas des séances : elles viennent de leur propre
+  // calendrier, avec les créneaux qu'elles recouvrent, calculés par le serveur.
+  // Chaque ligne dit si elle vient de l'archive, ce qui sert juste en dessous.
+  const requeteEpreuves = useEpreuvesSemaine(classeId, semaineId);
+  const epreuves = useMemo<EpreuveSurimpression[]>(
+    () => requeteEpreuves.data ?? [], [requeteEpreuves.data]);
+
+  // Tant que l'une des deux sources n'a pas répondu, on ne tranche pas : sans
+  // cette attente, l'écran montrerait le prévisionnel une fraction de seconde
+  // avant de basculer sur la version publiée.
+  const enAttente = archive.isLoading || requeteEpreuves.isLoading;
+  /**
+   * Publiée pour cette classe ?
+   *
+   * La question porte sur LES DEUX archives. Ne regarder que celle des séances
+   * déclarait « prévisionnelle » une semaine d'examens dont le suivi était bel
+   * et bien généré : elle ne porte aucune séance, donc aucune ligne dans
+   * `EmploiArchive`, et le seul contenu qu'elle ait — l'épreuve — était
+   * archivé dans l'autre table.
+   */
+  const archivee = !enAttente && ((archive.data?.length ?? 0) > 0
+                                  || epreuves.some(e => e.archivee));
+  const source    = (archive.data?.length ?? 0) > 0 ? archive : vivant;
   // `?? []` fabriquerait un tableau neuf a chaque rendu, et le `useMemo`
   // ci-dessous se recalculerait indefiniment. La reference doit tenir.
   const toutesSeances = useMemo<SeanceAffichable[]>(
     () => (enAttente ? [] : source.data ?? []), [enAttente, source.data]);
   const isLoading = enAttente || source.isLoading;
-  const error     = archive.error ?? (archivee ? null : vivant.error);
+  const error     = archive.error ?? vivant.error ?? requeteEpreuves.error;
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
-  // Les épreuves ne sont pas des séances : elles viennent de leur propre
-  // calendrier, avec les créneaux qu'elles recouvrent, calculés par le serveur.
-  const { data: epreuves = [] } = useEpreuvesSemaine(classeId, semaineId);
   /**
    * Emploi du temps d'un sous-groupe = les séances de sa classe **plus** les
    * siennes.
