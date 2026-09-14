@@ -16,6 +16,15 @@ interface SuiviePointage {
   em_intitule:              string | null;
   salle_nom:                string | null;
   creneau_label:            string | null;
+  /**
+   * L'horaire RÉEL quand il déborde du créneau — « 08h00 → 12h00 ».
+   *
+   * Une épreuve dure 2h, 3h ou 4h et sa ligne est ancrée sur le PREMIER
+   * créneau qu'elle recouvre : afficher « 08h00-09h30 » pour un examen qui
+   * court jusqu'à midi trompe le surveillant. Vide pour toute séance
+   * ordinaire, dont la durée colle au créneau.
+   */
+  horaire_reel?:            string;
   type_seance_label:        string | null;
   type_seance_is_special?:  boolean;
   jour_label:               string | null;
@@ -386,7 +395,11 @@ export default function RemplissagePage() {
                                   }`}
                                 >
                                   <td className="px-4 py-3 text-xs font-mono text-iss-gray">
-                                    {sp.creneau_label ?? '—'}
+                                    {sp.horaire_reel
+                                      ? <span className="font-semibold text-iss-dark">
+                                          {sp.horaire_reel}
+                                        </span>
+                                      : (sp.creneau_label ?? '—')}
                                   </td>
                                   <td className="px-4 py-3 text-xs text-iss-gray">
                                     {filiere}
