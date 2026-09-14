@@ -153,7 +153,10 @@ export default function EdtParClassePage() {
             }}
             nomDefaut={`Emploi_${classe?.nom ?? 'classe'}`
               + `${nomPlan ? `_${nomPlan}` : ''}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId && seances.length > 0}
+            // Une épreuve suffit à faire un document. Une semaine d'examens
+            // n'a souvent rien d'autre à montrer, et c'est celle qu'on
+            // distribue le plus.
+            actif={!!semaineId && (seances.length > 0 || epreuves.length > 0)}
           />
         ) : undefined}
       />
