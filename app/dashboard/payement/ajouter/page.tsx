@@ -208,6 +208,11 @@ export default function AjouterVacationPage() {
       // pouvait que retrancher — zéro EM proposé dès qu'on changeait
       // d'année. C'est le type de semestre qui fait le tri utile.
       if (typeSem) params.set('semestre__type_semestre', typeSem);
+      // Ne proposer que les EM qui reflètent une matière de la maquette :
+      // le socle porte des EM hérités d'avant le fork — CHIM, EPS aux
+      // quatre semestres — auxquels aucun enseignement ne correspond ici,
+      // et sur lesquels on saisirait des heures qui n'existent pas.
+      params.set('miroir', '1');
       params.set('page_size', '500');
       // EDT scope : ne propose que les EMs rattaches aux groupes geres
       // par le user (admin compris s'il a configure ses managed_departements).

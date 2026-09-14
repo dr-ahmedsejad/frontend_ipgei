@@ -208,6 +208,11 @@ export default function ModifierVacationPage() {
       // pouvait que retrancher — zéro EM proposé dès qu'on changeait
       // d'année. C'est le type de semestre qui fait le tri utile.
       if (typeSem) p.set('semestre__type_semestre', typeSem);
+      // Ne proposer que les EM qui refletent une matiere de la maquette :
+      // le socle porte des EM herites d avant le fork — CHIM, EPS aux quatre
+      // semestres — auxquels aucun enseignement ne correspond ici, et sur
+      // lesquels on saisirait des heures qui n existent pas.
+      p.set('miroir', '1');
       p.set('page_size', '500');
       const r = await apiFetch<{ results: EM[] } | EM[]>(`/api/v1/ems/?${p.toString()}`)
         .catch(() => [] as EM[]);
