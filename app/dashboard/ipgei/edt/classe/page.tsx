@@ -218,11 +218,7 @@ export default function EdtParClassePage() {
       {/* Avant le PDF : dire si ce qu'on s'apprête à imprimer correspond
           encore au suivi de cette semaine. */}
       {classeId && (
-        <BandeauCoherence
-          semaine={semaine}
-          previsionnel={!archivee}
-          avecEpreuves={epreuves.length > 0}
-        />
+        <BandeauCoherence semaine={semaine} previsionnel={!archivee} />
       )}
 
       {!classeId ? (

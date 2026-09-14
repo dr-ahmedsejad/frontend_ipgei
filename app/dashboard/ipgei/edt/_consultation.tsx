@@ -10,7 +10,7 @@
  * n'apporte rien, c'est la classe qui manque.
  */
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight,
+  AlertTriangle, CalendarClock, ChevronLeft, ChevronRight,
   FileText, Loader2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -154,7 +154,7 @@ export function BoutonPDF({ chemin, params, nomDefaut, actif = true }: {
  * a changé APRÈS que le suivi en a été tiré, donc après que des heures ont été
  * pointées, et potentiellement payées, sur une autre version.
  */
-export function BandeauCoherence({ semaine, previsionnel, avecEpreuves }: {
+export function BandeauCoherence({ semaine, previsionnel }: {
   semaine?: SemaineIPGEI;
   /**
    * Annonce du prévisionnel malgré l'état de la semaine.
@@ -163,29 +163,20 @@ export function BandeauCoherence({ semaine, previsionnel, avecEpreuves }: {
    * la prise de vue se fait classe par classe. Générer le suivi d'une seule
    * classe marque la semaine entière « alignée » : les autres classes
    * affichaient « à jour » au-dessus de séances archivées nulle part.
-   *
-   * On ne dit PAS pourquoi. Une première version distinguait « jamais généré »
-   * de « généré pour d'autres classes », déduit du drapeau de la semaine — et
-   * l'affirmation s'est révélée fausse sur une semaine marquée générée mais
-   * vide, qui n'avait d'archive pour personne. Rien, dans ce que l'écran sait,
-   * ne permet de trancher ; mieux vaut le fait que la supposition.
    */
   previsionnel?: boolean;
-  /**
-   * La semaine porte des épreuves. Elles sont FERMES, elles : déclarées au
-   * calendrier, elles ne passent pas par la publication de l'emploi du temps.
-   * Sans cette nuance, le bandeau annonce « peut encore changer » au-dessus
-   * d'une grille dont le seul contenu est un examen convoqué.
-   */
-  avecEpreuves?: boolean;
 }) {
   if (!semaine) return null;
 
   const etat = previsionnel ? 'previsionnel' : semaine.etat_coherence;
 
+  // RIEN quand tout va bien. « Suivi généré et à jour » ne dit pas autre chose
+  // que l'absence de réserve : c'est le cas normal, et l'annoncer sur chaque
+  // semaine ajoutait une ligne de jargon au-dessus de la grille.
+  if (etat === 'aligne') return null;
+
   const styles = {
     previsionnel: { bg: '#f8fafc', bord: '#cbd5e1', texte: '#475569', Icone: CalendarClock },
-    aligne:       { bg: '#f0fdf4', bord: '#86efac', texte: '#166534', Icone: CheckCircle2 },
     divergent:    { bg: '#fef2f2', bord: '#fca5a5', texte: '#b91c1c', Icone: AlertTriangle },
   }[etat] ?? null;
   if (!styles) return null;
@@ -198,27 +189,18 @@ export function BandeauCoherence({ semaine, previsionnel, avecEpreuves }: {
       <div>
         <span className="font-semibold">
           Semaine {semaine.numero} — {previsionnel
-            ? 'Prévisionnel — non publié pour cette classe'
+            ? 'Prévisionnel'
             : semaine.libelle_coherence}
         </span>
+        {/* La DIVERGENCE garde son explication : elle est la seule à demander
+            un geste — régénérer le suivi —, et dire seulement « modifié après
+            la génération » laisserait chercher quoi faire. Le prévisionnel,
+            lui, se comprend seul. */}
         {etat === 'divergent' && (
           <span className="block text-xs mt-0.5">
             Le pointage, la charge et les vacations de cette semaine reposent sur une
             version antérieure de l&apos;emploi du temps. Régénérez son suivi pour les
             réaligner — les pointages déjà saisis sont conservés.
-          </span>
-        )}
-        {etat === 'previsionnel' && (
-          <span className="block text-xs mt-0.5">
-            Cet emploi du temps n&apos;a pas été publié pour cette classe : les
-            cours affichés restent prévisionnels et peuvent changer.
-            {avecEpreuves && (
-              // Le bandeau qualifie les COURS. Une épreuve est convoquée, pas
-              // planifiée : l'annoncer « susceptible de changer » ferait douter
-              // d'une date que les étudiants ont déjà reçue.
-              <> Les épreuves, elles, sont fermes : déclarées au calendrier, elles
-                 ne dépendent pas de cette publication.</>
-            )}
           </span>
         )}
       </div>
