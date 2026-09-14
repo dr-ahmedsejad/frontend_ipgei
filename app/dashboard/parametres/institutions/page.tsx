@@ -112,6 +112,11 @@ export default function InstitutionsPage() {
   /* ─── Enregistrer ── */
   async function handleSave() {
     if (!form.nom_fr?.trim()) { toast.error('Le nom (FR) est obligatoire.'); return; }
+    // `acronyme` est UNIQUE et NON NULL en base (max. 20). Sans garde ici,
+    // le serveur renvoie une erreur DRF brute là où l'utilisateur attend
+    // une phrase — et sur l'écran d'édition, vider la case revenait à
+    // demander l'impossible sans jamais savoir pourquoi.
+    if (!form.acronyme?.trim()) { toast.error('Le sigle est obligatoire.'); return; }
     setSaving(true);
     try {
       const updated = modal === 'add'
@@ -358,6 +363,7 @@ export default function InstitutionsPage() {
                     <FormField
                       label="Sigle" value={form.acronyme ?? ''}
                       onChange={setE('acronyme')} placeholder="ex: ISS"
+                      required maxLength={20}
                     />
 
                     {/* Toggle institution principale */}

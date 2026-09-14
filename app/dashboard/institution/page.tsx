@@ -86,12 +86,17 @@ export default function InstitutionPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!inst || !isAdmin) return;
+    // `acronyme` est UNIQUE et NON NULL en base (max. 20). Sans garde ici,
+    // le serveur renvoie une erreur DRF brute là où l'utilisateur attend
+    // une phrase — et sur l'écran d'édition, vider la case revenait à
+    // demander l'impossible sans jamais savoir pourquoi.
+    if (!sigle.trim()) { toast.error('Le sigle est obligatoire.'); return; }
     setSaving(true);
     try {
       const updated = await institutionApi.update(inst.id, {
         nom_fr: nomFr, nom_ar: nomAr,
         nom_complet_fr: nomCompletFr, nom_complet_ar: nomCompletAr,
-        acronyme: sigle,
+        acronyme: sigle.trim(),
         adresse_fr: adresseFr, adresse_ar: adresseAr,
         telephone: tel, email, site_web: site,
         directeur_nom_fr: dirNomFr, directeur_nom_ar: dirNomAr,
@@ -172,6 +177,7 @@ export default function InstitutionPage() {
             <FormField
               label="Sigle" value={sigle} onChange={e => setSigle(e.target.value)}
               placeholder="ex: ISS" readOnly={!isAdmin}
+              required maxLength={20}
             />
           </div>
 
