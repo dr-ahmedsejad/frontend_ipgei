@@ -203,7 +203,10 @@ export default function ModifierVacationPage() {
     queryKey: ['ems', 'vacation-modifier', anneeUniv || annee, typeSem] as const,
     queryFn: async () => {
       const p = new URLSearchParams();
-      p.set('departement__annee_universitaire', anneeUniv || annee);
+      // Pas de filtre sur l'année : un EM miroir n'est pas daté. Son
+      // `departement` ne lui donne qu'un NIVEAU, et filtrer dessus ne
+      // pouvait que retrancher — zéro EM proposé dès qu'on changeait
+      // d'année. C'est le type de semestre qui fait le tri utile.
       if (typeSem) p.set('semestre__type_semestre', typeSem);
       p.set('page_size', '500');
       const r = await apiFetch<{ results: EM[] } | EM[]>(`/api/v1/ems/?${p.toString()}`)

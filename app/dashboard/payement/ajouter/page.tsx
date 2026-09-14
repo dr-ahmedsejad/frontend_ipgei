@@ -203,7 +203,10 @@ export default function AjouterVacationPage() {
     queryKey: ['ems', 'vacation-ajouter', 'edt-scope', anneeUniv || annee, typeSem] as const,
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('departement__annee_universitaire', anneeUniv || annee);
+      // Pas de filtre sur l'année : un EM miroir n'est pas daté. Son
+      // `departement` ne lui donne qu'un NIVEAU, et filtrer dessus ne
+      // pouvait que retrancher — zéro EM proposé dès qu'on changeait
+      // d'année. C'est le type de semestre qui fait le tri utile.
       if (typeSem) params.set('semestre__type_semestre', typeSem);
       params.set('page_size', '500');
       // EDT scope : ne propose que les EMs rattaches aux groupes geres
