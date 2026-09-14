@@ -146,6 +146,9 @@ export default function EdtParClassePage() {
   // été lancée. C'est le cas le plus fréquent, et le moins deviné.
   const grilleRemplie = (grille?.nb_seances ?? 0) > 0;
 
+  /** La semaine a-t-elle quoi que ce soit à montrer pour cette classe ? */
+  const aQuelqueChose = seances.length > 0 || epreuves.length > 0;
+
   return (
     <div className="space-y-4">
       <EnTetePage
@@ -230,8 +233,15 @@ export default function EdtParClassePage() {
       <Erreur erreur={error} />
 
       {/* Avant le PDF : dire si ce qu'on s'apprête à imprimer correspond
-          encore au suivi de cette semaine. */}
-      {classeId && (
+          encore au suivi de cette semaine.
+
+          Rien à qualifier quand il n'y a rien à montrer : sur une semaine
+          vide, « Prévisionnel » ne dit rien de la classe — l'écran affiche
+          déjà, juste en dessous, ce qui manque et comment y remédier. La
+          DIVERGENCE, elle, reste visible même à vide : une semaine dont le
+          suivi a été tiré d'un emploi du temps qui n'existe plus est
+          précisément ce qu'il faut signaler. */}
+      {classeId && (aQuelqueChose || semaine?.etat_coherence === 'divergent') && (
         <BandeauCoherence semaine={semaine} previsionnel={!archivee} />
       )}
 
