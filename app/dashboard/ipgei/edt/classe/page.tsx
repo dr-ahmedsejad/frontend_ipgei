@@ -12,11 +12,12 @@ import {
   BandeauCoherence, BoutonPDF, GrilleConsultation, SelecteurSemaine,
 } from '../_consultation';
 import {
-  useClassesSelect, useEdtPublie, useEpreuvesSemaine, useGrillePourClasse,
-  useSemaines, useSemestresAll,
+  useClassesSelect, useEdtPublie, useEdtSemaine, useEpreuvesSemaine,
+  useGrillePourClasse, useSemaines, useSemestresAll,
   useSousGroupes, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
+import type { SeanceAffichable } from '@/types/ipgei';
 
 /**
  * Emploi du temps d'une classe, en lecture seule et imprimable.
@@ -57,19 +58,41 @@ export default function EdtParClassePage() {
   );
   const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
 
-  // Source : l'emploi du temps PUBLIÉ, c'est-à-dire celui qui a servi à
-  // générer le suivi. La grille en cours de préparation se travaille dans
-  // « Gérer les emplois » ; l'afficher ici reviendrait à distribuer aux
-  // étudiants une version que personne n'a encore arrêtée.
-  const { data: toutesSeances = [], isLoading, error } =
-    useEdtPublie(semaineId, { classe: classeId });
+  const semaine = semaines.find(s => s.id === semaineId);
+
+  /**
+   * Publiée = son suivi a été généré, et la prise de vue prise avec lui.
+   * `suivi_genere_le` est ce qui en fait foi.
+   */
+  const publie = !!semaine?.suivi_genere_le;
+
+  /**
+   * DEUX sources, selon que la semaine est publiée ou non.
+   *
+   * Publiée, on lit l'ARCHIVE : c'est la version qui a servi à générer le
+   * suivi, et donc à pointer les heures. La grille courante a pu bouger
+   * depuis ; montrer celle-ci à la place ferait circuler un document qui ne
+   * correspond plus à ce sur quoi on a payé.
+   *
+   * Non publiée, il n'existe aucune archive — l'écran se fermait alors
+   * entièrement. Mais un emploi du temps prévisionnel a sa raison d'être : on
+   * le consulte pour préparer, pour vérifier une salle, pour répondre à un
+   * étudiant. On rend donc les séances EN PRÉPARATION, et le bandeau de
+   * cohérence dit, juste au-dessus, qu'elles peuvent encore changer.
+   */
+  const archive = useEdtPublie(publie ? semaineId : null, { classe: classeId });
+  const vivant  = useEdtSemaine(publie ? null : classeId, semaineId);
+  const source  = publie ? archive : vivant;
+  // `?? []` fabriquerait un tableau neuf a chaque rendu, et le `useMemo`
+  // ci-dessous se recalculerait indefiniment. La reference doit tenir.
+  const toutesSeances = useMemo<SeanceAffichable[]>(
+    () => source.data ?? [], [source.data]);
+  const { isLoading, error } = source;
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
   // Les épreuves ne sont pas des séances : elles viennent de leur propre
   // calendrier, avec les créneaux qu'elles recouvrent, calculés par le serveur.
   const { data: epreuves = [] } = useEpreuvesSemaine(classeId, semaineId);
-  const semaine = semaines.find(s => s.id === semaineId);
-
   /**
    * Emploi du temps d'un sous-groupe = les séances de sa classe **plus** les
    * siennes.
@@ -99,32 +122,28 @@ export default function EdtParClassePage() {
   // été lancée. C'est le cas le plus fréquent, et le moins deviné.
   const grilleRemplie = (grille?.nb_seances ?? 0) > 0;
 
-  /**
-   * Une semaine n'est visible ici qu'une fois publiée.
-   *
-   * `suivi_genere_le` est ce qui en fait foi : c'est l'horodatage posé par la
-   * génération, celle-là même qui prend l'archive. Une semaine sans lui n'a
-   * rien à montrer — et le dire vaut mieux qu'une grille vide, qui se lirait
-   * comme « aucun cours cette semaine ».
-   */
-  const publie = !!semaine?.suivi_genere_le;
-
   return (
     <div className="space-y-4">
       <EnTetePage
         icone={<Users size={14} className="text-white" />}
         titre="Emploi du temps par classe"
         sousTitre={`${annee} · ${libelleSemestreSession()}`}
+        // Le PDF suit la source affichée. L'archive n'existe qu'une fois le
+        // suivi généré ; avant cela, c'est la grille en préparation qu'on
+        // imprime — même gabarit, et le document porte lui-même sa mention.
         actions={classeId ? (
           <BoutonPDF
-              chemin="/api/v1/ipgei/archives-edt/pdf/"
-              params={{
-                classe:  String(classeId),
-                semaine: String(semaineId ?? ''),
-              }}
+            chemin={publie
+              ? '/api/v1/ipgei/archives-edt/pdf/'
+              : '/api/v1/ipgei/seances/pdf-classe/'}
+            params={{
+              classe:  String(classeId),
+              semaine: String(semaineId ?? ''),
+              ...(publie || !plan ? {} : { sous_groupe: plan }),
+            }}
             nomDefaut={`Emploi_${classe?.nom ?? 'classe'}`
               + `${nomPlan ? `_${nomPlan}` : ''}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId && publie}
+            actif={!!semaineId}
           />
         ) : undefined}
       />
@@ -191,21 +210,8 @@ export default function EdtParClassePage() {
         <div className={CARTE}>
           <Vide texte="Choisissez une classe pour afficher son emploi du temps." />
         </div>
-      ) : semaineId && !publie ? (
-        <div className={CARTE}>
-          <Vide
-            texte={`L'emploi du temps de la semaine ${semaine?.numero ?? ''} n'est pas `
-                 + `encore publié : son suivi n'a pas été généré. Il le sera `
-                 + `depuis « Suivi → Ajouter », ce qui le rendra visible ici.`}
-            action={
-              <Link href="/dashboard/suivi/ajouter" className={BTN_PRIMAIRE}
-                    style={{ background: DEGRADE }}>
-                <CopyPlus size={14} /> Générer le suivi de la semaine
-              </Link>
-            }
-          />
-        </div>
-      ) : !isLoading && seances.length === 0 && grilleRemplie ? (
+      ) : !isLoading && seances.length === 0 && epreuves.length === 0
+           && grilleRemplie ? (
         <div className={CARTE}>
           <Vide
             texte={`La grille type de ${classe?.nom} contient ${grille?.nb_seances} séance(s), `
@@ -234,6 +240,10 @@ export default function EdtParClassePage() {
              semaine && `du ${formatDate(semaine.date_debut)} au ${formatDate(semaine.date_fin)}`,
             ].filter(Boolean).join('  ·  '),
             `Année universitaire ${annee}`,
+            // Une grille imprimée circule détachée de l'écran qui l'a produite.
+            // Si elle n'est pas encore publiée, elle doit le dire elle-même :
+            // rien d'autre ne distinguera la version arrêtée du brouillon.
+            publie ? '' : 'PRÉVISIONNEL — suivi non généré, cet emploi du temps peut encore changer',
           ]}
           vide={`Aucune séance pour ${classe?.nom ?? 'cette classe'} : sa grille type est vide. `
               + `Renseignez-la dans « Gérer les emplois », puis dupliquez-la sur le semestre.`}
