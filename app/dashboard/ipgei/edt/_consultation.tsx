@@ -154,14 +154,31 @@ export function BoutonPDF({ chemin, params, nomDefaut, actif = true }: {
  * a changé APRÈS que le suivi en a été tiré, donc après que des heures ont été
  * pointées, et potentiellement payées, sur une autre version.
  */
-export function BandeauCoherence({ semaine }: { semaine?: SemaineIPGEI }) {
+export function BandeauCoherence({ semaine, motifPrevisionnel }: {
+  semaine?: SemaineIPGEI;
+  /**
+   * Annonce du prévisionnel malgré l'état de la semaine, et dit POURQUOI.
+   *
+   * `etat_coherence` et `suivi_genere_le` appartiennent à la SEMAINE, alors que
+   * la prise de vue se fait classe par classe. Générer le suivi d'une seule
+   * classe marque la semaine entière « alignée » : les autres classes
+   * affichaient « à jour » au-dessus de séances archivées nulle part.
+   *
+   * Le motif vient de l'appelant, seul à savoir si la semaine a été publiée
+   * pour d'AUTRES classes — l'état de la semaine ne permet pas de l'en
+   * distinguer, puisqu'il vaut « aligné » dans les deux cas.
+   */
+  motifPrevisionnel?: 'jamais-genere' | 'autre-classe';
+}) {
   if (!semaine) return null;
+
+  const etat = motifPrevisionnel ? 'previsionnel' : semaine.etat_coherence;
 
   const styles = {
     previsionnel: { bg: '#f8fafc', bord: '#cbd5e1', texte: '#475569', Icone: CalendarClock },
     aligne:       { bg: '#f0fdf4', bord: '#86efac', texte: '#166534', Icone: CheckCircle2 },
     divergent:    { bg: '#fef2f2', bord: '#fca5a5', texte: '#b91c1c', Icone: AlertTriangle },
-  }[semaine.etat_coherence] ?? null;
+  }[etat] ?? null;
   if (!styles) return null;
 
   const { Icone } = styles;
@@ -171,19 +188,28 @@ export function BandeauCoherence({ semaine }: { semaine?: SemaineIPGEI }) {
       <Icone size={16} style={{ flexShrink: 0, marginTop: 1 }} />
       <div>
         <span className="font-semibold">
-          Semaine {semaine.numero} — {semaine.libelle_coherence}
+          Semaine {semaine.numero} — {motifPrevisionnel
+            ? 'Prévisionnel — non publié pour cette classe'
+            : semaine.libelle_coherence}
         </span>
-        {semaine.etat_coherence === 'divergent' && (
+        {etat === 'divergent' && (
           <span className="block text-xs mt-0.5">
             Le pointage, la charge et les vacations de cette semaine reposent sur une
             version antérieure de l&apos;emploi du temps. Régénérez son suivi pour les
             réaligner — les pointages déjà saisis sont conservés.
           </span>
         )}
-        {semaine.etat_coherence === 'previsionnel' && (
+        {etat === 'previsionnel' && (
           <span className="block text-xs mt-0.5">
-            Aucun suivi n&apos;a encore été généré : ce document est prévisionnel et
-            peut encore changer.
+            {motifPrevisionnel === 'autre-classe'
+              // Le cas trompeur : la semaine EST publiée, mais pour d'autres
+              // classes. Dire « aucun suivi généré » serait faux, et laisserait
+              // chercher un bouton qu'on a déjà pressé.
+              ? <>Le suivi de cette semaine a été généré pour d&apos;autres classes, mais
+                  pas encore pour celle-ci : ce document est prévisionnel et peut
+                  encore changer.</>
+              : <>Aucun suivi n&apos;a encore été généré : ce document est prévisionnel et
+                  peut encore changer.</>}
           </span>
         )}
       </div>

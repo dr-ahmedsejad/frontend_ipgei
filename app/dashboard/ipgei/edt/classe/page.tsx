@@ -61,33 +61,43 @@ export default function EdtParClassePage() {
   const semaine = semaines.find(s => s.id === semaineId);
 
   /**
-   * Publiée = son suivi a été généré, et la prise de vue prise avec lui.
-   * `suivi_genere_le` est ce qui en fait foi.
-   */
-  const publie = !!semaine?.suivi_genere_le;
-
-  /**
-   * DEUX sources, selon que la semaine est publiée ou non.
+   * DEUX sources : l'archive publiée, ou les séances en préparation.
    *
-   * Publiée, on lit l'ARCHIVE : c'est la version qui a servi à générer le
+   * Archivée, on lit l'ARCHIVE : c'est la version qui a servi à générer le
    * suivi, et donc à pointer les heures. La grille courante a pu bouger
    * depuis ; montrer celle-ci à la place ferait circuler un document qui ne
    * correspond plus à ce sur quoi on a payé.
    *
-   * Non publiée, il n'existe aucune archive — l'écran se fermait alors
-   * entièrement. Mais un emploi du temps prévisionnel a sa raison d'être : on
-   * le consulte pour préparer, pour vérifier une salle, pour répondre à un
-   * étudiant. On rend donc les séances EN PRÉPARATION, et le bandeau de
-   * cohérence dit, juste au-dessus, qu'elles peuvent encore changer.
+   * Sinon, les séances EN PRÉPARATION. Un emploi du temps prévisionnel a sa
+   * raison d'être : on le consulte pour préparer, pour vérifier une salle,
+   * pour répondre à un étudiant.
+   *
+   * Le choix se fait sur L'EXISTENCE DE L'ARCHIVE, et non sur
+   * `semaine.suivi_genere_le` comme auparavant. La nuance a coûté un défaut
+   * visible : ce drapeau appartient à la SEMAINE, alors que la prise de vue se
+   * fait CLASSE PAR CLASSE. Générer le suivi d'une seule classe marquait donc
+   * la semaine entière comme publiée, et toutes les autres classes paraissaient
+   * l'être sans avoir d'archive — grille vide, et « Aucune archive pour cette
+   * semaine » au téléchargement. Sur la base réelle, seize croisements
+   * (semaine × classe) sur dix-huit étaient dans ce cas.
+   *
+   * Interroger l'archive d'abord est le seul moyen de savoir : on ne peut pas
+   * le déduire de la semaine.
    */
-  const archive = useEdtPublie(publie ? semaineId : null, { classe: classeId });
-  const vivant  = useEdtSemaine(publie ? null : classeId, semaineId);
-  const source  = publie ? archive : vivant;
+  const archive = useEdtPublie(semaineId, { classe: classeId });
+  const vivant  = useEdtSemaine(classeId, semaineId);
+  // Tant que l'archive n'a pas répondu, on ne tranche pas : sans cette
+  // attente, l'écran montrerait le prévisionnel une fraction de seconde avant
+  // de basculer sur la version publiée.
+  const enAttente = archive.isLoading;
+  const archivee  = !enAttente && (archive.data?.length ?? 0) > 0;
+  const source    = archivee ? archive : vivant;
   // `?? []` fabriquerait un tableau neuf a chaque rendu, et le `useMemo`
   // ci-dessous se recalculerait indefiniment. La reference doit tenir.
   const toutesSeances = useMemo<SeanceAffichable[]>(
-    () => source.data ?? [], [source.data]);
-  const { isLoading, error } = source;
+    () => (enAttente ? [] : source.data ?? []), [enAttente, source.data]);
+  const isLoading = enAttente || source.isLoading;
+  const error     = archive.error ?? (archivee ? null : vivant.error);
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
   // Les épreuves ne sont pas des séances : elles viennent de leur propre
@@ -133,17 +143,17 @@ export default function EdtParClassePage() {
         // imprime — même gabarit, et le document porte lui-même sa mention.
         actions={classeId ? (
           <BoutonPDF
-            chemin={publie
+            chemin={archivee
               ? '/api/v1/ipgei/archives-edt/pdf/'
               : '/api/v1/ipgei/seances/pdf-classe/'}
             params={{
               classe:  String(classeId),
               semaine: String(semaineId ?? ''),
-              ...(publie || !plan ? {} : { sous_groupe: plan }),
+              ...(archivee || !plan ? {} : { sous_groupe: plan }),
             }}
             nomDefaut={`Emploi_${classe?.nom ?? 'classe'}`
               + `${nomPlan ? `_${nomPlan}` : ''}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId}
+            actif={!!semaineId && seances.length > 0}
           />
         ) : undefined}
       />
@@ -204,7 +214,16 @@ export default function EdtParClassePage() {
 
       {/* Avant le PDF : dire si ce qu'on s'apprête à imprimer correspond
           encore au suivi de cette semaine. */}
-      {classeId && <BandeauCoherence semaine={semaine} />}
+      {classeId && (
+        <BandeauCoherence
+          semaine={semaine}
+          motifPrevisionnel={archivee
+            ? undefined
+            // La semaine peut avoir été publiée pour d'autres classes : le
+            // drapeau est porté par elle, la prise de vue par la classe.
+            : semaine?.suivi_genere_le ? 'autre-classe' : 'jamais-genere'}
+        />
+      )}
 
       {!classeId ? (
         <div className={CARTE}>
@@ -243,7 +262,7 @@ export default function EdtParClassePage() {
             // Une grille imprimée circule détachée de l'écran qui l'a produite.
             // Si elle n'est pas encore publiée, elle doit le dire elle-même :
             // rien d'autre ne distinguera la version arrêtée du brouillon.
-            publie ? '' : 'PRÉVISIONNEL — suivi non généré, cet emploi du temps peut encore changer',
+            archivee ? '' : 'PRÉVISIONNEL — non publié, cet emploi du temps peut encore changer',
           ]}
           vide={`Aucune séance pour ${classe?.nom ?? 'cette classe'} : sa grille type est vide. `
               + `Renseignez-la dans « Gérer les emplois », puis dupliquez-la sur le semestre.`}
