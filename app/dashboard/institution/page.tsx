@@ -62,7 +62,7 @@ export default function InstitutionPage() {
       setNomAr(data.nom_ar ?? '');
       setNomCompletFr(data.nom_complet_fr ?? '');
       setNomCompletAr(data.nom_complet_ar ?? '');
-      setSigle(data.sigle ?? '');
+      setSigle(data.acronyme ?? '');
       setAdresseFr(data.adresse_fr ?? '');
       setAdresseAr(data.adresse_ar ?? '');
       setTel(data.telephone ?? '');
@@ -91,7 +91,7 @@ export default function InstitutionPage() {
       const updated = await institutionApi.update(inst.id, {
         nom_fr: nomFr, nom_ar: nomAr,
         nom_complet_fr: nomCompletFr, nom_complet_ar: nomCompletAr,
-        sigle,
+        acronyme: sigle,
         adresse_fr: adresseFr, adresse_ar: adresseAr,
         telephone: tel, email, site_web: site,
         directeur_nom_fr: dirNomFr, directeur_nom_ar: dirNomAr,
@@ -250,12 +250,6 @@ export default function InstitutionPage() {
                 readOnly={!isAdmin}
               />
             </div>
-            <p className="text-xs text-iss-gray">
-              Avec un code, le numéro devient{' '}
-              <span className="font-mono">DLP-2026-{(codeEtab || '05')}01</span>{' '}
-              (code + séquence, démarre à 01). Sans code, repli lisible sur l&apos;acronyme
-              + le n° de départ ci-contre. DLP = licence · DNI = ingénieur.
-            </p>
           </div>
 
           {isAdmin && (

@@ -4,7 +4,13 @@ export interface Institution {
   nom_ar:                string | null;
   nom_complet_fr:        string | null;
   nom_complet_ar:        string | null;
-  sigle:                 string | null;
+  /**
+   * Le SIGLE, tel que l'affichent les ecrans et les documents
+   * (`inst_sigle` dans core/pdf_utils.py). Cote serveur le champ se
+   * nomme `acronyme` : il faut ce nom-la sur le fil, sinon DRF ignore
+   * la cle en silence et la saisie se perd sans le moindre message.
+   */
+  acronyme:              string | null;
   adresse_fr:            string | null;
   adresse_ar:            string | null;
   telephone:             string | null;

@@ -27,7 +27,7 @@ export function useInstitution(): InstitutionInfo {
         : null;
       return {
         logoUrl,
-        sigle: inst.sigle ?? null,
+        sigle: inst.acronyme ?? null,
         nom:   inst.nom_complet_fr ?? inst.nom_fr ?? null,
       };
     },

@@ -16,7 +16,7 @@ import type { Institution } from '@/types/institution';
 const EMPTY: Partial<Institution> = {
   groupe_fr: '', groupe_ar: '',
   nom_fr: '', nom_ar: '', nom_complet_fr: '', nom_complet_ar: '',
-  sigle: '', adresse_fr: '', adresse_ar: '',
+  acronyme: '', adresse_fr: '', adresse_ar: '',
   telephone: '', email: '', site_web: '',
   directeur_nom_fr: '', directeur_nom_ar: '',
   directeur_titre_fr: '', directeur_titre_ar: '',
@@ -97,7 +97,7 @@ export default function InstitutionsPage() {
       groupe_fr: inst.groupe_fr ?? '', groupe_ar: inst.groupe_ar ?? '',
       nom_fr: inst.nom_fr ?? '', nom_ar: inst.nom_ar ?? '',
       nom_complet_fr: inst.nom_complet_fr ?? '', nom_complet_ar: inst.nom_complet_ar ?? '',
-      sigle: inst.sigle ?? '',
+      acronyme: inst.acronyme ?? '',
       adresse_fr: inst.adresse_fr ?? '', adresse_ar: inst.adresse_ar ?? '',
       telephone: inst.telephone ?? '', email: inst.email ?? '', site_web: inst.site_web ?? '',
       directeur_nom_fr: inst.directeur_nom_fr ?? '', directeur_nom_ar: inst.directeur_nom_ar ?? '',
@@ -242,7 +242,7 @@ export default function InstitutionsPage() {
                     <p className="font-semibold text-iss-dark text-sm">{inst.nom_fr}</p>
                     {inst.nom_complet_fr && <p className="text-xs text-iss-gray">{inst.nom_complet_fr}</p>}
                   </td>
-                  <td className="text-sm font-mono">{inst.sigle || '—'}</td>
+                  <td className="text-sm font-mono">{inst.acronyme || '—'}</td>
                   <td className="text-xs">
                     {inst.telephone && <p>{inst.telephone}</p>}
                     {inst.email     && <p className="text-iss-gray">{inst.email}</p>}
@@ -356,8 +356,8 @@ export default function InstitutionsPage() {
                       onChangeFr={set('nom_complet_fr')} onChangeAr={set('nom_complet_ar')}
                     />
                     <FormField
-                      label="Sigle" value={form.sigle ?? ''}
-                      onChange={setE('sigle')} placeholder="ex: ISS"
+                      label="Sigle" value={form.acronyme ?? ''}
+                      onChange={setE('acronyme')} placeholder="ex: ISS"
                     />
 
                     {/* Toggle institution principale */}
@@ -454,10 +454,10 @@ export default function InstitutionsPage() {
                       )}
                       <p className="text-[11px] font-bold text-iss-dark leading-tight">{form.nom_fr || '—'}</p>
                       {form.nom_complet_fr && <p className="text-[10px] text-iss-gray">{form.nom_complet_fr}</p>}
-                      {form.sigle && (
+                      {form.acronyme && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                           style={{ background: 'rgba(0,102,51,0.08)', color: '#006633' }}>
-                          {form.sigle}
+                          {form.acronyme}
                         </span>
                       )}
                     </div>
