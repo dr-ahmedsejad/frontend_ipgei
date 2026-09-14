@@ -217,11 +217,8 @@ export default function EdtParClassePage() {
       {classeId && (
         <BandeauCoherence
           semaine={semaine}
-          motifPrevisionnel={archivee
-            ? undefined
-            // La semaine peut avoir été publiée pour d'autres classes : le
-            // drapeau est porté par elle, la prise de vue par la classe.
-            : semaine?.suivi_genere_le ? 'autre-classe' : 'jamais-genere'}
+          previsionnel={!archivee}
+          avecEpreuves={epreuves.length > 0}
         />
       )}
 

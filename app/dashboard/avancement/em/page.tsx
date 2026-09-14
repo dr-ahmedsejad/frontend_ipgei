@@ -23,6 +23,13 @@ interface AvancementEMDetail {
   pct_TD:    number;
   pct_TP:    number;
   pct_PR:    number;
+  /**
+   * COMBIEN d'épreuves de chaque type ont eu lieu — un semestre en porte
+   * couramment deux ou trois. Les drapeaux restent servis par compatibilité.
+   */
+  nb_ds:     number;
+  nb_exam:   number;
+  nb_rat:    number;
   ds_fait:   boolean;
   exam_fait: boolean;
   rat_fait:  boolean;
@@ -347,15 +354,15 @@ export default function AvancementEMPage() {
                     {/* Évaluations */}
                     <td className="px-2 py-2 text-center border border-gray-100 font-bold"
                       style={{ color: row.ds_fait ? '#006633' : '#94a3b8' }}>
-                      {row.ds_fait ? 'X' : '—'}
+                      {row.ds_fait ? row.nb_ds : '—'}
                     </td>
                     <td className="px-2 py-2 text-center border border-gray-100 font-bold"
                       style={{ color: row.exam_fait ? '#006633' : '#94a3b8' }}>
-                      {row.exam_fait ? 'X' : '—'}
+                      {row.exam_fait ? row.nb_exam : '—'}
                     </td>
                     <td className="px-2 py-2 text-center border border-gray-100 font-bold"
                       style={{ color: row.rat_fait ? '#006633' : '#94a3b8' }}>
-                      {row.rat_fait ? 'X' : '—'}
+                      {row.rat_fait ? row.nb_rat : '—'}
                     </td>
                   </tr>
                 ))}

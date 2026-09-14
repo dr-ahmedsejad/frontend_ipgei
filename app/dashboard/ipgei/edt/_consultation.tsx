@@ -154,25 +154,34 @@ export function BoutonPDF({ chemin, params, nomDefaut, actif = true }: {
  * a changé APRÈS que le suivi en a été tiré, donc après que des heures ont été
  * pointées, et potentiellement payées, sur une autre version.
  */
-export function BandeauCoherence({ semaine, motifPrevisionnel }: {
+export function BandeauCoherence({ semaine, previsionnel, avecEpreuves }: {
   semaine?: SemaineIPGEI;
   /**
-   * Annonce du prévisionnel malgré l'état de la semaine, et dit POURQUOI.
+   * Annonce du prévisionnel malgré l'état de la semaine.
    *
    * `etat_coherence` et `suivi_genere_le` appartiennent à la SEMAINE, alors que
    * la prise de vue se fait classe par classe. Générer le suivi d'une seule
    * classe marque la semaine entière « alignée » : les autres classes
    * affichaient « à jour » au-dessus de séances archivées nulle part.
    *
-   * Le motif vient de l'appelant, seul à savoir si la semaine a été publiée
-   * pour d'AUTRES classes — l'état de la semaine ne permet pas de l'en
-   * distinguer, puisqu'il vaut « aligné » dans les deux cas.
+   * On ne dit PAS pourquoi. Une première version distinguait « jamais généré »
+   * de « généré pour d'autres classes », déduit du drapeau de la semaine — et
+   * l'affirmation s'est révélée fausse sur une semaine marquée générée mais
+   * vide, qui n'avait d'archive pour personne. Rien, dans ce que l'écran sait,
+   * ne permet de trancher ; mieux vaut le fait que la supposition.
    */
-  motifPrevisionnel?: 'jamais-genere' | 'autre-classe';
+  previsionnel?: boolean;
+  /**
+   * La semaine porte des épreuves. Elles sont FERMES, elles : déclarées au
+   * calendrier, elles ne passent pas par la publication de l'emploi du temps.
+   * Sans cette nuance, le bandeau annonce « peut encore changer » au-dessus
+   * d'une grille dont le seul contenu est un examen convoqué.
+   */
+  avecEpreuves?: boolean;
 }) {
   if (!semaine) return null;
 
-  const etat = motifPrevisionnel ? 'previsionnel' : semaine.etat_coherence;
+  const etat = previsionnel ? 'previsionnel' : semaine.etat_coherence;
 
   const styles = {
     previsionnel: { bg: '#f8fafc', bord: '#cbd5e1', texte: '#475569', Icone: CalendarClock },
@@ -188,7 +197,7 @@ export function BandeauCoherence({ semaine, motifPrevisionnel }: {
       <Icone size={16} style={{ flexShrink: 0, marginTop: 1 }} />
       <div>
         <span className="font-semibold">
-          Semaine {semaine.numero} — {motifPrevisionnel
+          Semaine {semaine.numero} — {previsionnel
             ? 'Prévisionnel — non publié pour cette classe'
             : semaine.libelle_coherence}
         </span>
@@ -201,15 +210,15 @@ export function BandeauCoherence({ semaine, motifPrevisionnel }: {
         )}
         {etat === 'previsionnel' && (
           <span className="block text-xs mt-0.5">
-            {motifPrevisionnel === 'autre-classe'
-              // Le cas trompeur : la semaine EST publiée, mais pour d'autres
-              // classes. Dire « aucun suivi généré » serait faux, et laisserait
-              // chercher un bouton qu'on a déjà pressé.
-              ? <>Le suivi de cette semaine a été généré pour d&apos;autres classes, mais
-                  pas encore pour celle-ci : ce document est prévisionnel et peut
-                  encore changer.</>
-              : <>Aucun suivi n&apos;a encore été généré : ce document est prévisionnel et
-                  peut encore changer.</>}
+            Cet emploi du temps n&apos;a pas été publié pour cette classe : les
+            cours affichés restent prévisionnels et peuvent changer.
+            {avecEpreuves && (
+              // Le bandeau qualifie les COURS. Une épreuve est convoquée, pas
+              // planifiée : l'annoncer « susceptible de changer » ferait douter
+              // d'une date que les étudiants ont déjà reçue.
+              <> Les épreuves, elles, sont fermes : déclarées au calendrier, elles
+                 ne dépendent pas de cette publication.</>
+            )}
           </span>
         )}
       </div>
