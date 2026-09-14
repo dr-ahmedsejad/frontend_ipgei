@@ -281,6 +281,14 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       // acte de scolarite, sous son propre module — un chef de departement
       // lit les notes de sa discipline, il ne decide pas des campagnes.
       { href: '/dashboard/ipgei/notes/sessions', label: 'Sessions de saisie',  module: 'ipgei_sessions' },
+      // Le CALENDRIER des epreuves — la composition elle-meme : sa date, son
+      // heure, sa duree, les classes convoquees. Voisin des sessions, dont il
+      // depend, et non de l'emploi du temps : une epreuve n'est pas une seance,
+      // sa duree ne tombe pas sur la grille de 1h30 et elle n'a ni salle ni
+      // enseignant. Meme module que les sessions, pour la meme raison — decider
+      // quand l'etablissement compose est un acte de scolarite.
+      { href: '/dashboard/ipgei/epreuves',       label: 'Calendrier des épreuves',
+        module: 'ipgei_sessions' },
       { href: '/dashboard/ipgei/notes/collecte', label: 'Fiches de collecte',  module: 'ipgei_notes' },
       // La fiche d'emargement accompagne la collecte le jour de l'epreuve :
       // memes candidats, meme ordre. Elle vit donc a cote d'elle.

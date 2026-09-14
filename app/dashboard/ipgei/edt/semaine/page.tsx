@@ -12,14 +12,15 @@ import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../
 import { useReferentielsEDT } from '../_referentiels';
 import { semaineAProposer } from '../_semaines';
 import {
-  useClassesSelect, useEdtSemaine, useSemaines, useSemestresAll,
+  useClassesSelect, useEdtSemaine, useEpreuvesSemaine, useSemaines, useSemestresAll,
 } from '@/lib/api/ipgei-hooks';
 import { TYPES_SEANCE, type SeanceReelle } from '@/types/ipgei';
 import {
   ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
 import {
-  CarteSeance, CaseVide, STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU,
+  BandeauEpreuve, CarteSeance, CaseVide, decouperLigne,
+  STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU,
   STYLE_ENTETE_JOUR, STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from '../_cellule';
 
@@ -62,6 +63,9 @@ export default function EdtSemainePage() {
 
   const { jours, creneaux, salles, profs } = useReferentielsEDT();
   const { data: seances = [], isLoading, error } = useEdtSemaine(classeId, semaineId);
+  // Les epreuves en surimpression : elles ne sont pas des seances, elles
+  // viennent de leur propre calendrier avec les creneaux qu'elles recouvrent.
+  const { data: epreuves = [] } = useEpreuvesSemaine(classeId, semaineId);
 
   const [seanceEditee, setSeanceEditee] = useState<SeanceReelle | null>(null);
   // Les échanges possibles se choisissent dans la fenêtre : le serveur
@@ -162,12 +166,19 @@ export default function EdtSemainePage() {
               </span>
             )}
             <Badge ton="neutre">{seances.length} séance{seances.length !== 1 ? 's' : ''}</Badge>
+            {epreuves.length > 0 && (
+              <Badge ton="rouge">
+                {epreuves.length} épreuve{epreuves.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
             {seances.some(s => s.origine === 'permutation') && (
               <Badge ton="violet">Contient des permutations</Badge>
             )}
           </div>
 
-          {seances.length === 0 ? (
+          {/* Une semaine sans cours mais AVEC une epreuve n'est pas vide :
+              c'est la semaine d'examens, celle qu'on consulte le plus. */}
+          {seances.length === 0 && epreuves.length === 0 ? (
             <div className={CARTE}>
               <Vide texte="Aucune séance pour cette semaine — dupliquez la grille type depuis l'écran « Grille type »." />
             </div>
@@ -187,7 +198,28 @@ export default function EdtSemainePage() {
                     {jours.map((j, ligne) => (
                       <tr key={j.id} style={{ background: ligne % 2 === 0 ? 'white' : '#fafafa' }}>
                         <td style={STYLE_CELLULE_JOUR}>{j.jour}</td>
-                        {creneaux.map(c => {
+                        {decouperLigne(creneaux, epreuves.filter(e => e.jour === j.id))
+                          .map(cellule => {
+                          // Une épreuve n'est pas une case à éditer : elle est
+                          // posée depuis le calendrier des épreuves, et les
+                          // colonnes qu'elle recouvre ne peuvent plus recevoir
+                          // de cours — la classe y compose.
+                          if (cellule.type === 'epreuve') {
+                            const e = cellule.epreuve;
+                            return (
+                              <td key={`ep-${e.id}`} colSpan={cellule.span} style={STYLE_CELLULE}>
+                                <BandeauEpreuve
+                                  type={e.type_epreuve}
+                                  matiere={e.matiere_intitule || e.matiere_code}
+                                  debut={e.heure_debut}
+                                  fin={e.heure_fin}
+                                  duree={e.duree_libelle}
+                                  observations={e.observations}
+                                />
+                              </td>
+                            );
+                          }
+                          const c = cellule.creneau;
                           const contenu = seancesDeLaCase(j.id, c.id);
                           return (
                             <td key={c.id} style={STYLE_CELLULE}>

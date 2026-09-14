@@ -542,6 +542,65 @@ export interface SessionEvaluationIPGEI {
   cloturee_par_nom:     string;
 }
 
+// ── Épreuves ─────────────────────────────────────────────────────────────────
+export type TypeEpreuve = 'DS' | 'EF' | 'ER';
+
+/**
+ * Une composition : le DS de maths du 18 novembre, 8h00, 3h, pour MP A à MP E.
+ *
+ * Ce n'est PAS une séance. Sa durée — 2h, 3h, 4h — ne tombe pas sur la grille
+ * de créneaux de 1h30 ; elle convoque plusieurs classes à la fois ; et elle n'a
+ * ni salle ni enseignant : chaque classe compose dans la sienne, répartie plus
+ * tard sur les fiches, et le surveillant relève de la vacation.
+ */
+export interface EpreuveIPGEI {
+  id:               number;
+  session:          number;
+  session_type:     TypeSessionIPGEI;
+  semestre_code:    CodeSemestre;
+  semestre_annee:   string;
+  matiere:          number;
+  matiere_code:     string;
+  matiere_intitule: string;
+  type_epreuve:     TypeEpreuve;
+  type_display:     string;
+  numero:           number;
+  /** `AAAA-MM-JJ`. */
+  date:             string;
+  /** `HH:MM:SS`. */
+  heure_debut:      string;
+  /** Calculée par le serveur, bornée à 23h59. */
+  heure_fin:        string;
+  duree_minutes:    number;
+  /** « 3h » ou « 2h30 » — ce qui se lit sur le bandeau. */
+  duree_libelle:    string;
+  classes:          number[];
+  classes_noms:     string[];
+  observations:     string;
+  cree_le:          string;
+  cree_par:         number | null;
+}
+
+export type EpreuveInput = Partial<Omit<EpreuveIPGEI,
+  'id' | 'session_type' | 'semestre_code' | 'semestre_annee' | 'matiere_code'
+  | 'matiere_intitule' | 'type_display' | 'heure_fin' | 'duree_libelle'
+  | 'classes_noms' | 'cree_le' | 'cree_par'>>;
+
+/**
+ * Une épreuve prête à être posée sur la grille d'une semaine.
+ *
+ * `creneaux_couverts` vient du SERVEUR : il dépend des bornes lues dans le
+ * libellé du créneau, et doit donner le même résultat à la grille, au PDF et à
+ * l'export. Le recouvrement partiel y compte — un DS de 8h00 à 10h00 ne mord
+ * que quinze minutes sur le créneau de 09h45-11h15, mais la classe y compose
+ * encore.
+ */
+export interface EpreuveSurimpression extends EpreuveIPGEI {
+  jour:              number | null;
+  jour_libelle:      string;
+  creneaux_couverts: number[];
+}
+
 export interface GrilleNotes {
   matiere:     Matiere;
   semestre:    SemestreIPGEI;

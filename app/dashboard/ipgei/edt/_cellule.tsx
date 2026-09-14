@@ -10,6 +10,8 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 
+import type { EpreuveSurimpression } from '@/types/ipgei';
+
 
 // Palette alignée sur celle de SIGA : cours = bleu (CM), TD = vert, TP = orange,
 // DS = violet (PR). Un préparationnaire retrouve donc les mêmes repères.
@@ -267,6 +269,118 @@ export function CarteMatiere({ type, intitule, speciale, lignes }: {
       ))}
     </div>
   );
+}
+
+// ── Épreuves ─────────────────────────────────────────────────────────────────
+/**
+ * Le bandeau d'une épreuve, posé en surimpression sur la grille.
+ *
+ * Volontairement plus maigre qu'une carte de séance : ni enseignant, ni salle.
+ * Chaque classe compose dans la sienne, répartie plus tard sur les fiches, et
+ * le surveillant relève de la vacation. Cette ligne manquante est ce qui fait
+ * voir, au premier coup d'œil, que ce n'est pas un cours.
+ *
+ * Les heures affichées sont celles de l'ÉPREUVE — « 08h00 → 11h00 » —, pas
+ * celles des créneaux qu'elle occupe. Le bandeau peut donc annoncer 3h là où
+ * la colonne bloquée en couvre davantage : la colonne dit ce qui est
+ * indisponible, le bandeau ce qui se passe.
+ */
+export function BandeauEpreuve({
+  type, matiere, debut, fin, duree, classes, observations,
+}: {
+  type: string;
+  matiere: string;
+  debut: string;
+  fin: string;
+  duree: string;
+  classes?: string[];
+  observations?: string;
+}) {
+  const coul = couleurType(type);
+  const heure = (h: string) => h.slice(0, 5).replace(':', 'h');
+
+  return (
+    <div className="rounded-lg px-3 py-2 h-full flex flex-col justify-center gap-0.5"
+         style={{
+           background: coul.bg,
+           border: `1px solid ${coul.border}`,
+           // Les hachures disent « occupé », pas « programmé » : c'est ce qui
+           // distingue un bandeau d'épreuve d'une carte de cours, même en
+           // noir et blanc à l'impression.
+           backgroundImage:
+             'repeating-linear-gradient(135deg, transparent 0 8px,'
+             + ' rgba(0,0,0,0.045) 8px 16px)',
+         }}>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="text-[11px] font-bold uppercase tracking-wide"
+              style={{ color: coul.border }}>
+          {type}
+        </span>
+        <span className="text-xs font-bold text-iss-dark">{matiere}</span>
+      </div>
+      <div className="text-[11px] font-semibold text-iss-dark-soft tabular-nums">
+        {heure(debut)} → {heure(fin)} · {duree}
+      </div>
+      {classes && classes.length > 0 && (
+        <div className="text-[10px] text-iss-gray truncate" title={classes.join(', ')}>
+          {classes.join(', ')}
+        </div>
+      )}
+      {observations && (
+        <div className="text-[10px] text-iss-gray italic truncate" title={observations}>
+          {observations}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Surimpression des épreuves ───────────────────────────────────────────────
+/**
+ * Découpe une ligne de jour en cellules, l'épreuve fusionnant les colonnes
+ * qu'elle recouvre.
+ *
+ * Les créneaux couverts viennent du SERVEUR — ils dépendent des bornes lues
+ * dans le libellé du créneau, et doivent donner le même résultat ici, au PDF
+ * et à l'export. On ne fait que les traduire en `colSpan` : on borne la plage
+ * du premier au dernier couvert plutôt que de suivre la liste à la lettre, car
+ * une table HTML ne sait fusionner que des colonnes contiguës — et un trou au
+ * milieu ne peut de toute façon pas être libre, l'épreuve s'y déroule.
+ */
+export function decouperLigne(
+  creneaux: { id: number }[],
+  epreuves: EpreuveSurimpression[],
+): ({ type: 'case'; creneau: { id: number } }
+  | { type: 'epreuve'; epreuve: EpreuveSurimpression; span: number })[] {
+  const plages = epreuves
+    .map(e => {
+      const index = e.creneaux_couverts
+        .map(id => creneaux.findIndex(c => c.id === id))
+        .filter(i => i >= 0);
+      if (index.length === 0) return null;
+      return { epreuve: e, debut: Math.min(...index), fin: Math.max(...index) };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .sort((a, b) => a.debut - b.debut);
+
+  const cellules: ReturnType<typeof decouperLigne> = [];
+  let i = 0;
+  while (i < creneaux.length) {
+    // `>= i` et non `=== i` : deux épreuves qui se recouvriraient — ce que la
+    // validation refuse, mais qu'une base héritée peut porter — ne doivent pas
+    // produire une ligne plus longue que la grille.
+    const plage = plages.find(p => p.debut >= i && p.debut <= i && p.fin >= i);
+    if (plage) {
+      cellules.push({
+        type: 'epreuve', epreuve: plage.epreuve, span: plage.fin - plage.debut + 1,
+      });
+      i = plage.fin + 1;
+      continue;
+    }
+    cellules.push({ type: 'case', creneau: creneaux[i] });
+    i += 1;
+  }
+  return cellules;
 }
 
 /** Case vide cliquable — même affordance que le « + » de la grille SIGA. */

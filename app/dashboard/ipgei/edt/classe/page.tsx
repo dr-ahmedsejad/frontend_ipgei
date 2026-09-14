@@ -12,7 +12,8 @@ import {
   BandeauCoherence, BoutonPDF, GrilleConsultation, SelecteurSemaine,
 } from '../_consultation';
 import {
-  useClassesSelect, useEdtPublie, useGrillePourClasse, useSemaines, useSemestresAll,
+  useClassesSelect, useEdtPublie, useEpreuvesSemaine, useGrillePourClasse,
+  useSemaines, useSemestresAll,
   useSousGroupes, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
@@ -64,6 +65,9 @@ export default function EdtParClassePage() {
     useEdtPublie(semaineId, { classe: classeId });
   const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
+  // Les épreuves ne sont pas des séances : elles viennent de leur propre
+  // calendrier, avec les créneaux qu'elles recouvrent, calculés par le serveur.
+  const { data: epreuves = [] } = useEpreuvesSemaine(classeId, semaineId);
   const semaine = semaines.find(s => s.id === semaineId);
 
   /**
@@ -217,6 +221,7 @@ export default function EdtParClassePage() {
       ) : (
         <GrilleConsultation
           seances={seances}
+          epreuves={epreuves}
           axe="classe"
           isLoading={isLoading}
           titreImpression={

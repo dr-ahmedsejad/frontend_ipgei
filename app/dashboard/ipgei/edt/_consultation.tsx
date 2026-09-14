@@ -20,12 +20,14 @@ import { apiFetchBlob } from '@/lib/api';
 
 import { BTN_PRIMAIRE, CARTE, Chargement, DEGRADE, SELECT, Vide } from '../_ui';
 import {
-  CarteMatiere, type LigneSeance,
+  BandeauEpreuve, CarteMatiere, decouperLigne, type LigneSeance,
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU,
   STYLE_ENTETE_JOUR, STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from './_cellule';
 import { useReferentielsEDT } from './_referentiels';
-import { type SeanceAffichable, type SemaineIPGEI } from '@/types/ipgei';
+import {
+  type EpreuveSurimpression, type SeanceAffichable, type SemaineIPGEI,
+} from '@/types/ipgei';
 
 /** Axe de lecture : détermine ce que la carte met en avant. */
 export type AxeEDT = 'classe' | 'prof' | 'salle';
@@ -246,9 +248,16 @@ function grouperParMatiere(seances: SeanceAffichable[], axe: AxeEDT) {
 
 // ── Grille ───────────────────────────────────────────────────────────────────
 export function GrilleConsultation({
-  seances, axe, isLoading, titreImpression, sousTitresImpression = [], vide,
+  seances, epreuves = [], axe, isLoading, titreImpression,
+  sousTitresImpression = [], vide,
 }: {
   seances: SeanceAffichable[];
+  /**
+   * Les épreuves de la semaine, posées EN SURIMPRESSION. Elles ne sont pas des
+   * séances : leur durée ne tombe pas sur la grille de 1h30, elles convoquent
+   * plusieurs classes à la fois, et elles n'ont ni salle ni enseignant.
+   */
+  epreuves?: EpreuveSurimpression[];
   axe: AxeEDT;
   isLoading?: boolean;
   titreImpression?: string;
@@ -265,7 +274,9 @@ export function GrilleConsultation({
   const { jours, creneaux, isLoading: chargeRef } = useReferentielsEDT();
 
   if (isLoading || chargeRef) return <div className={CARTE}><Chargement /></div>;
-  if (seances.length === 0) {
+  // Une semaine sans cours mais AVEC une épreuve n'est pas une semaine vide :
+  // c'est même la semaine d'examens, celle qu'on cherche le plus à consulter.
+  if (seances.length === 0 && epreuves.length === 0) {
     return (
       <div className={CARTE}>
         <Vide texte={vide ?? "Aucune séance programmée sur cette semaine."} />
@@ -301,22 +312,40 @@ export function GrilleConsultation({
             {jours.map((j, ligne) => (
               <tr key={j.id} style={{ background: ligne % 2 === 0 ? 'white' : '#fafafa' }}>
                 <td style={STYLE_CELLULE_JOUR}>{j.jour}</td>
-                {creneaux.map(c => (
-                  <td key={c.id} style={STYLE_CELLULE}>
-                    {/* Colonne pleine hauteur : les cartes s'étirent pour
-                        occuper la case, quel que soit leur nombre de lignes. */}
-                    <div className="flex flex-col gap-1" style={{ height: '100%' }}>
-                      {grouperParMatiere(dansLaCase(j.id, c.id), axe).map(bloc => (
-                        <CarteMatiere
-                          key={bloc.cle}
-                          type={bloc.type}
-                          intitule={bloc.intitule}
-                          speciale={bloc.speciale}
-                          lignes={bloc.lignes}
-                        />
-                      ))}
-                    </div>
-                  </td>
+                {decouperLigne(creneaux, epreuves.filter(e => e.jour === j.id))
+                  .map(cellule => (
+                  cellule.type === 'epreuve' ? (
+                    <td key={`ep-${cellule.epreuve.id}`} colSpan={cellule.span}
+                        style={STYLE_CELLULE}>
+                      <BandeauEpreuve
+                        type={cellule.epreuve.type_epreuve}
+                        matiere={cellule.epreuve.matiere_intitule
+                                 || cellule.epreuve.matiere_code}
+                        debut={cellule.epreuve.heure_debut}
+                        fin={cellule.epreuve.heure_fin}
+                        duree={cellule.epreuve.duree_libelle}
+                        classes={axe === 'classe' ? undefined : cellule.epreuve.classes_noms}
+                        observations={cellule.epreuve.observations}
+                      />
+                    </td>
+                  ) : (
+                    <td key={cellule.creneau.id} style={STYLE_CELLULE}>
+                      {/* Colonne pleine hauteur : les cartes s'étirent pour
+                          occuper la case, quel que soit leur nombre de lignes. */}
+                      <div className="flex flex-col gap-1" style={{ height: '100%' }}>
+                        {grouperParMatiere(dansLaCase(j.id, cellule.creneau.id), axe)
+                          .map(bloc => (
+                          <CarteMatiere
+                            key={bloc.cle}
+                            type={bloc.type}
+                            intitule={bloc.intitule}
+                            speciale={bloc.speciale}
+                            lignes={bloc.lignes}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                  )
                 ))}
               </tr>
             ))}

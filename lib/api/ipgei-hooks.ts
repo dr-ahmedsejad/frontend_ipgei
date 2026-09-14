@@ -12,14 +12,14 @@ import {
 import {
   archivesEdtApi, absencesApi, classementApi, classesApi, concoursApi,
   deliberationsApi,
-  documentsApi, grillesApi,
+  documentsApi, epreuvesApi, grillesApi,
   inscriptionsApi, lignesDeliberationApi, matieresApi, membresJuryApi, notesApi,
   parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
   niveauxApi,
   semainesApi, semestresApi, sessionsApi, signatairesApi, sousGroupesApi, tableauBordApi,
   type AbsenceFilters, type ClasseFilters, type DeliberationFilters,
-  type EpreuveChoisie,
+  type EpreuveChoisie, type EpreuveFilters,
   type SaisieRattrapage,
   type FiltresCollecte, type FiltresEmargement, type FiltresGrilleAnonyme, type LotCorrection,
   type Params,
@@ -32,6 +32,7 @@ import type {
   NiveauCursusInput, Note, RoleJuryIPGEI,
   SaisieAnonyme, SaisieCollective,
   SaisieAnonymeLot,
+  EpreuveInput,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
   Signataire, StatutAbsence,
 } from '@/types/ipgei';
@@ -71,6 +72,10 @@ export const ipgeiKeys = {
   grilleNotes:   (classe: number, matiere: number, semestre: number) =>
                    [...racine, 'notes', 'grille', classe, matiere, semestre] as const,
   sessions:      (annee?: string) => [...racine, 'sessions', annee ?? ''] as const,
+  calendrierEpreuves: (filters: EpreuveFilters) =>
+                   [...racine, 'calendrier-epreuves', filters] as const,
+  epreuvesSemaine: (classe: number, semaine: number) =>
+                   [...racine, 'calendrier-epreuves', 'semaine', classe, semaine] as const,
   anonymats:     (session: number) => [...racine, 'anonymats', session] as const,
   mesFeuilles:   (annee?: string) => [...racine, 'mes-feuilles', annee ?? ''] as const,
 
@@ -599,6 +604,54 @@ export function useSessionMutations() {
         sessionsApi.update(id, input),
       onSuccess: invalider,
     }),
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Épreuves
+// ═════════════════════════════════════════════════════════════════════════════
+export function useCalendrierEpreuves(filters: EpreuveFilters = {}, actif = true) {
+  return useQuery({
+    queryKey: ipgeiKeys.calendrierEpreuves(filters),
+    queryFn:  () => epreuvesApi.list(filters),
+    enabled:  actif,
+  });
+}
+
+/**
+ * Les épreuves à poser en surimpression sur la grille d'une semaine.
+ *
+ * Séparé de `useEpreuves` : ce que rend le serveur ici porte en plus le jour et
+ * les créneaux recouverts, calculés par lui. Mêler les deux dans un seul cache
+ * ferait servir des lignes sans ces champs à l'écran qui les attend.
+ */
+export function useEpreuvesSemaine(classe: number | null | undefined,
+                                   semaine: number | null | undefined) {
+  return useQuery({
+    queryKey: ipgeiKeys.epreuvesSemaine(classe ?? 0, semaine ?? 0),
+    queryFn:  () => epreuvesApi.semaine(classe as number, semaine as number),
+    enabled:  classe != null && semaine != null,
+  });
+}
+
+export function useEpreuveMutations() {
+  const qc = useQueryClient();
+  // L'emploi du temps affiche les épreuves en surimpression : déplacer un
+  // examen doit redessiner la grille, sans quoi l'écran garde un bandeau à
+  // l'ancienne heure.
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'calendrier-epreuves'] });
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+  };
+
+  return {
+    creer:     useMutation({ mutationFn: epreuvesApi.create, onSuccess: invalider }),
+    modifier:  useMutation({
+      mutationFn: ({ id, input }: { id: number; input: EpreuveInput }) =>
+        epreuvesApi.update(id, input),
+      onSuccess: invalider,
+    }),
+    supprimer: useMutation({ mutationFn: epreuvesApi.remove, onSuccess: invalider }),
   };
 }
 

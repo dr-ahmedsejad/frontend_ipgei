@@ -13,7 +13,8 @@ import type {
   FeuilleAppel, GrilleNotes, GrilleType, HistoriqueClasse, Inscription,
   InscriptionComplete, InscriptionCreee,
   ApercuPassage, BilanPassage,
-  AnonymatIPGEI, FeuilleEnseignant, GrilleAnonyme, SaisieAnonyme,
+  AnonymatIPGEI, EpreuveIPGEI, EpreuveInput, EpreuveSurimpression,
+  FeuilleEnseignant, GrilleAnonyme, SaisieAnonyme,
   SaisieAnonymeLot, SaisieAnonymeResultat,
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, MembreJuryIPGEI,
   NiveauCursus, NiveauCursusInput, Note, OccupationCreneau, RoleJuryIPGEI,
@@ -293,6 +294,48 @@ function nettoyer2(corps: Record<string, unknown>): Record<string, unknown> {
   }
   return sortie;
 }
+
+export interface EpreuveFilters extends Params {
+  session?: number;
+  session__semestre?: number;
+  'session__semestre__annee_universitaire'?: string;
+  matiere?: number;
+  type_epreuve?: string;
+  'convocations__classe'?: number;
+  'date__gte'?: string;
+  'date__lte'?: string;
+}
+
+/**
+ * Le calendrier des epreuves.
+ *
+ * Une epreuve n'est pas une seance : sa duree ne tombe pas sur la grille de
+ * 1h30, elle convoque plusieurs classes a la fois, et elle n'a ni salle ni
+ * enseignant. Elle a donc ses propres routes, distinctes de `/seances/`.
+ */
+export const epreuvesApi = {
+  list: (f: EpreuveFilters = {}) =>
+    apiFetch<EpreuveIPGEI[]>(`${BASE}/epreuves/`, { params: nettoyer(f) }),
+
+  create: (input: EpreuveInput) =>
+    apiFetch<EpreuveIPGEI>(`${BASE}/epreuves/`, { method: 'POST', body: input }),
+
+  update: (id: number, input: EpreuveInput) =>
+    apiFetch<EpreuveIPGEI>(`${BASE}/epreuves/${id}/`, { method: 'PATCH', body: input }),
+
+  remove: (id: number) =>
+    apiFetch<void>(`${BASE}/epreuves/${id}/`, { method: 'DELETE' }),
+
+  /**
+   * Les epreuves d'une classe sur une semaine, AVEC les creneaux qu'elles
+   * recouvrent. Le calcul reste au serveur : il depend des bornes lues dans le
+   * libelle du creneau, et doit donner le meme resultat a la grille, au PDF et
+   * a l'export.
+   */
+  semaine: (classe: number, semaine: number) =>
+    apiFetch<EpreuveSurimpression[]>(`${BASE}/epreuves/semaine/`,
+                                     { params: { classe, semaine } }),
+};
 
 export const sessionsApi = {
   /**
