@@ -595,7 +595,29 @@ export type EpreuveInput = Partial<Omit<EpreuveIPGEI,
  * que quinze minutes sur le créneau de 09h45-11h15, mais la classe y compose
  * encore.
  */
-export interface EpreuveSurimpression extends EpreuveIPGEI {
+export interface EpreuveSurimpression {
+  id:                number;
+  /**
+   * Vrai si la ligne vient de l'ARCHIVE. Une semaine publiée se relit telle
+   * qu'elle a été remise : déplacer l'examen après coup ne récrit pas le
+   * document déjà distribué.
+   */
+  archivee:          boolean;
+  type_epreuve:      TypeEpreuve;
+  numero:            number;
+  matiere_code:      string;
+  matiere_intitule:  string;
+  date:              string;
+  heure_debut:       string;
+  heure_fin:         string;
+  duree_minutes:     number;
+  duree_libelle:     string;
+  observations:      string;
+  /**
+   * Vide sur une ligne archivée : l'archive est posée PAR classe, elle ne sait
+   * pas qui d'autre composait ce jour-là.
+   */
+  classes_noms:      string[];
   jour:              number | null;
   jour_libelle:      string;
   creneaux_couverts: number[];
