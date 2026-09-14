@@ -1,6 +1,6 @@
 'use client';
 
-import { API_BASE_URL as API } from '@/lib/api';
+import { API_BASE_URL as API, messageLisible } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import {
   Building2, Plus, Pencil, Trash2, Loader2,
@@ -133,7 +133,7 @@ export default function InstitutionsPage() {
       setModal(null);
       load();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.');
+      toast.error(err instanceof Error ? messageLisible(err) : 'Erreur lors de la sauvegarde.');
     } finally { setSaving(false); }
   }
 

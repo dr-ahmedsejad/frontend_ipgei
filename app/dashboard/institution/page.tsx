@@ -1,6 +1,6 @@
 'use client';
 
-import { API_BASE_URL as API } from '@/lib/api';
+import { API_BASE_URL as API, messageLisible } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { Save, Upload, Eye, Globe } from 'lucide-react';
 import { institutionApi } from '@/lib/api/institution';
@@ -75,7 +75,7 @@ export default function InstitutionPage() {
       setCodeEtab(data.code_etablissement ?? '');
       setDiplomeSeq(data.diplome_sequence_debut ?? 500);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageLisible(e));
     } finally {
       setLoading(false);
     }
@@ -107,7 +107,7 @@ export default function InstitutionPage() {
       invalidate('institution:active');
       toast.success('Institution mise à jour avec succès');
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageLisible(e));
     } finally {
       setSaving(false);
     }
@@ -128,7 +128,7 @@ export default function InstitutionPage() {
       if (field === 'logo_groupe') setLogoGroupeFile(null);
       if (field === 'directeur_signature') setSigFile(null);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageLisible(e));
     } finally {
       setUploadProgress(p => { const n = { ...p }; delete n[field]; return n; });
     }

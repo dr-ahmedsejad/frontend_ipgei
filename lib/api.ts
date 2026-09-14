@@ -244,9 +244,8 @@ export async function apiUpload<T = unknown>(
  * elle, se suffisait. On ne garde que le message ; `request_id` sert au
  * support, pas à l'écran.
  */
-function motifDuRefus(donnees: unknown, statut: number): string {
-  const secours = `Erreur ${statut}`;
-  if (!donnees || typeof donnees !== 'object') return secours;
+function motifOuNull(donnees: unknown): string | null {
+  if (!donnees || typeof donnees !== 'object') return null;
   const d = donnees as Record<string, unknown>;
 
   const premierTexte = (valeur: unknown): string | null => {
@@ -267,7 +266,34 @@ function motifDuRefus(donnees: unknown, statut: number): string {
     return null;
   };
 
-  return premierTexte(d.error ?? d.detail ?? d.message ?? d.errors) ?? secours;
+  return premierTexte(d.error ?? d.detail ?? d.message ?? d.errors);
+}
+
+function motifDuRefus(donnees: unknown, statut: number): string {
+  return motifOuNull(donnees) ?? `Erreur ${statut}`;
+}
+
+/**
+ * Le message d'une erreur levée par `apiFetch`, prêt à être affiché.
+ *
+ * `apiFetch` livre les erreurs PAR CHAMP sous forme de JSON — une douzaine
+ * d'écrans en dépendent : ils le relisent avec `JSON.parse` pour poser le
+ * message sous le bon champ. Ce contrat ne bouge pas.
+ *
+ * Mais un écran qui se contente d'un bandeau, lui, affichait ce JSON tel
+ * quel : `{"acronyme":["Ce sigle est déjà utilisé…"]}`. On aplatit donc ici,
+ * en ne gardant que les messages — jamais les noms de champs, qui sont ceux
+ * du modèle et pas ceux de l'écran.
+ */
+export function messageLisible(err: unknown): string {
+  const brut = err instanceof Error ? err.message : String(err ?? '');
+  const debut = brut.trimStart();
+  if (!debut.startsWith('{') && !debut.startsWith('[')) return brut;
+  try {
+    return motifOuNull({ errors: JSON.parse(brut) }) ?? brut;
+  } catch {
+    return brut;
+  }
 }
 
 export async function apiFetchBlob(path: string, params?: Record<string, string>): Promise<Blob> {
