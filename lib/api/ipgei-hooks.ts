@@ -1112,6 +1112,19 @@ export function useGrilleMutations() {
     }),
     remove: useMutation({ mutationFn: grillesApi.remove, onSuccess: invalider }),
     /**
+     * Reprend une semaine dans le patron — le sens inverse de `dupliquer`.
+     *
+     * Invalide la grille ET les séances : le patron change, et l'écran qui
+     * l'affiche doit le relire.
+     */
+    reprendreSemaine: useMutation({
+      mutationFn: ({ id, input }: {
+        id: number; input: { semaine: number; ecraser?: boolean };
+      }) => grillesApi.reprendreSemaine(id, input),
+      onSuccess: invalider,
+    }),
+
+    /**
      * Recopie une semaine réelle vers d'autres.
      *
      * Vit avec les mutations de grille, et non à part : les deux duplications

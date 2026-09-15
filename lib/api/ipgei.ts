@@ -893,7 +893,30 @@ export const grillesApi = {
   dupliquer: (id: number, input: {
     semestre: number; semaine_debut?: number | null; nb_semaines?: number; ecraser?: boolean;
   }) => apiFetch<ResultatDuplication>(`${BASE}/grilles/${id}/dupliquer/`, { method: 'POST', body: input }),
+
+  /**
+   * Reprend une semaine réelle DANS le patron — le sens inverse de `dupliquer`.
+   *
+   * Le patron n'appartient à aucun semestre : rempli une fois, il resservira
+   * l'année suivante, là où une semaine meurt avec son année.
+   */
+  reprendreSemaine: (id: number, input: { semaine: number; ecraser?: boolean }) =>
+    apiFetch<ReportPatron>(`${BASE}/grilles/${id}/reprendre-semaine/`,
+      { method: 'POST', body: input }),
 };
+
+export interface ReportPatron {
+  creees:     number;
+  ignorees:   number;
+  remplacees: number;
+  /**
+   * Cases dont l'enseignant a été ramené au titulaire : une permutation est une
+   * exception à la semaine ordinaire, la graver dans le modèle serait faux. À
+   * DIRE, car le patron ne reproduit alors pas la semaine qu'on avait sous les
+   * yeux.
+   */
+  permutations_normalisees: number;
+}
 
 export const seancesTypeApi = {
   list:   (grille: number) => apiFetch<SeanceType[]>(`${BASE}/seances-type/`, { params: { grille } }),

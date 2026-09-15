@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, CalendarRange, CheckCircle, ChevronLeft, ChevronRight,
-  CopyPlus, Loader2, Lock, Repeat, Save, Trash2, X,
+  AlertTriangle, ArrowDownToLine, CalendarRange, CheckCircle, ChevronLeft,
+  ChevronRight, CopyPlus, Loader2, Lock, Repeat, Save, Trash2, X,
 } from 'lucide-react';
 
 import {
@@ -187,6 +187,7 @@ export default function GrilleTypePage() {
   // ne justifie un aller-retour dans la grille.
   const [permutation, setPermutation] = useState<SeanceReelle | null>(null);
   const [duplicationOuverte, setDuplicationOuverte] = useState(false);
+  const [reportOuvert, setReportOuvert] = useState(false);
 
   // Le serveur exige deux séances de la même classe ET du même créneau.
   const candidats = useMemo(
@@ -527,6 +528,11 @@ export default function GrilleTypePage() {
                 modale. */}
             <button onClick={() => setDuplicationOuverte(true)} className={BTN_SECONDAIRE}>
               <CopyPlus size={14} /> Dupliquer sur le semestre
+            </button>
+            {/* Le sens inverse. Il vit ici et non dans l'écran hebdomadaire :
+                c'est le PATRON qu'on remplit, et c'est l'écran du patron. */}
+            <button onClick={() => setReportOuvert(true)} className={BTN_SECONDAIRE}>
+              <ArrowDownToLine size={14} /> Reprendre une semaine
             </button>
             {boutonEnregistrer}
           </>
@@ -978,6 +984,19 @@ export default function GrilleTypePage() {
         />
       )}
 
+      {reportOuvert && grilleId && (
+        <ModaleReportSemaine
+          grilleId={grilleId}
+          classeNom={classe?.nom ?? ''}
+          annee={annee}
+          niveau={classe?.niveau ?? 'MPSI'}
+          typeSemestre={typeSemestre}
+          onFerme={() => setReportOuvert(false)}
+          onFait={(m) => { setReportOuvert(false); notifier(m); }}
+          mutations={mutations}
+        />
+      )}
+
       {permutation && (
         <ModalePermutation
           depart={permutation} candidats={candidats}
@@ -1300,6 +1319,124 @@ function ModaleDuplication({
               <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reprendre une semaine dans le patron ─────────────────────────────────────
+/**
+ * Le sens inverse de la duplication.
+ *
+ * Le patron n'appartient à aucun semestre : il tient à la classe et au type de
+ * semestre. Rempli une fois, il resservira l'année suivante, là où une semaine
+ * réelle meurt avec son année. Personne ne le compose à vide — on bâtit une
+ * semaine, puis on la promeut.
+ */
+function ModaleReportSemaine({
+  grilleId, classeNom, annee, niveau, typeSemestre, onFerme, onFait, mutations,
+}: {
+  grilleId: number; classeNom: string; annee: string; niveau: NiveauIPGEI;
+  typeSemestre: TypeSemestre;
+  onFerme: () => void; onFait: (message: string) => void; mutations: Mutations;
+}) {
+  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
+  const semestre = semestres.find(
+    s => s.niveaux.includes(niveau) && s.type_semestre === typeSemestre);
+  const { data: semaines = [] } = useSemaines(semestre?.id ?? null);
+  const semainesCours = semaines.filter(s => s.type_semaine === 'cours');
+
+  const [semaine, setSemaine] = useState<number | null>(null);
+  const [ecraser, setEcraser] = useState(false);
+  const [erreur, setErreur]   = useState<string | null>(null);
+
+  const lancer = () => {
+    if (!semaine) { setErreur('Choisissez la semaine à reprendre.'); return; }
+    setErreur(null);
+    mutations.reprendreSemaine.mutate(
+      { id: grilleId, input: { semaine, ecraser } },
+      {
+        onSuccess: (r) => onFait(
+          `${r.creees} case(s) reprise(s) dans le patron`
+          + (r.remplacees ? ` — ${r.remplacees} remplacée(s)` : '')
+          + (r.ignorees ? ` — ${r.ignorees} laissée(s) intacte(s)` : '')
+          // Le patron ne reproduit alors PAS la semaine qu'on avait sous les
+          // yeux : il faut le dire, sinon l'écart se découvre bien plus tard.
+          + (r.permutations_normalisees
+            ? ` — ${r.permutations_normalisees} permutation(s) ramenée(s) au titulaire`
+            : '')),
+        onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+         onClick={onFerme} role="presentation">
+      <div className={`${CARTE} w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto`}
+           onClick={e => e.stopPropagation()} role="presentation">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-bold text-iss-dark">
+              Reprendre une semaine dans le patron
+            </h3>
+            <p className="text-xs text-iss-gray">
+              Le patron de {classeNom} n&apos;est lié à aucune année : rempli une
+              fois, il resservira l&apos;an prochain.
+            </p>
+          </div>
+          <button onClick={onFerme}
+                  className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Semaine à reprendre <span className="text-red-600">*</span>
+            </label>
+            <select value={semaine ?? ''} className={SELECT}
+                    onChange={e => setSemaine(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Choisir…</option>
+              {semainesCours.map(s => (
+                <option key={s.id} value={s.id}>
+                  S{s.numero} · du {new Date(s.date_debut).toLocaleDateString('fr-FR')}
+                </option>
+              ))}
+            </select>
+            {/* Deux écarts délibérés entre la semaine et le modèle, annoncés
+                AVANT de cliquer : les découvrir après serait pire. */}
+            <p className="text-xs text-iss-gray mt-1.5">
+              Les séances annulées sont ignorées, et une permutation est ramenée
+              à son enseignant titulaire — une exception ne fait pas un modèle.
+            </p>
+          </div>
+
+          <label className="flex items-start gap-2.5 p-3 rounded-xl border border-iss-border
+                            bg-gray-50 cursor-pointer">
+            <input type="checkbox" checked={ecraser} className="w-4 h-4 mt-0.5 accent-[#006633]"
+                   onChange={e => setEcraser(e.target.checked)} />
+            <span className="text-sm">
+              <span className="font-semibold text-iss-dark">Écraser les cases déjà composées</span>
+              <span className="block text-xs text-iss-gray mt-0.5">
+                Sans cette option, une case déjà réglée dans le patron est laissée
+                telle quelle : on le complète sans défaire ce qu&apos;on y a mis.
+              </span>
+            </span>
+          </label>
+
+          {erreur && <Erreur erreur={new Error(erreur)} />}
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={lancer} disabled={mutations.reprendreSemaine.isPending}
+                  className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+            <ArrowDownToLine size={14} />
+            {mutations.reprendreSemaine.isPending ? 'Report…' : 'Reprendre'}
+          </button>
+          <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
         </div>
       </div>
     </div>
