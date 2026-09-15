@@ -175,6 +175,14 @@ export default function SaisieNotesPage() {
   const saisieRattrapage = grille?.saisie_rattrapage ?? false;
   const enLecture        = !anneeOuverte || (!saisieNormale && !saisieRattrapage);
 
+  // CAMPAGNE DE RATTRAPAGE FERMÉE : on consulte, on ne saisit pas.
+  //
+  // L'onglet reste accessible — il faut pouvoir relire un rattrapage déjà
+  // saisi, ne serait-ce que pour vérifier un dossier après coup. Ce sont les
+  // cellules qui refusent l'écriture, et il faut le DIRE : sans cela on croit
+  // saisir et rien ne part, ce qui est pire qu'un onglet fermé.
+  const rattrapageFerme = !saisieRattrapage;
+
   // Passer d'un onglet à l'autre masque des saisies non enregistrées : les
   // compter par épreuve évite de croire qu'on a tout envoyé.
   const enAttente = (cible: 'ds' | 'exam' | 'rattrapage') =>
@@ -416,14 +424,22 @@ export default function SaisieNotesPage() {
               { cle: 'rattrapage', label: 'Rattrapage' },
             ] as const).map(onglet => {
               const attente = enAttente(onglet.cle);
+              // L'onglet reste OUVERT même campagne fermée : on doit pouvoir
+              // relire un rattrapage déjà saisi pour vérifier un dossier. Ce
+              // sont les cellules qui refusent, et le bandeau qui l'annonce.
+              const ferme   = onglet.cle === 'rattrapage' && rattrapageFerme;
               return (
                 <button key={onglet.cle} onClick={() => setEpreuve(onglet.cle)}
+                        title={ferme
+                          ? 'Campagne de rattrapage fermée — consultation seule.'
+                          : undefined}
                         className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${
                           epreuve === onglet.cle
                             ? 'text-white'
                             : 'text-iss-gray border border-gray-200 hover:bg-gray-50'
                         }`}
                         style={epreuve === onglet.cle ? { background: DEGRADE } : {}}>
+                  {ferme && <Lock size={11} className="flex-shrink-0 opacity-70" />}
                   {onglet.label}
                   {attente > 0 && (
                     <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold ${
@@ -436,6 +452,26 @@ export default function SaisieNotesPage() {
               );
             })}
           </div>
+
+          {/* Le cadenas de l'onglet est discret ; ce bandeau ne l'est pas.
+              Sans lui, on tape dans des cases mortes et l'on croit avoir
+              saisi — le défaut d'origine, qu'ouvrir l'onglet en lecture seule
+              rétablirait tel quel. */}
+          {epreuve === 'rattrapage' && rattrapageFerme && (
+            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border
+                            border-amber-200 bg-amber-50 text-amber-800">
+              <Lock size={14} className="mt-0.5 flex-shrink-0" />
+              <p className="text-sm">
+                <span className="font-semibold">Consultation seule.</span>{' '}
+                La campagne de rattrapage n&apos;est pas ouverte : les notes déjà
+                saisies restent lisibles, mais aucune ne peut être modifiée.{' '}
+                <Link href="/dashboard/ipgei/notes/sessions"
+                      className="font-semibold underline hover:no-underline">
+                  Ouvrir la campagne
+                </Link>
+              </p>
+            </div>
+          )}
 
           <div className={`${CARTE} overflow-hidden`}>
             {grille.notes.length === 0 ? (
