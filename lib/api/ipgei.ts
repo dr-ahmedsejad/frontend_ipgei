@@ -1057,7 +1057,18 @@ export const documentsApi = {
    * l'écran doit pouvoir annoncer « 39 sur 40 » sans seconde requête.
    */
   genererLot: async (input: {
-    type_document: string; classe: number; semestre?: number;
+    type_document: string;
+    /** Une classe entière, OU `matricules` — jamais les deux. */
+    classe?: number;
+    /**
+     * Les matricules tels qu'on les a collés : le serveur découpe sur les
+     * retours à la ligne, virgules, points-virgules, tabulations et espaces.
+     * Ceux qui n'aboutissent pas sont NOMMÉS dans `erreurs`, pas ignorés.
+     */
+    matricules?: string;
+    /** Sans elle, un matricule ne désigne pas une inscription : une par année. */
+    annee_universitaire?: string;
+    semestre?: number;
     /** Un seul signataire pour toute la fournée : elles se signent d'une main. */
     signataire?: number;
   }): Promise<BilanLot> => {

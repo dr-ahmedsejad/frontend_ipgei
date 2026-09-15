@@ -159,7 +159,11 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/ipgei/documents/generer', label: 'Générer un document',
         module: 'ipgei_documents', action: 'modifier' },
-      { href: '/dashboard/ipgei/documents/lot',     label: 'Éditer par groupe',
+      { href: '/dashboard/ipgei/documents/lot',     label: 'Générer par groupe',
+        module: 'ipgei_documents', action: 'modifier' },
+      // Le pendant du précédent : même fournée, mais désignée par matricules.
+      // Une classe entière ne couvre pas la liste qui traverse les classes.
+      { href: '/dashboard/ipgei/documents/matricules', label: 'Générer par matricules',
         module: 'ipgei_documents', action: 'modifier' },
       // Consultation : lecture seule, donc le droit de VOIR suffit — exiger
       // « modifier » interdirait de vérifier une moyenne à qui ne délivre pas.

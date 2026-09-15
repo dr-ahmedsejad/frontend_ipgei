@@ -1397,7 +1397,8 @@ export function useDocumentLot() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: {
-      type_document: string; classe: number; semestre?: number; signataire?: number;
+      type_document: string; classe?: number; matricules?: string;
+      annee_universitaire?: string; semestre?: number; signataire?: number;
     }) => documentsApi.genererLot(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ipgeiKeys.documents.all }),
   });
