@@ -141,7 +141,7 @@ export default function AjouterEtudiantPage() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Nationalité" value={nationalite} onChange={e => setNationalite(e.target.value)} />
-              <FormField label="N° CNI / NNI" value={cni} onChange={e => setCni(e.target.value)} />
+              <FormField label="NNI" value={cni} onChange={e => setCni(e.target.value)} />
             </div>
           </>
         )}

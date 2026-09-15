@@ -101,7 +101,7 @@ export default function EtudiantPicker({
             value={query}
             onChange={onInput}
             onFocus={() => query.length >= 2 && setOpen(true)}
-            placeholder="Rechercher par nom, matricule ou CNI…"
+            placeholder="Rechercher par nom, matricule ou NNI…"
             className={`${base} pl-9 ${error ? 'border-red-400' : ''}`}
           />
           {loading && (

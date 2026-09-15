@@ -302,7 +302,7 @@ export default function EtudiantDossier({ etudiant, onClose }: EtudiantDossierPr
                 <InfoCell label="Lieu (AR)"           value={etudiant.lieu_naissance_ar} rtl />
                 <InfoCell label="Nationalité (FR)"    value={etudiant.nationalite_fr} />
                 <InfoCell label="Nationalité (AR)"    value={etudiant.nationalite_ar} rtl />
-                <InfoCell label="N° CNI"      value={etudiant.cni} />
+                <InfoCell label="NNI"         value={etudiant.cni} />
                 <InfoCell label="Matricule"   value={etudiant.matricule} />
               </div>
             </section>

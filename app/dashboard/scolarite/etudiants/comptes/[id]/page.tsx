@@ -130,11 +130,11 @@ export default function CompleterEtudiantComptePage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
         <p className="text-xs font-bold text-iss-gray uppercase tracking-wide mb-3">État actuel</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <StatusRow label="CNI / NNI"      ok={cniValide}  value={cni  || '— manquant —'} />
+          <StatusRow label="NNI"            ok={cniValide}  value={cni  || '— manquant —'} />
           <StatusRow label="N° BAC"         ok={nbacValide} value={nbac || '— manquant —'} />
         </div>
         <p className="text-[11px] text-iss-gray mt-4">
-          Une fois le CNI et le N° BAC renseignés, le compte sera créable avec :
+          Une fois le NNI et le N° BAC renseignés, le compte sera créable avec :
           <br />
           • <strong>Login</strong> = NNI ({cni || '?'}) — au 1<sup>er</sup> login il devient automatiquement le matricule <strong>{etudiant.matricule}</strong>
           <br />
@@ -149,7 +149,7 @@ export default function CompleterEtudiantComptePage() {
         <p className="text-xs font-bold text-iss-gray uppercase tracking-wide">Données à compléter</p>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="CNI / NNI *" value={cni}
+          <FormField label="NNI *" value={cni}
             onChange={e => setCni(e.target.value)}
             placeholder="Ex : 5662025219"
             disabled={!canEdit}

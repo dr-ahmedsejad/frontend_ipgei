@@ -309,7 +309,7 @@ export default function EtudiantsPage() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-48">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-iss-gray" />
-            <input type="text" placeholder="Nom, matricule, CNI…"
+            <input type="text" placeholder="Nom, matricule, NNI…"
               value={search} onChange={e => setSearch(e.target.value)}
               className="w-full h-11 border border-gray-200 rounded-xl pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-iss-primary/30 focus:border-iss-primary" />
           </div>

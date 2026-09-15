@@ -45,7 +45,7 @@ interface CreatedRow {
 
 const STATUT_LABEL: Record<StatutCompte, { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' }> = {
   creable:        { label: 'Prêt à créer',        variant: 'success' },
-  sans_cni:       { label: 'CNI manquant',        variant: 'danger'  },
+  sans_cni:       { label: 'NNI manquant',        variant: 'danger'  },
   sans_nbac:      { label: 'N° Bac manquant',     variant: 'danger'  },
   username_pris:  { label: 'Username déjà pris',  variant: 'warning' },
 };
@@ -175,7 +175,7 @@ export default function ComptesEtudiantsPage() {
           {r.filiere && <div className="text-xs text-iss-gray">{r.filiere}</div>}
         </div>
       )},
-    { key: 'cni', header: 'NNI / CNI', width: 'w-32',
+    { key: 'cni', header: 'NNI', width: 'w-32',
       render: r => r.cni ? <span className="font-mono text-xs">{r.cni}</span>
                          : <span className="text-xs text-red-500">— manquant</span> },
     { key: 'nbac', header: 'N° Bac', width: 'w-24',
@@ -189,7 +189,7 @@ export default function ComptesEtudiantsPage() {
       render: r => (r.statut_compte === 'sans_cni' || r.statut_compte === 'sans_nbac') ? (
         <Link href={`/dashboard/scolarite/etudiants/comptes/${r.id}`}
           className="p-1.5 rounded-lg text-iss-primary hover:bg-iss-primary/10 inline-flex"
-          title="Compléter CNI / N° BAC">
+          title="Compléter NNI / N° BAC">
           <Edit3 size={14} />
         </Link>
       ) : null },
@@ -227,7 +227,7 @@ export default function ComptesEtudiantsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard icon={Users}        label="Sans compte"      value={recap.total}         color="#6b7280" />
           <StatCard icon={CheckCircle2} label="Prêts à créer"    value={recap.creable}       color="#10b981" />
-          <StatCard icon={AlertCircle}  label="CNI manquant"     value={recap.sans_cni}      color="#ef4444" />
+          <StatCard icon={AlertCircle}  label="NNI manquant"     value={recap.sans_cni}      color="#ef4444" />
           <StatCard icon={AlertCircle}  label="N° Bac manquant"  value={recap.sans_nbac}     color="#f59e0b" />
         </div>
       )}
@@ -239,7 +239,7 @@ export default function ComptesEtudiantsPage() {
             className={selectClass}>
             <option value="all">Tous ({recap?.total ?? 0})</option>
             <option value="creable">Prêts à créer ({recap?.creable ?? 0})</option>
-            <option value="sans_cni">CNI manquant ({recap?.sans_cni ?? 0})</option>
+            <option value="sans_cni">NNI manquant ({recap?.sans_cni ?? 0})</option>
             <option value="sans_nbac">N° Bac manquant ({recap?.sans_nbac ?? 0})</option>
             {(recap?.username_pris ?? 0) > 0 && (
               <option value="username_pris">Username pris ({recap?.username_pris})</option>
@@ -308,11 +308,11 @@ export default function ComptesEtudiantsPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-900">
         <p className="font-semibold mb-1">Comment ça marche ?</p>
         <ul className="list-disc list-inside space-y-1">
-          <li><strong>Login initial</strong> = NNI (CNI) de l&apos;étudiant</li>
+          <li><strong>Login initial</strong> = NNI de l&apos;étudiant</li>
           <li><strong>Mot de passe initial</strong> = N° de Bac</li>
           <li><strong>Email</strong> = <code className="px-1 bg-white rounded">{`{matricule}@isms.esp.mr`}</code></li>
           <li>Au <strong>1<sup>er</sup> login</strong>, l&apos;étudiant doit choisir un nouveau mot de passe ; son username devient automatiquement son matricule</li>
-          <li>Pour les étudiants avec CNI ou N° Bac manquant : cliquer sur <Edit3 size={11} className="inline" /> pour compléter les données</li>
+          <li>Pour les étudiants avec NNI ou N° Bac manquant : cliquer sur <Edit3 size={11} className="inline" /> pour compléter les données</li>
         </ul>
       </div>
 

@@ -154,7 +154,7 @@ export interface Etudiant {
   lieu_naissance_ar:   string;
   nationalite_fr:      string;
   nationalite_ar:      string;
-  /** Numéro CNI (champ backend : cni) */
+  /** NNI — numéro national d'identification. Champ backend : `cni`, mal nommé. */
   cni:                 string | null;
   telephone:           string;
   email:               string;

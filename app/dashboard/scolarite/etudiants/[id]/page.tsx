@@ -340,7 +340,7 @@ export default function EtudiantPage() {
             { label: 'Statut',     value: <StatusPill statut={etudiant.statut_effectif ?? etudiant.statut} /> },
             { label: 'Genre',      value: etudiant.genre === 'M' ? 'Masculin' : 'Féminin' },
             { label: 'Né(e) le',   value: formatDate(etudiant.date_naissance) },
-            { label: 'CNI / NNI',  value: etudiant.cni ?? '—' },
+            { label: 'NNI',        value: etudiant.cni ?? '—' },
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[11px] font-bold text-iss-gray uppercase tracking-wide">{label}</p>
@@ -375,7 +375,7 @@ export default function EtudiantPage() {
               { label: 'Nom complet (FR)', value: nomComplet(etudiant.prenom_fr, etudiant.nom_fr) },
               { label: 'Nom complet (AR)', value: nomComplet(etudiant.prenom_ar, etudiant.nom_ar), rtl: true },
               { label: 'Nationalité', value: etudiant.nationalite_fr },
-              { label: 'CNI / NNI',   value: etudiant.cni },
+              { label: 'NNI',         value: etudiant.cni },
               { label: 'N° BAC',      value: etudiant.nbac },
               { label: 'Téléphone',   value: etudiant.telephone },
               { label: 'Email',       value: etudiant.email },
@@ -514,7 +514,7 @@ export default function EtudiantPage() {
           <div className="pt-3 mt-2 border-t border-gray-100">
             <p className="text-xs font-bold text-iss-gray uppercase tracking-wide mb-3">Identité &amp; documents</p>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="CNI / NNI" value={editCni}
+              <FormField label="NNI" value={editCni}
                 onChange={e => setEditCni(e.target.value)}
                 placeholder="Ex : 5662025219" />
               <FormField label="N° BAC" value={editNbac}
@@ -522,7 +522,7 @@ export default function EtudiantPage() {
                 placeholder="Ex : 39796" />
             </div>
             <p className="text-[11px] text-iss-gray mt-1.5">
-              CNI + N° BAC requis pour générer le compte portail (login = NNI, mdp initial = N° BAC).
+              NNI + N° BAC requis pour générer le compte portail (login = NNI, mdp initial = N° BAC).
             </p>
           </div>
 
