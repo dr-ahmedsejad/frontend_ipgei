@@ -114,6 +114,11 @@ export default function DocumentsIPGEIPage() {
                       <Badge ton={d.type_document === 'ipgei_attestation_cnim' ? 'vert' : 'bleu'}>
                         {d.type_libelle.replace('IPGEI — ', '')}
                       </Badge>
+                      {/* Le semestre couvert : sans lui, deux relevés du même
+                          étudiant — l'un de S3, l'autre de S4 — se lisent pareil. */}
+                      {d.semestre_code && (
+                        <div className="mt-1 text-xs font-semibold text-iss-gray">{d.semestre_code}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-iss-dark">{d.etudiant_nom}</div>

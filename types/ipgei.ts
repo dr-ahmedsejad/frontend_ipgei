@@ -1088,6 +1088,8 @@ export interface DocumentIPGEI {
   etudiant_nom:        string;
   etudiant_matricule:  string;
   annee_universitaire: string;
+  /** Semestre couvert — « S1 » à « S4 ». Vide pour une pièce qui n'en vise aucun. */
+  semestre_code:       string;
   est_valide:          boolean;
   date_generation:     string;
   premiere_generation: string | null;
