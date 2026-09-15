@@ -927,6 +927,19 @@ export const archivesEdtApi = {
 export const seancesApi = {
   parSemaine: (classe: number, semaine: number) =>
     apiFetch<SeanceReelle[]>(`${BASE}/seances/semaine/`, { params: { classe, semaine } }),
+
+  /**
+   * Recopie une semaine RÉELLE vers d'autres — le pendant de la grille type.
+   *
+   * `semaines` désigne les cibles une à une, ou `nb_semaines` prend les N
+   * suivantes ; les deux gestes existent. Comme pour la grille, une case en
+   * conflit est écartée avec son motif plutôt que d'interrompre le lot.
+   */
+  dupliquerSemaine: (input: {
+    classe: number; semaine_source: number;
+    semaines?: number[]; nb_semaines?: number; ecraser?: boolean;
+  }) => apiFetch<ResultatDuplication>(`${BASE}/seances/dupliquer-semaine/`,
+    { method: 'POST', body: input }),
   list:   (f: Params = {}) => apiFetch<SeanceReelle[]>(`${BASE}/seances/`, { params: nettoyer(f) }),
 
   /**

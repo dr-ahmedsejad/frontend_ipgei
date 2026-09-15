@@ -1111,6 +1111,20 @@ export function useGrilleMutations() {
       onSuccess:  invalider,
     }),
     remove: useMutation({ mutationFn: grillesApi.remove, onSuccess: invalider }),
+    /**
+     * Recopie une semaine réelle vers d'autres.
+     *
+     * Vit avec les mutations de grille, et non à part : les deux duplications
+     * touchent les mêmes données et doivent invalider les mêmes caches. Les
+     * séparer aurait laissé l'une rafraîchir l'écran et pas l'autre.
+     */
+    dupliquerSemaine: useMutation({
+      mutationFn: seancesApi.dupliquerSemaine,
+      onSuccess:  () => {
+        qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'edt'] });
+        qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'semaines'] });
+      },
+    }),
     dupliquer: useMutation({
       mutationFn: ({ id, input }: {
         id: number;

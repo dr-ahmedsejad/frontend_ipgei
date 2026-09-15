@@ -968,6 +968,7 @@ export default function GrilleTypePage() {
       {duplicationOuverte && grilleId && (
         <ModaleDuplication
           grilleId={grilleId}
+          classeId={classeId as number}
           annee={annee}
           niveau={classe?.niveau ?? 'MPSI'}
           typeSemestre={typeSemestre}
@@ -999,9 +1000,10 @@ export default function GrilleTypePage() {
 type Mutations = ReturnType<typeof useGrilleMutations>;
 
 function ModaleDuplication({
-  grilleId, annee, niveau, typeSemestre, onFerme, onFait, mutations,
+  grilleId, classeId, annee, niveau, typeSemestre, onFerme, onFait, mutations,
 }: {
-  grilleId: number; annee: string; niveau: NiveauIPGEI; typeSemestre: TypeSemestre;
+  grilleId: number; classeId: number; annee: string; niveau: NiveauIPGEI;
+  typeSemestre: TypeSemestre;
   onFerme: () => void; onFait: (message: string) => void; mutations: Mutations;
 }) {
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
@@ -1009,6 +1011,13 @@ function ModaleDuplication({
     s => s.niveaux.includes(niveau) && s.type_semestre === typeSemestre);
 
   const [semestre, setSemestre] = useState<number | null>(candidats[0]?.id ?? null);
+  // CE QU'ON DUPLIQUE. Le patron est un modèle abstrait qu'il faut remplir à
+  // part ; à l'usage, on bâtit plutôt une semaine sur l'écran hebdomadaire et
+  // l'on veut les suivantes identiques. Les deux sources ont leur emploi, mais
+  // il fallait pouvoir le DIRE — sans ce choix, la duplication partait d'un
+  // patron vide et ne produisait rien, ce qui se lisait comme une panne.
+  const [source, setSource] = useState<'patron' | 'semaine'>('patron');
+  const [semaineSource, setSemaineSource] = useState<number | null>(null);
   const [portee, setPortee]     = useState<'tout' | 'lot'>('tout');
   const [semaineDebut, setSemaineDebut] = useState<number | null>(null);
   const [nbSemaines, setNbSemaines]     = useState('4');
@@ -1017,6 +1026,7 @@ function ModaleDuplication({
 
   const { data: semaines = [] } = useSemaines(semestre);
   const semainesCours = semaines.filter(s => s.type_semaine === 'cours');
+  const enCours = mutations.dupliquer.isPending || mutations.dupliquerSemaine.isPending;
 
   // On dépend de l'identifiant, pas du tableau : `candidats` naît d'un
   // `.filter()` et change d'identité à chaque rendu, ce qui relancerait
@@ -1033,7 +1043,48 @@ function ModaleDuplication({
   const lancer = () => {
     if (!semestre) { setErreur('Choisissez un semestre.'); return; }
     if (portee === 'lot' && !semaineDebut) { setErreur('Choisissez la semaine de départ.'); return; }
+    if (source === 'semaine' && !semaineSource) {
+      setErreur('Choisissez la semaine à recopier.'); return;
+    }
     setErreur(null);
+
+    // Le compte rendu ne dépend pas de la source : mêmes règles, même bilan.
+    const rendre = {
+      onSuccess: (r: ResultatDuplication) => {
+        const resume =
+          `${r.creees} séance(s) créée(s) sur ${r.semaines_traitees} semaine(s)`
+          + (r.remplacees ? ` — ${r.remplacees} remplacée(s)` : '')
+          + (r.ignorees ? ` — ${r.ignorees} case(s) déjà occupée(s), laissée(s) intacte(s)` : '');
+        // Des cases écartées ne se disent pas dans un message qui s'efface :
+        // il manque des séances à la semaine, et il faut pouvoir lire
+        // lesquelles pour aller les replacer. La fenêtre reste donc ouverte.
+        if (r.conflits) { setBilan({ resume, ...r }); return; }
+        onFait(resume);
+      },
+      onError: (e: unknown) => setErreur(e instanceof Error ? e.message : 'Erreur'),
+    };
+
+    if (source === 'semaine') {
+      // Les cibles : tout le semestre, ou le lot demandé — la source exclue,
+      // le serveur s'en charge. On envoie des identifiants plutôt qu'un
+      // `nb_semaines`, pour que « tout le semestre » veuille dire la même
+      // chose des deux côtés.
+      const depart = portee === 'lot'
+        ? semainesCours.findIndex(s => s.id === semaineDebut) : 0;
+      const lot = portee === 'lot'
+        ? semainesCours.slice(Math.max(depart, 0), Math.max(depart, 0) + (Number(nbSemaines) || 1))
+        : semainesCours;
+      mutations.dupliquerSemaine.mutate(
+        {
+          classe: classeId, semaine_source: semaineSource as number,
+          semaines: lot.map(s => s.id).filter(id => id !== semaineSource),
+          ecraser,
+        },
+        rendre,
+      );
+      return;
+    }
+
     mutations.dupliquer.mutate(
       {
         id: grilleId,
@@ -1044,32 +1095,24 @@ function ModaleDuplication({
           ecraser,
         },
       },
-      {
-        onSuccess: (r) => {
-          const resume =
-            `${r.creees} séance(s) créée(s) sur ${r.semaines_traitees} semaine(s)`
-            + (r.ignorees ? ` — ${r.ignorees} case(s) déjà occupée(s), laissée(s) intacte(s)` : '');
-          // Des cases écartées ne se disent pas dans un message qui s'efface :
-          // il manque des séances à la semaine, et il faut pouvoir lire
-          // lesquelles pour aller les replacer. La fenêtre reste donc ouverte.
-          if (r.conflits) { setBilan({ resume, ...r }); return; }
-          onFait(resume);
-        },
-        onError: (e) => setErreur(e instanceof Error ? e.message : 'Erreur'),
-      },
+      rendre,
     );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
          onClick={onFerme} role="presentation">
-      <div className={`${CARTE} w-full max-w-lg p-6`} onClick={e => e.stopPropagation()} role="presentation">
+      {/* Bornée en hauteur, et défilante. Sans cela, un bilan de vingt cases
+          écartées poussait les boutons SOUS LE BORD DE L'ÉCRAN : la fenêtre
+          ne se fermait plus, et l'on croyait avoir perdu la validation. */}
+      <div className={`${CARTE} w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto`}
+           onClick={e => e.stopPropagation()} role="presentation">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-iss-dark">Dupliquer la grille</h3>
+            <h3 className="text-sm font-bold text-iss-dark">Dupliquer</h3>
             <p className="text-xs text-iss-gray">
-              Déploie la <strong>grille type</strong> sur chaque semaine de cours,
-              et non la semaine affichée à l&apos;écran.
+              Déploie le patron <strong>ou</strong> une semaine déjà bâtie sur
+              les semaines de cours choisies.
             </p>
           </div>
           <button onClick={onFerme} className="p-1 rounded-lg text-iss-gray hover:bg-gray-100 transition-colors">
@@ -1096,6 +1139,51 @@ function ModaleDuplication({
               </p>
             )}
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Que duplique-t-on ?
+            </label>
+            <div className="flex gap-2">
+              <button onClick={() => setSource('patron')}
+                      className={`flex-1 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                        source === 'patron' ? 'bg-[#006633] text-white border-[#006633]'
+                                            : 'bg-white text-iss-gray border-gray-200'}`}>
+                Le patron
+              </button>
+              <button onClick={() => setSource('semaine')}
+                      className={`flex-1 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                        source === 'semaine' ? 'bg-[#006633] text-white border-[#006633]'
+                                             : 'bg-white text-iss-gray border-gray-200'}`}>
+                Une semaine précise
+              </button>
+            </div>
+            {/* Le patron est vide tant qu'on ne l'a pas rempli sur CET écran.
+                Le dire ici évite la duplication qui ne produit rien et qu'on
+                prend pour une panne. */}
+            <p className="text-xs text-iss-gray mt-1.5">
+              {source === 'patron'
+                ? 'La grille type que vous composez sur cet écran.'
+                : "Les séances d'une semaine déjà bâtie, telles qu'elles sont."}
+            </p>
+          </div>
+
+          {source === 'semaine' && (
+            <div>
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+                Semaine à recopier <span className="text-red-600">*</span>
+              </label>
+              <select value={semaineSource ?? ''} className={SELECT}
+                      onChange={e => setSemaineSource(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">Choisir…</option>
+                {semainesCours.map(s => (
+                  <option key={s.id} value={s.id}>
+                    S{s.numero} · du {new Date(s.date_debut).toLocaleDateString('fr-FR')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Portée</label>
@@ -1158,13 +1246,27 @@ function ModaleDuplication({
               <AlertTriangle size={14} />
               {bilan.conflits} case(s) écartée(s)
             </div>
+            {/* Ce qui a RÉUSSI se dit en premier, et au passé : la duplication
+                est déjà enregistrée, il n'y a rien à valider. On lisait
+                l'inverse — un encadré d'alerte donne à croire que tout a
+                échoué. */}
+            <p className="text-xs text-amber-900 mt-1 font-semibold">{bilan.resume}.</p>
+            {/* Deux causes possibles, et la phrase n'en nommait qu'une : « un
+                enseignant ou une salle » laissait perplexe devant un motif qui
+                parle d'épreuve. */}
             <p className="text-xs text-amber-800 mt-1">
-              {bilan.resume}. Ces créneaux mettraient un enseignant ou une salle
-              à deux endroits au même moment — replacez-les à la main.
+              Les cases ci-dessous étaient déjà prises — par une épreuve, ou par
+              un enseignant ou une salle engagés ailleurs au même moment. Le
+              reste est en place ; celles-ci sont à replacer à la main.
             </p>
             <ul className="mt-2 space-y-0.5 max-h-44 overflow-y-auto">
-              {(bilan.details_conflits ?? []).map(d => (
-                <li key={d} className="text-xs text-amber-900 font-mono">{d}</li>
+              {/* Clé par RANG, et non par texte : deux cases distinctes
+                  peuvent légitimement produire le même motif, et une clé en
+                  double casse le rendu. Le serveur déduplique déjà, mais une
+                  liste d'affichage n'a pas à en dépendre — elle ne se
+                  réordonne ni ne se filtre. */}
+              {(bilan.details_conflits ?? []).map((d, rang) => (
+                <li key={rang} className="text-xs text-amber-900 font-mono">{d}</li>
               ))}
             </ul>
             {(bilan.conflits ?? 0) > (bilan.details_conflits?.length ?? 0) && (
@@ -1177,15 +1279,23 @@ function ModaleDuplication({
 
         <div className="flex gap-2 mt-5">
           {bilan ? (
+            // La duplication est DÉJÀ enregistrée : ce bouton ne valide rien,
+            // il ferme. « J'ai noté » le laissait croire l'inverse, et l'on
+            // cherchait ce qu'on avait oublié de valider.
             <button onClick={() => onFait(bilan.resume)} className={BTN_PRIMAIRE}
                     style={{ background: DEGRADE }}>
-              J&apos;ai noté
+              Fermer — les séances sont enregistrées
             </button>
           ) : (
             <>
-              <button onClick={lancer} disabled={mutations.dupliquer.isPending}
+              {/* Les deux sources passent par le même bouton : il doit donc
+                  attendre CELLE qui tourne, sans quoi on peut relancer une
+                  duplication de semaine pendant qu'elle s'exécute. */}
+              <button onClick={lancer} disabled={enCours}
                       className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-                <CopyPlus size={14} /> {mutations.dupliquer.isPending ? 'Duplication…' : 'Dupliquer'}
+                <CopyPlus size={14} /> {enCours
+                  ? 'Duplication…'
+                  : source === 'semaine' ? 'Dupliquer la semaine' : 'Dupliquer le patron'}
               </button>
               <button onClick={onFerme} className={BTN_SECONDAIRE}>Annuler</button>
             </>
