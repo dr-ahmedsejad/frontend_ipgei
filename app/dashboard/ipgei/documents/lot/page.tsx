@@ -15,7 +15,7 @@ import {
 import type { BilanLot } from '@/lib/api/ipgei';
 
 /**
- * Édition des documents officiels par groupe.
+ * Génération des documents officiels par groupe.
  *
  * Les relevés d'une classe pour un semestre, les attestations d'une promotion :
  * on les délivre par fournée, pas un par un. Le serveur rend UN seul PDF, tous
@@ -129,7 +129,7 @@ export default function DocumentsEnLotPage() {
 
       <EnTetePage
         icone={<FileStack size={14} className="text-white" />}
-        titre="Édition par groupe"
+        titre="Génération par groupe"
         sousTitre="Toute une classe en un seul PDF, à imprimer d'un geste."
         actions={
           <select value={annee} onChange={e => { setAnnee(e.target.value); setClasseId(null); }}
@@ -246,8 +246,8 @@ export default function DocumentsEnLotPage() {
         <button onClick={telecharger} disabled={!pret || editer.isPending}
                 className={`${BTN_PRIMAIRE} w-full justify-center`} style={{ background: DEGRADE }}>
           {editer.isPending
-            ? <><Loader2 size={14} className="animate-spin" /> Édition en cours…</>
-            : <><Download size={14} /> Éditer pour {classe?.nom ?? 'la classe'}</>}
+            ? <><Loader2 size={14} className="animate-spin" /> Génération en cours…</>
+            : <><Download size={14} /> Générer pour {classe?.nom ?? 'la classe'}</>}
         </button>
 
       </div>
@@ -260,7 +260,7 @@ export default function DocumentsEnLotPage() {
               {bilan.edites} / {bilan.total}
             </Badge>
             <span className="text-sm text-iss-dark">
-              document{bilan.edites > 1 ? 's' : ''} édité{bilan.edites > 1 ? 's' : ''}
+              document{bilan.edites > 1 ? 's' : ''} généré{bilan.edites > 1 ? 's' : ''}
             </span>
           </div>
           {/* Un dossier refusé n'interrompt pas le lot — mais il doit se lire,
