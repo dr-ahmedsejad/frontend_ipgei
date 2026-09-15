@@ -195,6 +195,17 @@ export const inscriptionsApi = {
     apiFetch<Inscription>(`${BASE}/inscriptions/${id}/`, { method: 'PATCH', body: input }),
   remove:   (id: number) => apiFetch<void>(`${BASE}/inscriptions/${id}/`, { method: 'DELETE' }),
 
+  /**
+   * Le prochain matricule libre de la promotion, à PROPOSER dans le formulaire.
+   *
+   * Calculé côté serveur : deux secrétaires qui inscrivent en même temps
+   * proposeraient sinon le même numéro, et le matricule est unique en base.
+   * Rien ne le réserve pour autant — c'est une proposition, pas une réservation.
+   */
+  prochainMatricule: (annee: string) =>
+    apiFetch<{ matricule: string }>(
+      `${BASE}/inscriptions/prochain-matricule/?annee=${encodeURIComponent(annee)}`),
+
   /** Inscription complète : crée l'étudiant au besoin, puis le rattache. */
   nouvelle: (input: InscriptionComplete) =>
     apiFetch<InscriptionCreee>(`${BASE}/inscriptions/nouvelle/`,

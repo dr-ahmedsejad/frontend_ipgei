@@ -220,7 +220,19 @@ export default function InscriptionsIPGEIPage() {
               <tbody className="divide-y divide-gray-100">
                 {inscriptions.map(i => (
                   <tr key={i.id} className={i.actif ? '' : 'opacity-55'}>
-                    <td className="px-4 py-3 font-semibold text-iss-dark">{i.etudiant_nom}</td>
+                    <td className="px-4 py-3 font-semibold text-iss-dark">
+                      {i.etudiant_nom}
+                      {/* Signalé dans la liste, et pas seulement au formulaire :
+                          c'est la seule chose qui distingue ces dossiers, et
+                          elle décide de leur présence aux jurys. */}
+                      {i.auditeur_libre && (
+                        <span className="ml-2 align-middle text-[10px] font-semibold uppercase
+                                         tracking-wide px-1.5 py-0.5 rounded
+                                         bg-amber-50 text-amber-700 border border-amber-200">
+                          Auditeur libre
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-iss-gray">{i.etudiant_matricule}</td>
                     <td className="px-4 py-3">
                       <Badge ton={i.niveau === 'MPSI' ? 'bleu' : 'violet'}>{i.classe_nom}</Badge>
@@ -357,6 +369,7 @@ function FormulaireInscription({
     edition?.numero_ordre != null ? String(edition.numero_ordre) : '',
   );
   const [actif, setActif]   = useState(edition?.actif ?? true);
+  const [auditeur, setAuditeur] = useState(edition?.auditeur_libre ?? false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const majIdentite = (champ: keyof typeof IDENTITE_VIDE, valeur: string) =>
@@ -385,7 +398,7 @@ function FormulaireInscription({
         input: {
           classe: classeId, sous_groupe: sousGroupeId,
           numero_ordre: numeroOrdre ? Number(numeroOrdre) : null,
-          actif, annee_universitaire: annee,
+          actif, auditeur_libre: auditeur, annee_universitaire: annee,
         },
       } as never, { onSuccess: () => onEnregistre('Inscription modifiée'), onError: echec });
       return;
@@ -395,6 +408,7 @@ function FormulaireInscription({
       classe: classeId,
       sous_groupe: sousGroupeId,
       numero_ordre: numeroOrdre ? Number(numeroOrdre) : null,
+      auditeur_libre: auditeur,
     };
 
     if (mode === 'existant') {
@@ -502,7 +516,9 @@ function FormulaireInscription({
                      onChange={e => majIdentite('lieu_naissance_fr', e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-iss-dark mb-1.5">CNI</label>
+              {/* `cni` côté serveur, NNI à l'écran : c'est le libellé qui
+                  était faux, pas la donnée. Cf. l'écran d'inscription. */}
+              <label className="block text-xs font-semibold text-iss-dark mb-1.5">NNI</label>
               <input value={identite.cni} className={INPUT} placeholder="—"
                      onChange={e => majIdentite('cni', e.target.value)} />
             </div>
@@ -602,6 +618,23 @@ function FormulaireInscription({
           </div>
         )}
       </div>
+
+      {/* L'auditeur libre suit la scolarité sans être de la promotion. La case
+          est à part et légendée : cochée par erreur, elle sort l'étudiant des
+          jurys et du classement sans qu'aucun écran ne s'en plaigne. */}
+      <label className="flex items-start gap-2.5 mt-4 p-3 rounded-lg border border-iss-border
+                        bg-gray-50 cursor-pointer">
+        <input type="checkbox" checked={auditeur} onChange={e => setAuditeur(e.target.checked)}
+               className="w-4 h-4 mt-0.5 accent-[#006633]" />
+        <span className="text-sm">
+          <span className="font-semibold text-iss-dark">Auditeur libre</span>
+          <span className="block text-xs text-iss-gray mt-0.5">
+            Suit les cours et compose comme les autres, mais ne fait pas partie de
+            la promotion : ni jury, ni classement, ni effectifs. Il garde ses notes,
+            son relevé et son droit au rattrapage.
+          </span>
+        </span>
+      </label>
 
       {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
 

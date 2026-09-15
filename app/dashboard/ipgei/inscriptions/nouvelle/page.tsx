@@ -86,6 +86,7 @@ export default function NouvelleInscriptionPage() {
   const [identite, setIdentite] = useState<NouvelEtudiant>(IDENTITE_VIDE);
   const [niveau, setNiveau]     = useState('');
   const [classeId, setClasseId] = useState<number | null>(null);
+  const [auditeur, setAuditeur] = useState(false);
   const [erreur, setErreur]     = useState<string | null>(null);
 
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
@@ -123,7 +124,10 @@ export default function NouvelleInscriptionPage() {
     setCandidat(c);
     setIdentite({
       ...IDENTITE_VIDE,
-      matricule:         c.num_bac,
+      // Le matricule reste VIDE, pour que le serveur l'attribue. Il portait
+      // ici `c.num_bac` — le numéro de bac, qui n'a pas le format des
+      // matricules de l'IPGEI. Sans champ à l'écran pour le voir, l'erreur
+      // ne se serait plus rattrapée. Le numéro de bac a sa place : `nbac`.
       nom:               c.nom_fr,
       genre:             c.sexe === 'F' ? 'F' : 'M',
       date_naissance:    c.date_naissance ?? '',
@@ -176,8 +180,9 @@ export default function NouvelleInscriptionPage() {
   const suivant = () => {
     setErreur(null);
     if (etape === 0) {
-      if (!identite.matricule.trim()) { setErreur('Le matricule est requis.'); return; }
-      if (!identite.nom.trim())       { setErreur('Le nom complet est requis.'); return; }
+      // Le matricule n'est plus exigé : laissé vide, le serveur l'attribue à
+      // l'écriture. Seul le nom ne peut venir que de la saisie.
+      if (!identite.nom.trim()) { setErreur('Le nom complet est requis.'); return; }
     }
     if (etape === 1 && !niveau) { setErreur('Choisissez un niveau.'); return; }
     setEtape(e => e + 1);
@@ -192,6 +197,7 @@ export default function NouvelleInscriptionPage() {
         classe: classeId,
         niveau,
         annee_universitaire: annee,
+        auditeur_libre: auditeur,
         nouvel_etudiant: {
           ...identite,
           matricule: identite.matricule.trim(),
@@ -401,10 +407,15 @@ export default function NouvelleInscriptionPage() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <Champ label="Matricule *">
-                <input value={identite.matricule} className={INPUT}
-                       onChange={e => majIdentite('matricule', e.target.value)} />
-              </Champ>
+              {/* PAS DE CHAMP MATRICULE : le serveur l'attribue à l'écriture,
+                  et un numéro d'ordre n'est pas une donnée que la secrétaire
+                  détient. Le récapitulatif l'annonce, la liste l'affiche
+                  ensuite.
+
+                  L'API accepte toujours un matricule imposé — un ancien de
+                  l'IPGEI qui revient garde le sien —, mais ce cas passe par
+                  « Étudiant déjà enregistré » : sa fiche existe, son numéro
+                  avec. Cet écran ne sert qu'aux étudiants inconnus. */}
               <Champ label="Genre">
                 <select value={identite.genre ?? 'M'} className={SELECT}
                         onChange={e => majIdentite('genre', e.target.value)}>
@@ -416,7 +427,10 @@ export default function NouvelleInscriptionPage() {
                 <input type="date" value={identite.date_naissance ?? ''} className={INPUT}
                        onChange={e => majIdentite('date_naissance', e.target.value)} />
               </Champ>
-              <Champ label="CNI">
+              {/* Le champ s'appelle `cni` côté serveur, mais il porte le NNI —
+                  le dossier BAC y recopie `nni`. C'est le libellé qui était
+                  faux, pas la donnée : on ne renomme donc que l'affichage. */}
+              <Champ label="NNI">
                 <input value={identite.cni ?? ''} className={INPUT}
                        onChange={e => majIdentite('cni', e.target.value)} />
               </Champ>
@@ -468,6 +482,23 @@ export default function NouvelleInscriptionPage() {
               </Champ>
             </div>
 
+            {/* Le rattachement est l'endroit juste : c'est ici qu'on dit à
+                quelle promotion l'inscrit appartient — et l'auditeur, lui,
+                n'appartient à aucune. */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-iss-border
+                              bg-gray-50 cursor-pointer">
+              <input type="checkbox" checked={auditeur} className="w-4 h-4 mt-0.5 accent-[#006633]"
+                     onChange={e => setAuditeur(e.target.checked)} />
+              <span className="text-sm">
+                <span className="font-semibold text-iss-dark">Auditeur libre</span>
+                <span className="block text-xs text-iss-gray mt-0.5">
+                  Suit les cours et compose comme les autres, mais ne fait pas partie
+                  de la promotion : ni jury, ni classement, ni effectifs, et aucun
+                  frais. Il garde ses notes, son relevé et son droit au rattrapage.
+                </span>
+              </span>
+            </label>
+
             {/* Il n'y a pas d'étape « inscription pédagogique » : la maquette
                 du niveau s'applique entière. Le dire ici évite de chercher où
                 choisir les matières. */}
@@ -491,20 +522,32 @@ export default function NouvelleInscriptionPage() {
               {identite.nom_ar?.trim() && (
                 <Ligne cle="Nom (AR)" valeur={identite.nom_ar} />
               )}
-              <Ligne cle="Matricule" valeur={identite.matricule} />
+              {/* Le récapitulatif le dit, faute d'un champ qui le montre :
+                  sans cette ligne, la secrétaire validerait sans savoir qu'un
+                  matricule va naître. */}
+              <Ligne cle="Matricule"
+                     valeur="Attribué à l'enregistrement — le prochain libre de la promotion" />
               <Ligne cle="Niveau" valeur={niveau || '—'} />
               <Ligne cle="Classe"
                      valeur={classe?.nom ?? "À affecter — l'inscrit rejoint la classe d'attente"} />
               <Ligne cle="Année universitaire" valeur={annee} />
               <Ligne
+                cle="Statut"
+                valeur={auditeur
+                  ? 'Auditeur libre — hors jury, hors classement, hors effectifs'
+                  : 'Étudiant de la promotion'}
+              />
+              <Ligne
                 cle="Frais d'inscription"
-                valeur={montant !== null
-                  ? `${montant.toLocaleString('fr-FR')} MRU`
-                  : 'Aucun tarif défini — l’inscription sera créée à 0'}
+                valeur={auditeur
+                  ? 'Aucun — un auditeur libre ne paie pas'
+                  : montant !== null
+                    ? `${montant.toLocaleString('fr-FR')} MRU`
+                    : 'Aucun tarif défini — l’inscription sera créée à 0'}
               />
             </dl>
 
-            {montant === null && (
+            {montant === null && !auditeur && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-start gap-2">
                 <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
                 <span>

@@ -274,6 +274,12 @@ export interface Inscription {
   statut:               StatutInscription;
   statut_display:       string;
   nb_redoublements:     number;
+  /**
+   * Suit la scolarité sans être de la promotion : ni jury, ni classement, ni
+   * effectifs. Conserve ses notes et son relevé. Orthogonal au `statut` — un
+   * auditeur peut lui aussi abandonner en cours d'année.
+   */
+  auditeur_libre:       boolean;
   /** Montant figé au moment de l'inscription, d'après la grille tarifaire. */
   montant_frais:        string;
   est_payee:            boolean;
@@ -325,6 +331,8 @@ export interface InscriptionComplete {
   classe:           number;
   sous_groupe?:     number | null;
   numero_ordre?:    number | null;
+  /** Hors promotion : ni jury, ni classement, ni effectifs, ni frais. */
+  auditeur_libre?:  boolean;
 }
 
 export interface HistoriqueClasse {
