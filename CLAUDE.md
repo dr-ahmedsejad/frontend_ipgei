@@ -9,14 +9,21 @@
 >    jamais `siga_prive`. Elles cohabitent sur le même serveur PostgreSQL local.
 
 Application Next.js 16 (App Router, React 19, TypeScript strict) qui consomme
-l'API Django/DRF du backend **`C:\SIR\IPGEI\backend_ipgei`** (port 8000).
+l'API Django/DRF du backend **`C:\SIR\IPGEI\backend_ipgei`**.
 Authentification par cookies httpOnly + refresh JWT.
 
-*Chiffres relevés le 17/08/2026 ; les recompter avant de s'y fier.*
+> **Les ports réels ne sont pas ceux des scripts.** Le front tourne sur **3010**,
+> le back sur **8001**. C'est `NEXT_PUBLIC_API_URL` de `.env.local` qui fait foi,
+> non le `-p 3001` de `package.json` ni le 8000 par défaut de `runserver`.
+> **Un autre projet occupe le 8000 sur cette machine** : l'y chercher fait
+> répondre 404 à toute l'API, sans que rien n'indique la cause.
+
+*Chiffres relevés le 15/09/2026 ; les recompter avant de s'y fier.*
 
 ## Stack
 
-- **Framework** : Next.js 16.3.1 (Turbopack), App Router · React 19.2
+- **Framework** : Next.js 16.3.1 (Turbopack), App Router · React 19.2.3
+  (`package.json` déclare `^16.2.10` ; c'est la version installée qui compte)
 - **Data fetching** : TanStack Query v5 — partout, plus d'`apiFetch` direct
 - **Auth** : cookies httpOnly, refresh JWT toutes les 55 min, déconnexion sur
   inactivité à 20 min
@@ -26,7 +33,7 @@ Authentification par cookies httpOnly + refresh JWT.
 ## Règles non négociables
 
 ### 1. TanStack Query partout — pas d'`apiFetch` direct dans une page
-Les 217 pages du dashboard sont migrées. Toute nouvelle page utilise :
+Les 222 pages du dashboard sont migrées. Toute nouvelle page utilise :
 ```tsx
 const { data, isLoading } = useQuery({
   queryKey: ['domaine', 'sous-clé', filters] as const,
@@ -70,9 +77,17 @@ déconnexion doit faire pareil — sinon l'utilisateur suivant voit les données
 précédent.
 
 ### 5. Le menu se règle dans les données, pas dans le composant
-`lib/nav-config.ts` porte six sections — Pilotage, Scolarité, Enseignement,
-Notes & jurys, Finances, Système —, 25 groupes et 85 liens pour un
-administrateur. Deux mécanismes à connaître :
+`lib/nav-config.ts` déclare **59 groupes et 150 liens**, répartis en huit
+sections. Un administrateur n'en voit que six — Pilotage, Scolarité,
+Enseignement, Notes & jurys, Finances, Système ; « Portail Étudiant » et
+« Portail Enseignant » ne s'ouvrent qu'à leurs rôles.
+
+Ce sont les totaux DÉCLARÉS, les seuls qu'on puisse recompter dans le fichier.
+Ce que chacun voit dépend du filtrage RBAC et de la couche LMD masquée — un
+chiffre « pour un administrateur » ne se vérifie pas sans dérouler `nav-filter`,
+et c'est pourquoi le précédent avait vieilli sans qu'on s'en aperçoive.
+
+Deux mécanismes à connaître :
 
 - **Un groupe qui ne compte qu'une entrée après filtrage RBAC se rend en lien
   direct**, sans chevron. `NavTree` le décide seul : rien à déclarer.
@@ -86,7 +101,7 @@ Les référentiels rares ne vivent pas dans la barre mais sur
 ## Structure
 
 ```
-app/dashboard/          → 217 routes (page.tsx)
+app/dashboard/          → 222 routes (page.tsx)
 app/error.tsx           → boundary global, branché sur lib/monitor.ts
 components/layout/      → Sidebar, Topbar, UserMenu, NavTree, InactivityModal
 components/ui/          → primitives (Toast, ConfirmModal, FormField, Modal…)
@@ -119,16 +134,17 @@ lib/
 
 - **0 erreur TS** : toute régression se corrige immédiatement.
   `npx tsc --noEmit` après chaque lot d'édits.
-- **ESLint** : 0 erreur, ~121 avertissements résiduels (no-img-element,
-  exhaustive-deps, unused vars). Ne pas en ajouter.
+- **ESLint** : 0 erreur, **123 avertissements** résiduels (no-img-element,
+  exhaustive-deps, unused vars). Ne pas en ajouter — relever le compte
+  AVANT d'éditer, il sert d'ancrage.
 - **Aucun test** : 0 fichier `.test.*` / `.spec.*`. Toute modification en zone
   sensible — auth, RBAC, calculs de notes, délibérations — se valide par un
-  scénario manuel écrit dans le PR. (Le backend, lui, a 56 fichiers de tests.)
-- **`#006633` en dur dans 251 fichiers**, pas de jetons de design. Pour du code
+  scénario manuel écrit dans le PR. (Le backend, lui, a 79 fichiers de tests.)
+- **`#006633` en dur dans 257 fichiers**, pas de jetons de design. Pour du code
   neuf, extraire une const locale.
-- **`payement` (faute d'URL)** : 8 routes. Ne pas aggraver ; renommer en
+- **`payement` (faute d'URL)** : 9 routes. Ne pas aggraver ; renommer en
   `paiement` dans un sprint dédié (URL + routes + liens de menu).
-- **Types redéclarés** : 24 fichiers ont leur propre `interface Departement /
+- **Types redéclarés** : 25 fichiers ont leur propre `interface Departement /
   Filiere / Prof`. Préférer `@/types/`.
 - **Mode miroir** : `/dashboard/enseignant/{suivi,notes}` savent parler à une
   instance en lecture seule et déposer dans la boîte de réception. Ne pas y
@@ -137,13 +153,14 @@ lib/
 ## Workflow
 
 ```bash
-npm run dev                      # serveur de développement (port 3001)
+# `npm run dev` force -p 3001, or l'installation tourne sur 3010 :
+npx next dev -p 3010             # serveur de développement
 npx tsc --noEmit                 # LA validation
 npx eslint app lib components    # quand on touche un fichier
 npx next build                   # avant toute mise en production
 
-# Backend, dans un autre terminal
-cd C:\SIR\IPGEI\backend_ipgei && .venv\Scripts\python.exe manage.py runserver
+# Backend, dans un autre terminal — 8001, pas 8000 (cf. en-tête)
+cd C:\SIR\IPGEI\backend_ipgei && .venv\Scripts\python.exe manage.py runserver 8001
 ```
 
 Pas de tests automatisés ici : validation = `tsc --noEmit` + scénarios manuels.
