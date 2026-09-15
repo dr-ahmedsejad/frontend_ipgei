@@ -12,7 +12,7 @@ import {
 import {
   archivesEdtApi, absencesApi, classementApi, classesApi, concoursApi,
   deliberationsApi,
-  documentsApi, epreuvesApi, grillesApi,
+  documentsApi, epreuvesApi, grillesApi, ponderationsClasseApi,
   inscriptionsApi, lignesDeliberationApi, matieresApi, membresJuryApi, notesApi,
   parametresApi,
   permutationsEtudiantApi, permutationsProfApi, seancesApi, seancesTypeApi,
@@ -535,6 +535,39 @@ export function useMatieresCompletes(filters: MatiereFilters = {}, actif = true)
     queryFn:  () => matieresApi.all(filters),
     enabled:  actif,
   });
+}
+
+/**
+ * Les dérogations de pondération — une matière comptée autrement pour une
+ * classe.
+ *
+ * Elles invalident les MATIÈRES et les NOTES : la grille de saisie annonce la
+ * pondération applicable, et elle change avec la dérogation.
+ */
+export function usePonderationsClasse(filters: { matiere?: number; classe?: number } = {}) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'ponderations-classe', filters] as const,
+    queryFn:  () => ponderationsClasseApi.list(filters),
+  });
+}
+
+export function usePonderationClasseMutations() {
+  const qc = useQueryClient();
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'ponderations-classe'] });
+    qc.invalidateQueries({ queryKey: ipgeiKeys.matieres.all });
+    // La grille de notes sert la pondération applicable : elle doit la relire.
+    qc.invalidateQueries({ queryKey: [...ipgeiKeys.all, 'notes'] });
+  };
+  return {
+    create: useMutation({ mutationFn: ponderationsClasseApi.create, onSuccess: invalider }),
+    update: useMutation({
+      mutationFn: ({ id, input }: { id: number; input: Parameters<typeof ponderationsClasseApi.update>[1] }) =>
+        ponderationsClasseApi.update(id, input),
+      onSuccess: invalider,
+    }),
+    remove: useMutation({ mutationFn: ponderationsClasseApi.remove, onSuccess: invalider }),
+  };
 }
 
 export function useMatiereMutations() {

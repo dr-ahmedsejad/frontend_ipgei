@@ -1185,3 +1185,40 @@ export interface VersionArchive {
   genere_le:  string;
   nb_seances: number;
 }
+
+/**
+ * Pondération dérogatoire : une matière comptée autrement pour UNE classe.
+ *
+ * `Matiere` règle la pondération pour tout un niveau ; cette table est celle
+ * des exceptions. Vide, rien ne change.
+ *
+ * Créer une ligne ne recalcule RIEN : chaque note fige sa pondération au
+ * moment du calcul. Il faut relancer le calcul sur les notes concernées.
+ */
+export interface PonderationClasse {
+  id:               number;
+  matiere:          number;
+  matiere_code:     string;
+  matiere_intitule: string;
+  classe:           number;
+  classe_nom:       string;
+  semestre_code:    string;
+  pct_ds:           string;
+  pct_tp:           string;
+  pct_exam:         string;
+  /** Sans lui, la classe aurait une part TP qu'elle ne pourrait pas remplir. */
+  has_tp:           boolean;
+  /** Obligatoire : une dérogation sans motif devient une anomalie inexplicable. */
+  motif:            string;
+  cree_le:          string;
+}
+
+export interface PonderationClasseInput {
+  matiere:  number;
+  classe:   number;
+  pct_ds:   string;
+  pct_tp:   string;
+  pct_exam: string;
+  has_tp:   boolean;
+  motif:    string;
+}

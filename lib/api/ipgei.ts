@@ -19,7 +19,8 @@ import type {
   LigneDeliberation, Matiere, MatiereInput, MatiereSelect, MembreJuryIPGEI,
   NiveauCursus, NiveauCursusInput, Note, OccupationCreneau, RoleJuryIPGEI,
   SeanceArchivee, VersionArchive,
-  ParametresIPGEI, PermutationEtudiant, PermutationProf, ReleveAnnuel,
+  ParametresIPGEI, PermutationEtudiant, PermutationProf,
+  PonderationClasse, PonderationClasseInput, ReleveAnnuel,
   ReleveSemestre, ResultatDuplication, ResumeIPGEI, SaisieCollective,
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
   Signataire, SousGroupeTP,
@@ -246,6 +247,25 @@ export const matieresApi = {
   remove:   (id: number) => apiFetch<void>(`${BASE}/matieres/${id}/`, { method: 'DELETE' }),
   reinitialiserPonderation: (id: number) =>
     apiFetch<Matiere>(`${BASE}/matieres/${id}/reinitialiser-ponderation/`, { method: 'POST' }),
+};
+
+/**
+ * Les DÉROGATIONS de pondération : une matière comptée autrement pour une seule
+ * classe.
+ *
+ * Rare par nature — la liste est vide tant qu'aucune classe ne déroge —, donc
+ * pas de pagination côté serveur.
+ */
+export const ponderationsClasseApi = {
+  list:   (f: { matiere?: number; classe?: number } = {}) =>
+    apiFetch<PonderationClasse[]>(`${BASE}/matieres-ponderations/`, { params: nettoyer(f) }),
+  create: (input: PonderationClasseInput) =>
+    apiFetch<PonderationClasse>(`${BASE}/matieres-ponderations/`, { method: 'POST', body: input }),
+  update: (id: number, input: Partial<PonderationClasseInput>) =>
+    apiFetch<PonderationClasse>(`${BASE}/matieres-ponderations/${id}/`,
+      { method: 'PATCH', body: input }),
+  remove: (id: number) =>
+    apiFetch<void>(`${BASE}/matieres-ponderations/${id}/`, { method: 'DELETE' }),
 };
 
 // ── Notes ────────────────────────────────────────────────────────────────────

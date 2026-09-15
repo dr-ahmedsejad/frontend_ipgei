@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BookOpen, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react';
+import Link from 'next/link';
+import { BookOpen, Pencil, Plus, RotateCcw, Scale, Search, Trash2, X } from 'lucide-react';
 
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { Pagination } from '@/components/Pagination';
@@ -137,11 +138,18 @@ export default function MatieresIPGEIPage() {
       <EnTetePage
         icone={<BookOpen size={14} className="text-white" />}
         titre="Matières et pondération"
-        sousTitre={`${total} matière${total !== 1 ? 's' : ''} — la pondération vaut pour toutes les classes du niveau.`}
+        sousTitre={`${total} matière${total !== 1 ? 's' : ''} — la pondération vaut pour toutes les classes du niveau, sauf dérogation.`}
         actions={
-          <button onClick={ouvrirAjout} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
-            <Plus size={14} /> Ajouter
-          </button>
+          <>
+            {/* « Sauf dérogation » appelle un endroit où la poser : l'écrire
+                sans y mener laisserait chercher. */}
+            <Link href="/dashboard/ipgei/matieres/ponderations" className={BTN_SECONDAIRE}>
+              <Scale size={14} /> Dérogations
+            </Link>
+            <button onClick={ouvrirAjout} className={BTN_PRIMAIRE} style={{ background: DEGRADE }}>
+              <Plus size={14} /> Ajouter
+            </button>
+          </>
         }
       />
 

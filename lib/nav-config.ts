@@ -263,6 +263,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Enseignement', roles: ALL, module: 'ipgei_matieres',
     items: [
       { href: '/dashboard/ipgei/matieres', label: 'Matières & pondération', module: 'ipgei_matieres' },
+      // L'exception, à part de la règle : une matière comptée autrement
+      // pour une seule classe. Rare, mais introuvable si on la cache.
+      { href: '/dashboard/ipgei/matieres/ponderations', label: 'Pondérations dérogatoires',
+        module: 'ipgei_matieres', action: 'modifier' },
     ],
   },
 
