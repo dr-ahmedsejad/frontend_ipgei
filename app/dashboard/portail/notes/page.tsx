@@ -10,7 +10,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import type { NoteEtudiant } from '@/types/portail';
 
 interface ReclamationModal {
-  inscriptionElementId: number;
+  noteId: number;
   emLibelle: string;
 }
 
@@ -57,7 +57,7 @@ export default function MesNotesPage() {
   }
 
   const openModal = (n: NoteEtudiant) => {
-    setModal({ inscriptionElementId: n.id, emLibelle: n.em_libelle });
+    setModal({ noteId: n.id, emLibelle: n.em_libelle });
     setMotif('');
     setJustif(null);
     setSubmitError('');
@@ -72,15 +72,18 @@ export default function MesNotesPage() {
     if (!modal) return;
     if (!motif.trim()) { setSubmitError('Le motif est obligatoire.'); return; }
     setSubmitError('');
-    const ieId = modal.inscriptionElementId;
+    // `n.id` portait DÉJÀ l'identifiant de la note IPGEI : c'est le nom qui
+    // mentait, hérité de la couche LMD. Le renommer évite qu'on aille un jour
+    // « corriger » le front pour le faire correspondre à un champ mort.
+    const noteId = modal.noteId;
     creerReclMut.mutate({
-      type_reclamation:    'note',
-      inscription_element: ieId,
-      motif:               motif.trim(),
-      justificatif:        justif ?? null,
+      type_reclamation: 'note',
+      note_ipgei:       noteId,
+      motif:            motif.trim(),
+      justificatif:     justif ?? null,
     }, {
       onSuccess: () => {
-        setSubmitted(prev => new Set(prev).add(ieId));
+        setSubmitted(prev => new Set(prev).add(noteId));
         setModal(null);
       },
       onError: () => setSubmitError('Erreur lors de la soumission. Réessayez.'),

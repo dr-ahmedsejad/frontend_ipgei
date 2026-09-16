@@ -91,8 +91,8 @@ export interface Reclamation {
   type_reclamation:      'absence' | 'note' | 'autre';
   statut:                'soumise' | 'en_cours' | 'acceptee' | 'rejetee';
   presence:              number | null;
-  inscription_element:   number | null;
-  session_evaluation:    number | null;
+  /** La note contestée — `ipgei.Note.id`. Visait la couche LMD, à zéro ligne. */
+  note_ipgei:            number | null;
   motif:                 string;
   justificatif:          string | null;
   reponse:               string;
@@ -103,13 +103,14 @@ export interface Reclamation {
   /** Champs calculés par le serializer (présents si type_reclamation = note) */
   em_code?:              string | null;
   em_intitule?:          string | null;
+  semestre_code?:        string | null;
+  classe_nom?:           string | null;
 }
 
 export interface ReclamationPayload {
   type_reclamation:    'absence' | 'note' | 'autre';
   presence?:           number;
-  inscription_element?: number;
-  session_evaluation?: number;
+  note_ipgei?:         number;
   motif:               string;
   justificatif?:       File | null;
 }

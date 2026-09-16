@@ -117,9 +117,8 @@ export function creerReclamation(payload: ReclamationPayload): Promise<Reclamati
   const form = new FormData();
   form.append('type_reclamation', payload.type_reclamation);
   form.append('motif', payload.motif);
-  if (payload.presence)           form.append('presence',           String(payload.presence));
-  if (payload.inscription_element) form.append('inscription_element', String(payload.inscription_element));
-  if (payload.session_evaluation) form.append('session_evaluation', String(payload.session_evaluation));
+  if (payload.presence)    form.append('presence',   String(payload.presence));
+  if (payload.note_ipgei)  form.append('note_ipgei', String(payload.note_ipgei));
   if (payload.justificatif)       form.append('justificatif',       payload.justificatif);
 
   return apiFetch<Reclamation>('/api/v1/portail/reclamations/', {
