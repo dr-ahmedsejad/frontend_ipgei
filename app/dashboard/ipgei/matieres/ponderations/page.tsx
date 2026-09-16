@@ -29,7 +29,7 @@ import {
 
 const VIDE = {
   matiere: '', classe: '', pct_ds: '20', pct_tp: '10', pct_exam: '70',
-  has_tp: true, motif: '',
+  has_tp: true, coefficient: '', motif: '',
 };
 
 export default function PonderationsDerogatoiresPage() {
@@ -62,6 +62,10 @@ export default function PonderationsDerogatoiresPage() {
     [classes, matiere],
   );
 
+  // Le coefficient général de la matière choisie : il sert d'indication dans le
+  // champ, pour qu'on voie à quoi on déroge sans quitter l'écran.
+  const coefMatiere = matiere ? String(Number(matiere.coefficient)) : '';
+
   const pret = form.matiere && form.classe && form.motif.trim() && total === 100;
 
   const enregistrer = () => {
@@ -70,7 +74,11 @@ export default function PonderationsDerogatoiresPage() {
       {
         matiere: Number(form.matiere), classe: Number(form.classe),
         pct_ds: form.pct_ds, pct_tp: form.pct_tp, pct_exam: form.pct_exam,
-        has_tp: form.has_tp, motif: form.motif.trim(),
+        has_tp: form.has_tp,
+        // Vide = « garde celui de la matière ». On envoie null et non '' :
+        // le sérialiseur attend un décimal ou rien.
+        coefficient: form.coefficient.trim() || null,
+        motif: form.motif.trim(),
       },
       {
         onSuccess: () => {
@@ -186,6 +194,29 @@ export default function PonderationsDerogatoiresPage() {
             Total : {total} % {total === 100 ? '' : '— la pondération doit faire 100 %.'}
           </p>
 
+          {/* Le coefficient est d'une AUTRE nature que les pourcentages ci-dessus :
+              ceux-ci corrigent la façon de calculer une moyenne, celui-ci change
+              ce que le classement récompense. D'où le bloc séparé et l'avertissement. */}
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Coefficient dérogatoire
+              <span className="ml-2 font-normal text-iss-gray">
+                — laisser vide pour garder celui de la matière
+              </span>
+            </label>
+            <input type="number" min={0} step="0.5" value={form.coefficient}
+                   className={`${INPUT} max-w-[160px]`}
+                   placeholder={coefMatiere || 'coefficient'}
+                   onChange={e => setForm(f => ({ ...f, coefficient: e.target.value }))} />
+            {form.coefficient.trim() !== '' && (
+              <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                <strong>Le classement en sera averti.</strong> Toutes les classes d&apos;un
+                niveau sont classées dans une seule liste : deux étudiants aux mêmes
+                notes n&apos;auront plus le même rang. La feuille de classement le dira.
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">
               Motif <span className="text-red-600">*</span>
@@ -225,6 +256,7 @@ export default function PonderationsDerogatoiresPage() {
                   <th className="px-4 py-3">Matière</th>
                   <th className="px-4 py-3">Classe</th>
                   <th className="px-4 py-3">Pondération</th>
+                  <th className="px-4 py-3">Coefficient</th>
                   <th className="px-4 py-3">Motif</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -242,6 +274,15 @@ export default function PonderationsDerogatoiresPage() {
                     <td className="px-4 py-3 font-mono text-xs">
                       {Number(d.pct_ds)}/{Number(d.pct_tp)}/{Number(d.pct_exam)}
                       {d.has_tp && <span className="ml-2 text-iss-gray">TP notés</span>}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
+                      {d.coefficient === null ? (
+                        <span className="text-iss-gray">{Number(d.coefficient_matiere)}</span>
+                      ) : (
+                        <span className="font-semibold text-amber-800">
+                          {Number(d.coefficient_matiere)} → {Number(d.coefficient)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-iss-gray max-w-md">{d.motif}</td>
                     <td className="px-4 py-3 text-right">

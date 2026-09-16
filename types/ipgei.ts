@@ -1210,6 +1210,16 @@ export interface PonderationClasse {
   pct_exam:         string;
   /** Sans lui, la classe aurait une part TP qu'elle ne pourrait pas remplir. */
   has_tp:           boolean;
+  /**
+   * Le poids de la matière pour CETTE classe. `null` = celui de la matière.
+   *
+   * Autre nature que la pondération : celle-ci corrige la façon de calculer une
+   * moyenne, le coefficient change ce que le classement récompense — d'où
+   * l'avertissement porté sur la feuille de classement.
+   */
+  coefficient:         string | null;
+  /** Le coefficient général, pour afficher « 14 → 12 » sans recharger la matière. */
+  coefficient_matiere: string;
   /** Obligatoire : une dérogation sans motif devient une anomalie inexplicable. */
   motif:            string;
   cree_le:          string;
@@ -1222,5 +1232,7 @@ export interface PonderationClasseInput {
   pct_tp:   string;
   pct_exam: string;
   has_tp:   boolean;
+  /** Vide ou `null` pour garder le coefficient de la matière. */
+  coefficient: string | null;
   motif:    string;
 }
