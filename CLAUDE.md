@@ -12,11 +12,15 @@ Application Next.js 16 (App Router, React 19, TypeScript strict) qui consomme
 l'API Django/DRF du backend **`C:\SIR\IPGEI\backend_ipgei`**.
 Authentification par cookies httpOnly + refresh JWT.
 
-> **Les ports réels ne sont pas ceux des scripts.** Le front tourne sur **3010**,
-> le back sur **8001**. C'est `NEXT_PUBLIC_API_URL` de `.env.local` qui fait foi,
-> non le `-p 3001` de `package.json` ni le 8000 par défaut de `runserver`.
+> **Front sur 3010, back sur 8001.** `npm run dev` porte désormais le bon port
+> — il forçait `-p 3001`, et la contradiction valait un avertissement à elle
+> seule. Côté back, le `runserver` par défaut reste sur 8000 : c'est
+> `NEXT_PUBLIC_API_URL` de `.env.local` qui fait foi.
 > **Un autre projet occupe le 8000 sur cette machine** : l'y chercher fait
 > répondre 404 à toute l'API, sans que rien n'indique la cause.
+>
+> `.claude/launch.json`, à la racine `C:\SIR\IPGEI`, lance les deux
+> (`ipgei-backend`, `ipgei-frontend`) avec ces ports-là.
 
 *Chiffres relevés le 15/09/2026 ; les recompter avant de s'y fier.*
 
@@ -153,8 +157,7 @@ lib/
 ## Workflow
 
 ```bash
-# `npm run dev` force -p 3001, or l'installation tourne sur 3010 :
-npx next dev -p 3010             # serveur de développement
+npm run dev                      # serveur de développement, sur 3010
 npx tsc --noEmit                 # LA validation
 npx eslint app lib components    # quand on touche un fichier
 npx next build                   # avant toute mise en production
