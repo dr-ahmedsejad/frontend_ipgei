@@ -514,7 +514,8 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     key: 'ipgei-mon-enseignement', icon: BookOpenCheck, label: 'Mes feuilles de notes',
     roles: ENSEIGNANT_ONLY,
     items: [
-      { href: '/dashboard/ipgei/notes/mes-feuilles', label: 'Mes feuilles de notes' },
+      { href: '/dashboard/ipgei/notes/mes-feuilles',
+        label: 'Mes feuilles de notes (officiel)' },
     ],
   },
   {
@@ -540,10 +541,17 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/enseignant/detail-enseignements', label: 'Détail séances' },
     ],
   },
+  // DEUX entrées de notes, et ce n'est pas un doublon :
+  //   « Mes feuilles » ouvre la grille OFFICIELLE, sur le serveur local ;
+  //   celle-ci dépose des BROUILLONS, et c'est la seule qui marche en ligne,
+  //   le miroir refusant toute écriture hors boîte de réception.
+  // Les libellés doivent le dire, sinon l'enseignant en ligne s'obstine sur
+  // l'écran qui ne peut pas enregistrer.
   {
-    key: 'ens-notes', icon: Edit3, label: 'Saisie des notes',
+    key: 'ens-notes', icon: Edit3, label: 'Saisie en ligne',
     roles: ENSEIGNANT_ONLY,
-    items: [{ href: '/dashboard/enseignant/notes', label: 'Saisie des notes' }],
+    items: [{ href: '/dashboard/enseignant/notes',
+              label: 'Saisie en ligne (brouillon)' }],
   },
   // Publier un cours et répondre aux étudiants : le pendant enseignant du fil
   // que les étudiants lisent depuis leur portail.

@@ -24,32 +24,28 @@ interface Brouillon {
   prof_nom:           string;
   etudiant_matricule: string;
   etudiant_nom:       string;
-  em_code:            string;
-  em_intitule:        string;
-  session_code:       string;
+  classe_nom:         string;
+  matiere_code:       string;
+  matiere_intitule:   string;
+  semestre_code:      string;
+  annee_universitaire: string;
   type_note:          string;
+  numero:             number;
   valeur:             string | null;
   statut:             'brouillon' | 'exporte';
   date_modification:  string;
 }
 
-interface Session { id: number; code: string; intitule: string }
-
 export default function SaisieEnLignePage() {
   const toast = useToast();
-  const [statut, setStatut]   = useState('');
-  const [session, setSession] = useState('');
+  const [statut, setStatut] = useState('');
+  const [annee, setAnnee]   = useState('');
 
-  const { data: brut } = useQuery({
-    queryKey: ['evaluations', 'sessions', 'list'] as const,
-    queryFn:  () => apiFetch<Session[] | { results: Session[] }>(
-      '/api/v1/evaluations/sessions/?page_size=100'),
-  });
-  const sessions: Session[] = Array.isArray(brut) ? brut : (brut?.results ?? []);
-
+  // Le filtre par SESSION a disparu avec la couche LMD : un brouillon vise
+  // désormais une note IPGEI, qui relève d'un semestre et d'une année.
   const filtres: Record<string, string> = {};
-  if (statut)  filtres.statut     = statut;
-  if (session) filtres.session_id = session;
+  if (statut) filtres.statut              = statut;
+  if (annee)  filtres.annee_universitaire = annee;
 
   const { data: brouillons = [], isLoading } = useQuery({
     queryKey: ['saisie-en-ligne', 'list', filtres] as const,
@@ -110,15 +106,13 @@ export default function SaisieEnLignePage() {
       <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4
                       flex gap-3 flex-wrap items-end">
         <div>
-          <label className="block text-xs font-semibold text-iss-dark mb-1.5">Session</label>
-          <select value={session} onChange={e => setSession(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-xl px-3 py-2"
-                  style={{ minWidth: 200 }}>
-            <option value="">Toutes les sessions</option>
-            {sessions.map(s => (
-              <option key={s.id} value={s.id}>{s.code} — {s.intitule}</option>
-            ))}
-          </select>
+          <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+            Année universitaire
+          </label>
+          <input value={annee} onChange={e => setAnnee(e.target.value)}
+                 placeholder="Toutes les années"
+                 className="text-sm border border-gray-200 rounded-xl px-3 py-2"
+                 style={{ minWidth: 200 }} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-iss-dark mb-1.5">État</label>
@@ -149,8 +143,9 @@ export default function SaisieEnLignePage() {
                 <tr className="text-center text-xs font-semibold text-iss-gray uppercase
                                tracking-wide border-b border-gray-100">
                   <th className="px-4 py-2.5">Étudiant</th>
-                  <th className="px-4 py-2.5">Élément de module</th>
-                  <th className="px-4 py-2.5">Session</th>
+                  <th className="px-4 py-2.5">Matière</th>
+                  <th className="px-4 py-2.5">Classe</th>
+                  <th className="px-4 py-2.5">Semestre</th>
                   <th className="px-4 py-2.5">Type</th>
                   <th className="px-4 py-2.5">Note</th>
                   <th className="px-4 py-2.5">Enseignant</th>
@@ -167,11 +162,16 @@ export default function SaisieEnLignePage() {
                       <div className="text-xs text-iss-gray">{ligne.etudiant_matricule}</div>
                     </td>
                     <td className="px-4 py-2 text-xs text-iss-gray">
-                      <b className="text-iss-dark">{ligne.em_code}</b> {ligne.em_intitule}
+                      <b className="text-iss-dark">{ligne.matiere_code}</b> {ligne.matiere_intitule}
                     </td>
-                    <td className="px-4 py-2 text-center text-xs">{ligne.session_code}</td>
+                    <td className="px-4 py-2 text-xs">{ligne.classe_nom}</td>
+                    <td className="px-4 py-2 text-center text-xs whitespace-nowrap">
+                      {ligne.semestre_code} · {ligne.annee_universitaire}
+                    </td>
                     <td className="px-4 py-2 text-center text-xs font-semibold">
-                      {ligne.type_note}
+                      {ligne.type_note.toUpperCase()}
+                      {(ligne.type_note === 'ds' || ligne.type_note === 'exam')
+                        && ` ${ligne.numero}`}
                     </td>
                     <td className="px-4 py-2 text-center text-sm font-bold tabular-nums text-[#006633]">
                       {ligne.valeur ?? '—'}

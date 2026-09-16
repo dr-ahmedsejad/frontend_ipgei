@@ -1,392 +1,312 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Save, ChevronDown, BookOpen, Lock } from 'lucide-react';
+/**
+ * Saisie de notes en ligne — l'écran de l'enseignant.
+ *
+ * CE QUI A CHANGÉ. Cet écran lisait `/api/v1/evaluations/sessions/` et
+ * `/api/v1/evaluations/notes`, c'est-à-dire la couche LMD que l'IPGEI a
+ * remplacée et dont les tables portent zéro ligne. Tout enseignant qui
+ * l'ouvrait voyait une grille vide, sans erreur. Il lit désormais
+ * `/api/v1/saisie-en-ligne/`, branché sur les vraies notes IPGEI.
+ *
+ * CE QU'IL ÉCRIT. Des BROUILLONS, jamais des notes. Cet écran sert sur le
+ * miroir, restauré depuis le local à chaque publication : une note officielle
+ * qui y naîtrait disparaîtrait sans bruit. La direction exporte le classeur,
+ * puis saisit en local, où seule la note fait foi. L'écran le dit en toutes
+ * lettres — un enseignant qui croirait ses notes définitives ne les
+ * redemanderait jamais.
+ *
+ * Le périmètre vient de l'emploi du temps : un enseignant sans séance
+ * planifiée n'a aucune feuille, et on le lui explique plutôt que de rendre une
+ * page vide de plus.
+ */
+import { useMemo, useState } from 'react';
+import { AlertCircle, BookOpen, Info, Lock, Save } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { useInstance } from '@/lib/api/sync-hooks';
 import { getStoredUser } from '@/lib/auth';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 
-interface Session {
-  id:              number;
-  code:            string;
-  intitule:        string;
-  type_session:    string;
-  type_semestre:   string;   // 'Impairs' | 'Pairs'
-  est_ouverte:     boolean;
-  est_cloturee:    boolean;   // source backend : est_close
+interface Feuille {
+  classe:              number;
+  classe_nom:          string;
+  matiere:             number;
+  matiere_code:        string;
+  matiere_intitule:    string;
+  semestre:            number;
+  semestre_code:       string;
+  annee_universitaire: string;
+  seances:             number;
 }
 
-interface EM {
-  id:       number;
-  code_em:  string;
-  intitule: string;
+interface Case { valeur: string | null; brouillon: boolean }
+
+interface Ligne {
+  note:               number | null;
+  inscription:        number;
+  etudiant_matricule: string;
+  etudiant_nom:       string;
+  /** Faux quand la scolarité n'a pas encore ouvert la matière pour la classe. */
+  ouverte:            boolean;
+  ds:                 Case[];
+  exam:               Case[];
+  tp:                 Case | null;
 }
 
-interface FeuilleRow {
-  inscription_element: number;
-  etudiant_nom:        string;
-  etudiant_matricule:  string;
-  cc:   { id: number | null; valeur: number | null };
-  tp:   { id: number | null; valeur: number | null };
-  exam: { id: number | null; valeur: number | null };
+interface Grille {
+  classe_nom:       string;
+  matiere_code:     string;
+  matiere_intitule: string;
+  semestre_code:    string;
+  nb_ds:            number;
+  nb_exam:          number;
+  has_tp:           boolean;
+  verrouille:       boolean;
+  lignes:           Ligne[];
 }
 
-const NOTE_INPUT = "w-16 border border-slate-200 rounded px-2 py-1 text-xs text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-[#006633]/40";
+/** Une case en attente d'envoi : `${note}:${type}:${numero}` → texte saisi. */
+type Brouillons = Record<string, string>;
+
+const INPUT = 'w-16 border border-slate-200 rounded px-2 py-1 text-xs text-right '
+            + 'tabular-nums focus:outline-none focus:ring-1 focus:ring-[#006633]/40';
+
+const cle = (note: number, type: string, numero: number) => `${note}:${type}:${numero}`;
 
 export default function NotesEnseignantPage() {
-  const toast   = useToast();
-  const user    = getStoredUser();
-  const annee   = user?.annee_universitaire ?? '';
-  const typeSem = user?.semestre ?? 'Impairs';   // 'Impairs' | 'Pairs'
+  const toast = useToast();
+  const qc    = useQueryClient();
+  const annee = getStoredUser()?.annee_universitaire ?? '';
 
-  const qc = useQueryClient();
-  const [sessionId,   setSessionId]   = useState('');
-  const [emId,        setEmId]        = useState('');
-  const [editNotes, setEditNotes] = useState<Record<number, { cc: string; tp: string; exam: string }>>({});
+  const [choisie, setChoisie]   = useState<Feuille | null>(null);
+  const [saisies, setSaisies]   = useState<Brouillons>({});
 
-  // ── Toutes les sessions du semestre (ouvertes + closes) + de l'année ──────
-  // On liste aussi les sessions clôturées/non ouvertes : elles s'affichent avec
-  // leur statut et basculent la saisie en lecture seule (miroir garde backend).
-  const { data: sessionsRaw, isLoading: loadSess, error: sessError } = useQuery({
-    queryKey: ['evaluations', 'sessions', 'list', { annee, type_semestre: typeSem, page_size: 100 }] as const,
-    queryFn:  () => {
-      const p = new URLSearchParams({
-        type_semestre: typeSem,
-        page_size:     '100',
-      });
-      if (annee) p.set('annee_univ', annee);
-      return apiFetch<Session[] | { results: Session[] }>(
-        `/api/v1/evaluations/sessions/?${p}`,
-      );
-    },
-    enabled: !!annee,
-  });
-  if (sessError) toast.error('Impossible de charger les sessions.');
-  const sessions: Session[] = Array.isArray(sessionsRaw)
-    ? sessionsRaw
-    : ((sessionsRaw as { results: Session[] })?.results ?? []);
-
-  // Reset emId quand session change
-  useEffect(() => { setEmId(''); }, [sessionId]);
-
-  // ── EMs du prof selon session selectionnee ───────────────────────────────
-  const sessionObj = sessions.find(s => String(s.id) === sessionId);
-  const sessTs = sessionObj?.type_semestre === 'Pairs' ? 'P' : 'I';
-  const { data: emsData = [], isLoading: loadEms, error: emsError } = useQuery({
-    queryKey: ['suivi', 'pointages', 'ems-prof', annee, sessionId, sessTs] as const,
-    queryFn:  () => apiFetch<EM[]>(
-      `/api/v1/suivi/pointages/ems-prof/?annee_universitaire=${encodeURIComponent(annee)}&type_semestre=${sessTs}`,
-    ),
-    enabled:  !!sessionId,
-  });
-  if (emsError) toast.error('Impossible de charger vos matières.');
-  const ems = emsData;
-
-  // ── Où va la saisie : la note officielle, ou un brouillon en ligne ────────
-  // Sur le portail, `evaluations_note` est un miroir en lecture seule. La même
-  // grille écrit alors dans la boîte de réception : un BROUILLON, que la
-  // direction exportera et ressaisira en local. L'enseignant ne change ni
-  // d'écran ni de gestes — seule la destination diffère, et le bandeau le dit.
-  const { data: instance } = useInstance();
-  const enLigne = instance?.mirror_mode ?? false;
-  const baseNotes = enLigne ? '/api/v1/saisie-en-ligne' : '/api/v1/evaluations/notes';
-
-  // ── Feuille de notes ─────────────────────────────────────────────────────
-  const feuilleKey = ['evaluations', 'notes', 'feuille', { sessionId, emId, enLigne }] as const;
-  const { data: feuilleQueryData, isLoading: loadingFeuille, error: feuilleError } = useQuery({
-    queryKey: feuilleKey,
-    queryFn:  () => apiFetch<FeuilleRow[]>(`${baseNotes}/feuille/?session=${sessionId}&em=${emId}`),
-    enabled:  !!sessionId && !!emId,
-  });
-  // useMemo pour stabiliser la référence : sans ça, `?? []` crée un nouveau []
-  // à chaque render quand data est undefined → useEffect en boucle infinie.
-  const feuille = useMemo(() => feuilleQueryData ?? [], [feuilleQueryData]);
-  const feuilleData = feuille;
-  const errorFeuille = feuilleError ? (feuilleError instanceof Error ? feuilleError.message : 'Impossible de charger la feuille de notes.') : '';
-
-  // Sync editNotes quand la feuille charge
-  useEffect(() => {
-    const init: Record<number, { cc: string; tp: string; exam: string }> = {};
-    feuilleData.forEach(r => {
-      init[r.inscription_element] = {
-        cc:   r.cc.valeur   != null ? String(r.cc.valeur)   : '',
-        tp:   r.tp.valeur   != null ? String(r.tp.valeur)   : '',
-        exam: r.exam.valeur != null ? String(r.exam.valeur) : '',
-      };
+  const { data: feuilles = [], isLoading: chargeFeuilles, error: erreurFeuilles } =
+    useQuery({
+      queryKey: ['saisie-en-ligne', 'mes-feuilles', annee] as const,
+      queryFn:  () => apiFetch<Feuille[]>(
+        `/api/v1/saisie-en-ligne/mes-feuilles/${annee ? `?annee_universitaire=${encodeURIComponent(annee)}` : ''}`),
     });
-    setEditNotes(init);
-  }, [feuilleData]);
 
-  const loadFeuille = () => qc.invalidateQueries({ queryKey: feuilleKey });
-
-  // ── Enregistrer (mutation) ───────────────────────────────────────────────
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const rows = feuille.map(r => {
-        const e = editNotes[r.inscription_element] ?? { cc: '', tp: '', exam: '' };
-        const parse = (v: string) => {
-          const n = parseFloat(v);
-          return isNaN(n) ? null : Math.min(20, Math.max(0, n));
-        };
-        return {
-          inscription_element: r.inscription_element,
-          cc:   parse(e.cc),
-          tp:   parse(e.tp),
-          exam: parse(e.exam),
-        };
-      });
-      return apiFetch<{ created: number; updated: number }>(
-        `${baseNotes}/saisir-bulk/`,
-        // En ligne, l'élément de module accompagne la saisie : le brouillon est
-        // rangé par (professeur, session, EM), et le serveur vérifie au passage
-        // que cet EM est bien dans son périmètre.
-        { method: 'POST',
-          body: enLigne
-            ? { session: Number(sessionId), em: Number(emId), rows }
-            : { session: Number(sessionId), rows } },
-      );
-    },
-    onSuccess: (res) => {
-      toast.success(`${res.created + res.updated} note(s) enregistrée(s).`);
-      qc.invalidateQueries({ queryKey: feuilleKey });
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),
+  const { data: grille, isLoading: chargeGrille } = useQuery({
+    queryKey: ['saisie-en-ligne', 'feuille', choisie?.classe, choisie?.matiere,
+               choisie?.semestre] as const,
+    enabled:  !!choisie,
+    queryFn:  () => apiFetch<Grille>(
+      `/api/v1/saisie-en-ligne/feuille/?classe=${choisie!.classe}`
+      + `&matiere=${choisie!.matiere}&semestre=${choisie!.semestre}`),
   });
-  const saving = saveMut.isPending;
 
-  const selectedSession = sessions.find(s => String(s.id) === sessionId);
-  // Saisie autorisée uniquement si la session est ouverte ET non clôturée.
-  const isEditable = (s?: Session) => !!s && s.est_ouverte && !s.est_cloturee;
-  const readOnly   = !!selectedSession && !isEditable(selectedSession);
-  // Suffixe de statut affiché dans le libellé de chaque session.
-  const sessionStatut = (s: Session) =>
-    s.est_cloturee ? ' — clôturée' : (!s.est_ouverte ? ' — non ouverte' : '');
-  // Vrai si des sessions existent mais aucune n'est saisissable.
-  const allClosed = sessions.length > 0 && !sessions.some(isEditable);
+  const enregistrer = useMutation({
+    mutationFn: () => apiFetch<{ cree: number; efface: number; refus: string[] }>(
+      '/api/v1/saisie-en-ligne/saisir-bulk/', {
+      method: 'POST',
+      body: JSON.stringify({
+        classe: choisie!.classe, matiere: choisie!.matiere,
+        semestre: choisie!.semestre,
+        cases: Object.entries(saisies).map(([k, valeur]) => {
+          const [note, type, numero] = k.split(':');
+          return { note: Number(note), type, numero: Number(numero), valeur };
+        }),
+      }),
+    }),
+    onSuccess: bilan => {
+      setSaisies({});
+      qc.invalidateQueries({ queryKey: ['saisie-en-ligne', 'feuille'] });
+      const parts = [];
+      if (bilan.cree)   parts.push(`${bilan.cree} note(s) déposée(s)`);
+      if (bilan.efface) parts.push(`${bilan.efface} effacée(s)`);
+      toast.success(parts.join(', ') || 'Rien à envoyer.');
+      // Les refus se disent SÉPARÉMENT : noyés dans le message de succès, ils
+      // passeraient pour un détail alors qu'ils désignent des cases perdues.
+      if (bilan.refus?.length) toast.error(bilan.refus.join(' ; '));
+    },
+    onError: (e: Error) => toast.error(e.message || "Échec de l'envoi."),
+  });
 
-  function handleSave() {
-    // Miroir du garde backend (est_close) : aucune sauvegarde en lecture seule.
-    if (readOnly) {
-      toast.error('La session est clôturée. La saisie de notes est impossible.');
-      return;
-    }
-    if (!feuille.length || !sessionId) return;
-    saveMut.mutate();
-  }
+  const enAttente = Object.keys(saisies).length;
+
+  const valeurAffichee = (ligne: Ligne, type: string, numero: number, c: Case | null) => {
+    if (ligne.note === null) return '';
+    const k = cle(ligne.note, type, numero);
+    return k in saisies ? saisies[k] : (c?.valeur ?? '');
+  };
+
+  const modifier = (ligne: Ligne, type: string, numero: number, texte: string) => {
+    if (ligne.note === null) return;
+    setSaisies(s => ({ ...s, [cle(ligne.note!, type, numero)]: texte }));
+  };
+
+  const colonnes = useMemo(() => {
+    if (!grille) return [] as Array<{ type: string; numero: number; label: string }>;
+    return [
+      ...Array.from({ length: grille.nb_ds }, (_, i) => (
+        { type: 'ds', numero: i + 1, label: `DS ${i + 1}` })),
+      ...(grille.has_tp ? [{ type: 'tp', numero: 1, label: 'TP' }] : []),
+      ...Array.from({ length: grille.nb_exam }, (_, i) => (
+        { type: 'exam', numero: i + 1, label: `Examen ${i + 1}` })),
+    ];
+  }, [grille]);
+
+  const caseDe = (ligne: Ligne, type: string, numero: number): Case | null =>
+    type === 'tp' ? ligne.tp
+                  : (type === 'ds' ? ligne.ds : ligne.exam)[numero - 1] ?? null;
 
   return (
-    <div className="p-6 space-y-5 max-w-5xl mx-auto">
-      {/* En-tête */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'linear-gradient(135deg, #004d24, #006633)' }}>
-          <BookOpen size={16} className="text-white" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Saisie des notes</h1>
-          <p className="text-xs text-slate-400">{annee} — Semestre {typeSem}</p>
-        </div>
-      </div>
-
-      {/* En ligne, la saisie ne produit pas de note officielle. Le taire serait
-          pire que tout : l'enseignant croirait ses notes arrêtées, et la
-          direction les découvrirait absentes du relevé. */}
-      {enLigne && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4
-                        flex items-start gap-2.5" style={{ borderLeft: '3px solid #b45309' }}>
-          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-slate-600">
-            Vous saisissez depuis le <b>portail en ligne</b> : vos notes sont
-            enregistrées comme <b>brouillons</b>. La direction les récupère puis
-            les reporte sur le serveur de l&apos;établissement, où elles
-            deviennent officielles. Vous pouvez les corriger tant qu&apos;elles
-            n&apos;ont pas été reprises.
-          </p>
-        </div>
-      )}
-
-      {/* Sélection session + EM */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Session */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Session d'évaluation</label>
-          <div className="relative">
-            {loadSess ? (
-              <div className="h-10 bg-slate-100 rounded-lg animate-pulse" />
-            ) : (
-              <>
-                <select
-                  value={sessionId}
-                  onChange={e => setSessionId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#006633]/40">
-                  <option value="">— Choisir une session —</option>
-                  {sessions.map(s => (
-                    <option key={s.id} value={String(s.id)}>
-                      {(s.intitule || s.code || `Session ${s.id}`) + sessionStatut(s)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </>
-            )}
-          </div>
-          {!loadSess && sessions.length === 0 && (
-            <p className="text-xs text-slate-400 mt-1">Aucune session pour le semestre {typeSem}.</p>
-          )}
-          {!loadSess && allClosed && (
-            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-              <Lock size={12} /> Toutes les sessions sont clôturées — saisie en lecture seule.
-            </p>
-          )}
-        </div>
-
-        {/* EM */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Élément de module</label>
-          <div className="relative">
-            <select
-              value={emId}
-              onChange={e => setEmId(e.target.value)}
-              disabled={!sessionId || loadEms || readOnly}
-              className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-[#006633]/40 disabled:bg-slate-50 disabled:cursor-not-allowed">
-              <option value="">
-                {readOnly ? '— Session fermée —' : (loadEms ? 'Chargement…' : '— Choisir une matière —')}
-              </option>
-              {!readOnly && ems.map(e => (
-                <option key={e.id} value={String(e.id)}>{e.code_em} — {e.intitule}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          </div>
-          {readOnly ? (
-            <p className="text-xs text-amber-600 mt-1">La session est clôturée : la saisie de notes est impossible.</p>
-          ) : sessionId && !loadEms && ems.length === 0 ? (
-            <p className="text-xs text-slate-400 mt-1">Aucun EM trouvé pour ce semestre.</p>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Bandeau lecture seule (session clôturée / non ouverte) */}
-      {readOnly && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2 text-sm text-amber-800">
-          <Lock size={16} className="mt-0.5 shrink-0" />
-          <span>
-            <b>Session en lecture seule.</b> {selectedSession?.est_cloturee
-              ? 'Cette session est clôturée : les notes ne peuvent plus être saisies ni modifiées.'
-              : "Cette session n'est pas encore ouverte à la saisie."}
-          </span>
-        </div>
-      )}
-
-      {/* Feuille */}
-      {loadingFeuille ? (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-          <div className="w-7 h-7 border-2 border-[#006633] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="mt-3 text-sm text-slate-500">Chargement de la feuille…</p>
-        </div>
-      ) : errorFeuille ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-[#C82020]">
-          <AlertCircle size={16} /> {errorFeuille}
-        </div>
-      ) : feuille.length > 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">{feuille.length} étudiant(s)</p>
-              {selectedSession && (
-                <p className="text-xs text-slate-400">{selectedSession.intitule || selectedSession.code}</p>
-              )}
-            </div>
-            {readOnly ? (
-              <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200">
-                <Lock size={14} /> Lecture seule
-              </span>
-            ) : (
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white bg-[#006633] hover:bg-[#00552a] disabled:opacity-50 transition-colors">
-                {saving
-                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <Save size={14} />}
-                Enregistrer
-              </button>
-            )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ background: 'linear-gradient(135deg,#004d24,#006633)', color: 'white' }}>
-                  <th className="px-3 py-3 text-left text-xs font-semibold w-8">#</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold">Matricule</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold">Nom</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold">CC /20</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold">TP /20</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold">Exam /20</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {feuille.map((row, i) => {
-                  const e = editNotes[row.inscription_element] ?? { cc: '', tp: '', exam: '' };
-                  const upd = (field: 'cc' | 'tp' | 'exam', val: string) =>
-                    setEditNotes(prev => ({
-                      ...prev,
-                      [row.inscription_element]: { ...e, [field]: val },
-                    }));
-                  return (
-                    <tr key={row.inscription_element} className={`hover:bg-slate-50 ${i % 2 === 1 ? 'bg-slate-50/40' : ''}`}>
-                      <td className="px-3 py-2 text-xs text-slate-400 tabular-nums">{i + 1}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-[#006633] font-semibold whitespace-nowrap">
-                        {row.etudiant_matricule}
-                      </td>
-                      <td className="px-3 py-2 text-sm text-slate-800">{row.etudiant_nom}</td>
-                      {(['cc', 'tp', 'exam'] as const).map(field => (
-                        <td key={field} className="px-3 py-2 text-center">
-                          <input
-                            type="number" min={0} max={20} step={0.25}
-                            value={e[field]}
-                            onChange={ev => upd(field, ev.target.value)}
-                            disabled={readOnly}
-                            className={`${NOTE_INPUT} disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed`}
-                            placeholder="—"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex justify-end px-5 py-3 border-t border-slate-100">
-            {readOnly ? (
-              <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200">
-                <Lock size={14} /> Lecture seule
-              </span>
-            ) : (
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white bg-[#006633] hover:bg-[#00552a] disabled:opacity-50 transition-colors">
-                {saving
-                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <Save size={14} />}
-                Enregistrer
-              </button>
-            )}
-          </div>
-        </div>
-      ) : emId ? (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-          <BookOpen size={32} className="mx-auto mb-3 text-slate-300" />
-          <p className="text-sm text-slate-500">Aucun étudiant inscrit dans cette matière.</p>
-        </div>
-      ) : sessionId && !readOnly ? (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
-          <BookOpen size={32} className="mx-auto mb-3 text-slate-300" />
-          <p className="text-sm text-slate-500">Sélectionnez une matière pour afficher la feuille de notes.</p>
-        </div>
-      ) : null}
-
+    <div className="space-y-5">
       <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
+
+      <div>
+        <h1 className="text-xl font-bold text-iss-dark">Saisie des notes</h1>
+        <p className="text-sm text-iss-gray mt-1">
+          Les matières que vous enseignez, telles que l&apos;emploi du temps les enregistre.
+        </p>
+      </div>
+
+      {/* Dit une fois, clairement : ces notes ne sont pas définitives. Un
+          enseignant qui croirait le contraire ne les redemanderait jamais. */}
+      <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3.5">
+        <Info className="w-5 h-5 shrink-0 text-blue-700 mt-0.5" />
+        <p className="text-sm text-blue-900 leading-relaxed">
+          <b>Ce que vous saisissez ici est un brouillon.</b> Il est transmis à la
+          scolarité, qui le reprend dans le système officiel. Tant qu&apos;elle ne
+          l&apos;a pas fait, vous pouvez corriger ou effacer librement — une case
+          vidée supprime le brouillon.
+        </p>
+      </div>
+
+      {erreurFeuilles && (
+        <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-800">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          {(erreurFeuilles as Error).message}
+        </div>
+      )}
+
+      {/* ── Le choix de la feuille ──────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4">
+        {chargeFeuilles ? (
+          <p className="text-sm text-iss-gray">Chargement…</p>
+        ) : feuilles.length === 0 ? (
+          <div className="flex gap-3">
+            <BookOpen className="w-5 h-5 shrink-0 text-iss-gray mt-0.5" />
+            <p className="text-sm text-iss-gray leading-relaxed">
+              Aucune feuille ne vous est rattachée{annee ? ` en ${annee}` : ''}.
+              Le périmètre est établi depuis l&apos;emploi du temps : tant
+              qu&apos;aucune séance ne vous y est affectée, il n&apos;y a rien à
+              saisir. Signalez-le à la scolarité.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {feuilles.map(f => {
+              const active = choisie
+                && choisie.classe === f.classe && choisie.matiere === f.matiere
+                && choisie.semestre === f.semestre;
+              return (
+                <button
+                  key={`${f.classe}-${f.matiere}-${f.semestre}`}
+                  onClick={() => { setChoisie(f); setSaisies({}); }}
+                  className={`text-left rounded-xl border px-3.5 py-2.5 transition ${
+                    active ? 'border-[#006633] bg-[#006633]/5'
+                           : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="text-sm font-semibold text-iss-dark">
+                    {f.classe_nom} · {f.matiere_code}
+                  </div>
+                  <div className="text-xs text-iss-gray">
+                    {f.matiere_intitule} — {f.semestre_code} {f.annee_universitaire}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── La grille ───────────────────────────────────────────────────── */}
+      {choisie && (
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+            <div className="text-sm font-semibold text-iss-dark">
+              {grille ? `${grille.classe_nom} · ${grille.matiere_code} — ${grille.semestre_code}` : '…'}
+            </div>
+            <button
+              onClick={() => enregistrer.mutate()}
+              disabled={!enAttente || enregistrer.isPending || grille?.verrouille}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#006633] px-4 py-2
+                         text-sm font-semibold text-white disabled:opacity-40">
+              <Save className="w-4 h-4" />
+              {enregistrer.isPending ? 'Envoi…'
+                : enAttente ? `Envoyer ${enAttente} modification(s)` : 'Rien à envoyer'}
+            </button>
+          </div>
+
+          {grille?.verrouille && (
+            <div className="flex gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5
+                            text-sm text-amber-900">
+              <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+              Ce semestre est clôturé : la saisie y est fermée.
+            </div>
+          )}
+
+          {chargeGrille ? (
+            <p className="p-4 text-sm text-iss-gray">Chargement de la grille…</p>
+          ) : !grille || grille.lignes.length === 0 ? (
+            <p className="p-4 text-sm text-iss-gray">Aucun inscrit dans cette classe.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-iss-gray">
+                    <th className="px-4 py-2.5">Étudiant</th>
+                    {colonnes.map(c => (
+                      <th key={`${c.type}${c.numero}`} className="px-2 py-2.5 text-center">
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {grille.lignes.map(ligne => (
+                    <tr key={ligne.inscription} className={ligne.ouverte ? '' : 'bg-gray-50'}>
+                      <td className="px-4 py-2">
+                        <div className="font-medium text-iss-dark">{ligne.etudiant_nom}</div>
+                        <div className="text-xs text-iss-gray">{ligne.etudiant_matricule}</div>
+                      </td>
+                      {colonnes.map(c => {
+                        const cellule = caseDe(ligne, c.type, c.numero);
+                        const k = ligne.note !== null ? cle(ligne.note, c.type, c.numero) : '';
+                        const modifie = k in saisies;
+                        return (
+                          <td key={`${c.type}${c.numero}`} className="px-2 py-2 text-center">
+                            <input
+                              className={`${INPUT} ${
+                                modifie ? 'border-[#006633] bg-[#006633]/5'
+                                : cellule?.brouillon ? 'border-amber-400 bg-amber-50' : ''}`}
+                              value={valeurAffichee(ligne, c.type, c.numero, cellule)}
+                              disabled={!ligne.ouverte || grille.verrouille}
+                              title={cellule?.brouillon
+                                ? 'Brouillon en attente de reprise par la scolarité'
+                                : undefined}
+                              onChange={e => modifier(ligne, c.type, c.numero, e.target.value)} />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <p className="px-4 py-3 text-xs text-iss-gray">
+                <span className="inline-block w-3 h-3 rounded border border-amber-400 bg-amber-50 align-middle" />
+                {' '}brouillon déjà déposé · {' '}
+                <span className="inline-block w-3 h-3 rounded border border-[#006633] bg-[#006633]/5 align-middle" />
+                {' '}modifié, pas encore envoyé. Une ligne grisée n&apos;est pas
+                encore ouverte par la scolarité pour cette matière.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
