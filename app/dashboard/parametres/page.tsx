@@ -5,7 +5,7 @@ import {
   Settings, Calendar, BookOpen, DollarSign,
   Building, Layers, Clock, MapPin, ArrowRight,
   Sun, CalendarDays, Moon, GraduationCap, Globe,
-  MessageSquareWarning,
+  MessageSquareWarning, CalendarOff,
 } from 'lucide-react';
 
 /**
@@ -61,6 +61,13 @@ const BLOCS = [
       { href: '/dashboard/parametres/semaines/generer', label: 'Générer' },
       { href: '/dashboard/parametres/semaines/ajouter', label: 'Ajouter à la main' },
     ],
+  },
+  {
+    href: '/dashboard/parametres/jours-feries',
+    icon: CalendarOff,
+    label: 'Jours fériés',
+    desc: 'Fériés fixes, jours marqués, et leurs séances annulées',
+    color: '#006633',
   },
   {
     href: '/dashboard/parametres/creneaux',

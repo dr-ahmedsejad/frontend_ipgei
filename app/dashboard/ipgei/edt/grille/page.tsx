@@ -15,6 +15,7 @@ import { anneeParDefaut, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import { semaineAProposer } from '../_semaines';
 import {
+  BandeauFeries, CaseFeriee, EnteteJourFerme, FOND_JOUR_FERME,
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU, STYLE_ENTETE_JOUR,
   STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from '../_cellule';
@@ -142,6 +143,12 @@ export default function GrilleTypePage() {
 
   const enModeSemaine = periodeId !== null;
   const semaine = semainesCours.find(s => s.id === periodeId);
+  // Les jours FERMÉS de la semaine éditée. Le patron n'a pas de dates, donc pas
+  // de férié : la carte reste vide hors mode semaine.
+  const joursFermes = useMemo(
+    () => new Map((enModeSemaine ? semaine?.jours_feries ?? [] : []).map(f => [f.jour, f])),
+    [enModeSemaine, semaine],
+  );
 
   const { data: donneesSemaine, isLoading: chargeSemaine } =
     useEdtSemaine(enModeSemaine ? classeId : null, periodeId);
@@ -326,6 +333,9 @@ export default function GrilleTypePage() {
           const courant = cases[k];
           const origine = originaux.current[k];
           const [jour, creneau, sousGroupe] = k.split('__');
+          // Un jour fermé ne s'écrit pas : le serveur refuserait, et ses cases
+          // sont figées à l'écran. On le saute plutôt que de compter un échec.
+          if (joursFermes.has(Number(jour))) continue;
 
           const remplie  = !!courant && remplieCase(courant);
           const existait = !!origine?.idOrigine;
@@ -661,6 +671,7 @@ export default function GrilleTypePage() {
 
       {/* C'est ici qu'on provoque la divergence — et ici qu'on la corrige. */}
       {enModeSemaine && <BandeauCoherence semaine={semaine} />}
+      {enModeSemaine && <BandeauFeries jours={semaine?.jours_feries ?? []} />}
 
       {!classeId ? (
         <div className={CARTE}>
@@ -719,9 +730,15 @@ export default function GrilleTypePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {jours.map((j, ligne) => (
-                    <tr key={j.id} style={{ background: ligne % 2 === 0 ? 'white' : '#fafafa' }}>
-                      <td style={STYLE_CELLULE_JOUR}>{j.jour}</td>
+                  {jours.map((j, ligne) => {
+                    const ferme = joursFermes.get(j.id);
+                    return (
+                    <tr key={j.id} style={{
+                      background: ferme ? FOND_JOUR_FERME : (ligne % 2 === 0 ? 'white' : '#fafafa'),
+                    }}>
+                      <td style={ferme ? { ...STYLE_CELLULE_JOUR, background: FOND_JOUR_FERME } : STYLE_CELLULE_JOUR}>
+                        {ferme ? <EnteteJourFerme jour={j.jour} ferme={ferme} /> : j.jour}
+                      </td>
                       {creneaux.map(c => {
                         const k = cle(j.id, c.id, vue);
 
@@ -786,6 +803,54 @@ export default function GrilleTypePage() {
                         const coul = couleurType(libelleType);
                         const speciale = estSpecial(cellule.typeSeance);
                         const occupee = !!cellule.matiereId || speciale;
+
+                        // ── JOUR FERMÉ ─────────────────────────────────────
+                        // Case vide : un bloc rayé, pas des champs grisés — vides
+                        // et désactivés, ils se lisaient comme une saisie en panne.
+                        // Case occupée : la séance, figée, sans corbeille,
+                        // permutation ni menu. Le serveur refuse ces gestes ; ne
+                        // pas les montrer évite d'en tenter un.
+                        if (ferme) {
+                          const reelle = cellule.idOrigine
+                            ? seancesSemaine.find(s => s.id === cellule.idOrigine)
+                            : undefined;
+                          if (!reelle) {
+                            return (
+                              <td key={c.id} style={{ ...STYLE_CELLULE, background: FOND_JOUR_FERME }}>
+                                <CaseFeriee libelle={ferme.libelle} />
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key={c.id} style={{
+                              ...STYLE_CELLULE, background: FOND_JOUR_FERME,
+                              borderLeft: `3px solid ${coul.border}`,
+                            }}>
+                              <div style={{ opacity: 0.7 }}>
+                                {!speciale && (
+                                  <AC value={cellule.profId} placeholder="Professeur" disabled
+                                      options={optProfs} onChange={() => {}} />
+                                )}
+                                {!speciale && (
+                                  <AC value={cellule.matiereId} placeholder="Matière" disabled
+                                      options={optMatieres} onChange={() => {}} />
+                                )}
+                                <AC value={cellule.typeSeance} placeholder="Type séance" disabled
+                                    options={optTypes} onChange={() => {}} />
+                                {!speciale && (
+                                  <AC value={cellule.salleId} placeholder="Salle" disabled
+                                      options={optSalles} onChange={() => {}} />
+                                )}
+                              </div>
+                              {reelle.annulee && (
+                                <div className="mt-1 pt-1 border-t border-gray-200/70"
+                                     style={{ fontSize: 9, fontWeight: 800, color: '#b91c1c' }}>
+                                  {reelle.motif_annulation === 'ferie' ? 'ANNULÉE — FÉRIÉ' : 'ANNULÉE'}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        }
 
                         return (
                           <td key={c.id} style={{
@@ -928,7 +993,8 @@ export default function GrilleTypePage() {
                         );
                       })}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

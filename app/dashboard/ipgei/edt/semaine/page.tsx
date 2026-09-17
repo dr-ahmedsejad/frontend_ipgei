@@ -19,7 +19,8 @@ import {
   ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
 import {
-  BandeauEpreuve, CarteSeance, CaseVide, decouperLigne,
+  BandeauEpreuve, BandeauFeries, CarteSeance, CaseFeriee, CaseVide, EnteteJourFerme,
+  FOND_JOUR_FERME, decouperLigne,
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU,
   STYLE_ENTETE_JOUR, STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from '../_cellule';
@@ -91,6 +92,12 @@ export default function EdtSemainePage() {
 
   const seancesDeLaCase = (jour: number, creneau: number) =>
     seances.filter(s => s.jour === jour && s.creneau === creneau);
+
+  // Les jours FERMÉS de la semaine, par identifiant de jour.
+  const joursFermes = useMemo(
+    () => new Map((semaine?.jours_feries ?? []).map(f => [f.jour, f])),
+    [semaine],
+  );
 
   return (
     <div className="space-y-5">
@@ -176,6 +183,8 @@ export default function EdtSemainePage() {
             )}
           </div>
 
+          <BandeauFeries jours={semaine?.jours_feries ?? []} />
+
           {/* Une semaine sans cours mais AVEC une epreuve n'est pas vide :
               c'est la semaine d'examens, celle qu'on consulte le plus. */}
           {seances.length === 0 && epreuves.length === 0 ? (
@@ -195,9 +204,15 @@ export default function EdtSemainePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {jours.map((j, ligne) => (
-                      <tr key={j.id} style={{ background: ligne % 2 === 0 ? 'white' : '#fafafa' }}>
-                        <td style={STYLE_CELLULE_JOUR}>{j.jour}</td>
+                    {jours.map((j, ligne) => {
+                      const ferme = joursFermes.get(j.id);
+                      return (
+                      <tr key={j.id} style={{
+                        background: ferme ? FOND_JOUR_FERME : (ligne % 2 === 0 ? 'white' : '#fafafa'),
+                      }}>
+                        <td style={ferme ? { ...STYLE_CELLULE_JOUR, background: FOND_JOUR_FERME } : STYLE_CELLULE_JOUR}>
+                          {ferme ? <EnteteJourFerme jour={j.jour} ferme={ferme} /> : j.jour}
+                        </td>
                         {decouperLigne(creneaux, epreuves.filter(e => e.jour === j.id))
                           .map(cellule => {
                           // Une épreuve n'est pas une case à éditer : elle est
@@ -224,7 +239,7 @@ export default function EdtSemainePage() {
                           return (
                             <td key={c.id} style={STYLE_CELLULE}>
                               {contenu.length === 0 ? (
-                                <CaseVide />
+                                ferme ? <CaseFeriee libelle={ferme.libelle} /> : <CaseVide />
                               ) : (
                                 <div className="space-y-1">
                                   {contenu.map(s => (
@@ -237,10 +252,15 @@ export default function EdtSemainePage() {
                                       salle={s.salle_nom}
                                       sousGroupe={s.sous_groupe_libelle}
                                       annulee={s.annulee}
+                                      ferie={s.motif_annulation === 'ferie'}
                                       permutee={s.origine === 'permutation'}
                                       profInitial={s.prof_initial_nom}
-                                      onClick={() => setSeanceEditee(s)}
-                                      actions={
+                                      // Un jour fermé fige la séance : ni édition,
+                                      // ni permutation. Le serveur les refuse de
+                                      // toute façon — ne pas les proposer évite un
+                                      // geste voué à l'échec.
+                                      onClick={ferme ? undefined : () => setSeanceEditee(s)}
+                                      actions={ferme ? undefined :
                                         <>
                                           {/* Icônes nues de 11 px collées l'une
                                               à l'autre : on visait le dessin,
@@ -262,7 +282,8 @@ export default function EdtSemainePage() {
                           );
                         })}
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

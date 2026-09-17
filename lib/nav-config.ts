@@ -436,6 +436,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Système', roles: MANAGE,
     items: [
       { href: '/dashboard/parametres', label: 'Paramétrage' },
+      // Une entrée À PART, et non une carte seulement : cachée dans la page
+      // Semaines, la gestion des jours fériés restait introuvable. On la
+      // cherche au moment où un jour tombe, pas en parcourant le paramétrage.
+      { href: '/dashboard/parametres/jours-feries', label: 'Jours fériés' },
     ],
   },
 

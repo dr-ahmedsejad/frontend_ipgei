@@ -10,7 +10,7 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 
-import type { EpreuveSurimpression } from '@/types/ipgei';
+import type { EpreuveSurimpression, JourFerme } from '@/types/ipgei';
 
 
 // Palette alignée sur celle de SIGA : cours = bleu (CM), TD = vert, TP = orange,
@@ -98,7 +98,7 @@ export const STYLE_CELLULE: CSSProperties = {
  */
 export function CarteSeance({
   type, matiere, intitule, prof, salle, sousGroupe, annulee, permutee,
-  profInitial, onClick, actions, compact,
+  profInitial, onClick, actions, compact, ferie,
 }: {
   /** Libellé du référentiel : « CM », « TP », « Sport »… */
   type:         string;
@@ -113,6 +113,8 @@ export function CarteSeance({
   onClick?:     () => void;
   actions?:     ReactNode;
   compact?:     boolean;
+  /** Annulée PAR UN FÉRIÉ : elle reviendra au retrait du férié. */
+  ferie?:       boolean;
 }) {
   const c = couleurType(type);
   // Une séance permutée garde sa couleur de type mais prend un liseré violet :
@@ -161,7 +163,7 @@ export function CarteSeance({
         )}
         {annulee && (
           <div style={{ fontSize: 9, color: '#b91c1c', fontWeight: 700, marginTop: 2 }}>
-            SÉANCE ANNULÉE
+            {ferie ? 'ANNULÉE — FÉRIÉ' : 'SÉANCE ANNULÉE'}
           </div>
         )}
       </button>
@@ -393,5 +395,80 @@ export function CaseVide({ onClick, libelle = '+' }: { onClick?: () => void; lib
             style={{ minHeight: 62, fontSize: 16, fontWeight: 600 }}>
       {libelle}
     </button>
+  );
+}
+
+
+// ── Jours fériés ─────────────────────────────────────────────────────────────
+/** Fond d'une LIGNE de jour fermé : grisée, pour qu'elle se lise avant ses cases. */
+export const FOND_JOUR_FERME = '#eef0f2';
+
+const RAYURES = 'repeating-linear-gradient(135deg, transparent 0 7px, rgba(0,0,0,0.06) 7px 14px)';
+
+/**
+ * Le bandeau de la semaine : quels jours sont fériés, et que cela implique.
+ * Posé au-dessus de la grille, il explique d'avance les lignes grisées.
+ */
+export function BandeauFeries({ jours }: { jours: JourFerme[] }) {
+  if (jours.length === 0) return null;
+  return (
+    <div className="rounded-2xl border px-4 py-3 text-sm"
+         style={{ borderColor: '#f1c4bd', background: '#fdf2f0', color: '#7f1d1d' }}>
+      <b>Jour{jours.length > 1 ? 's' : ''} férié{jours.length > 1 ? 's' : ''} cette semaine :</b>{' '}
+      {jours.map(j => `${j.jour_libelle} ${new Date(`${j.date}T00:00:00`).toLocaleDateString('fr-FR')}`
+                      + ` (${j.libelle})`).join(' · ')}
+      <span className="block text-xs mt-0.5" style={{ color: '#991b1b' }}>
+        Aucune séance ne s&apos;y ajoute. Les séances déjà posées sont annulées et reviendront si le
+        férié est retiré.
+      </span>
+    </div>
+  );
+}
+
+/**
+ * La cellule « jour » d'une ligne fermée : le nom du jour, une pastille FÉRIÉ,
+ * et le nom du férié dessous.
+ *
+ * L'en-tête de ligne est en `nowrap` (STYLE_CELLULE_JOUR) : le nom du férié y
+ * débordait sur la première case. On borne donc sa largeur et on RÉAUTORISE le
+ * retour à la ligne, pour lui seul.
+ */
+export function EnteteJourFerme({ jour, ferme }: { jour: string; ferme: JourFerme }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span>{jour}</span>
+      <span style={{
+        background: '#C82010', color: 'white', borderRadius: 999,
+        padding: '1px 7px', fontSize: 9, fontWeight: 800, letterSpacing: 0.5,
+      }}>
+        {ferme.etat === 'ferie' ? 'FÉRIÉ' : 'FERMÉ'}
+      </span>
+      <span style={{
+        whiteSpace: 'normal', maxWidth: 76, fontSize: 10, fontWeight: 600,
+        lineHeight: 1.2, color: '#7f1d1d', overflowWrap: 'anywhere',
+      }}>
+        {ferme.libelle}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Case VIDE d'un jour fermé : un bloc rayé qui dit « Férié ».
+ *
+ * À la place des champs, et non des champs grisés : des champs vides et
+ * désactivés se lisaient comme une saisie en panne.
+ */
+export function CaseFeriee({ libelle }: { libelle?: string }) {
+  return (
+    <div className="rounded-lg flex items-center justify-center text-center"
+         title={libelle ? `Férié — ${libelle}` : 'Jour férié'}
+         style={{
+           minHeight: 62, height: '100%', border: '1px dashed #d8b4ae',
+           backgroundImage: RAYURES, color: '#9a3412',
+           fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+         }}>
+      Férié
+    </div>
   );
 }

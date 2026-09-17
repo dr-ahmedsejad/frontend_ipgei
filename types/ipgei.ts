@@ -148,6 +148,22 @@ export interface SemaineIPGEI {
   suivi_genere_le:   string | null;
   etat_coherence:    EtatCoherence;
   libelle_coherence: string;
+  /**
+   * Les jours FERMÉS de la semaine, lus sur le calendrier du socle. Une semaine
+   * reste « de cours » quand un seul de ses jours est férié : c'est ici, et non
+   * dans `type_semaine`, que l'emploi du temps apprend quel jour griser.
+   */
+  jours_feries:      JourFerme[];
+}
+
+export interface JourFerme {
+  /** Identifiant du jour dans « Paramètres → Jours ». */
+  jour:         number;
+  jour_libelle: string;
+  date:         string;
+  libelle:      string;
+  /** `ferie` : férié isolé. `hors_cours` : semaine entière de vacances, d'examens… */
+  etat:         'ferie' | 'hors_cours';
 }
 
 // ── Matières ─────────────────────────────────────────────────────────────────
@@ -931,6 +947,8 @@ export interface SeanceReelle {
   date:                string | null;
   origine:             OrigineSeance;
   annulee:             boolean;
+  /** `'ferie'` : annulée par le marquage de son jour. Vide : annulée à la main. */
+  motif_annulation:    '' | 'ferie';
   observations:        string;
 }
 
