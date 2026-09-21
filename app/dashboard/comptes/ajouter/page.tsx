@@ -37,10 +37,16 @@ function humaniseError(field: string, raw: string): string {
   return raw;
 }
 
+// Les rôles qu'on ATTRIBUE ici. Trois autres existent et n'y figurent pas :
+// `enseignant` et `etudiant` viennent de leurs propres écrans (fichier des
+// profs, inscriptions), et `responsable_filiere` appartient au socle SIGA —
+// l'IPGEI raisonne par départements, cf. `ROLE_LABELS` dans `lib/auth.ts`.
 const ROLES = [
   { value: 'DE',        label: 'Dir. enseignement' },
   { value: 'admin',     label: 'Administrateur' },
   { value: 'scolarite', label: 'Scolarité' },
+  { value: 'chef_departement', label: 'Chef de département' },
+  { value: 'jury_president',   label: 'Président du jury' },
   { value: 'AA',        label: 'Asst. administratif' },
   { value: 'IT',        label: 'Informatique' },
   { value: 'DG',        label: 'Dir. général' },
