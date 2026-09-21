@@ -383,6 +383,29 @@ export default function JuryPage({ params }: { params: Promise<{ id: string }> }
           s'affiche qu'en deuxième année, seule à en compter cinq. */}
       <FilParcours deliberation={deliberation} />
 
+      {/* Une fraude sanctionnée ou levée après la validation : les notes que ce
+          jury a arrêtées ne sont plus celles de la base. Il doit redélibérer. */}
+      {(deliberation.fraudes_non_vues?.length ?? 0) > 0 && (
+        <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Jury à redélibérer : des notes ont changé depuis sa validation.</p>
+            <p className="mt-0.5">
+              {deliberation.fraudes_non_vues!.map((f, i) => (
+                <span key={f.id}>
+                  {i > 0 && ' · '}
+                  <Link href={`/dashboard/ipgei/fraudes?fiche=${f.id}`} className="underline">
+                    {f.etudiant_matricule} {f.etudiant_nom}
+                  </Link>
+                  {' '}({f.statut === 'levee' ? 'sanction levée' : 'sanction pour fraude'})
+                </span>
+              ))}
+              . Dévalidez puis revalidez le jury pour arrêter les notes actuelles.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Ce que la règle de l'épreuve non rendue va coûter, AVANT de valider.
           C'est le piège qui a fait passer une promotion entière sous le seuil
           sur un semestre non saisi, sans qu'aucun écran ne le dise. */}

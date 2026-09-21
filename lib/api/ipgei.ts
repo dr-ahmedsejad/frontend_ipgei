@@ -25,6 +25,7 @@ import type {
   SeanceReelle, SeanceType, SemaineIPGEI, SemestreIPGEI, SessionEvaluationIPGEI,
   Signataire, SousGroupeTP,
   StatistiquesDeliberation, StatutAbsence, TypeDocumentIPGEI,
+  ElementDemande, SanctionFraude, Sanctionnables,
 } from '@/types/ipgei';
 
 const BASE = '/api/v1/ipgei';
@@ -1212,4 +1213,35 @@ export const tableauBordApi = {
   annees: (saisissables = false) =>
     apiFetch<string[]>(`${BASE}/tableau-bord/annees/`,
       { params: nettoyer({ saisissables: saisissables ? true : undefined }) }),
+};
+
+// ── Sanctions pour fraude ────────────────────────────────────────────────────
+export interface FraudeFilters extends Params {
+  page?: number; id?: number; search?: string; statut?: string;
+  inscription__annee_universitaire?: string;
+}
+
+export const fraudesApi = {
+  list: (f: FraudeFilters = {}) =>
+    apiFetchPaginated<SanctionFraude>(`${BASE}/fraudes/`, nettoyer(f)),
+  sanctionnables: (inscription: number) =>
+    apiFetch<Sanctionnables>(`${BASE}/fraudes/sanctionnables/`, { params: { inscription } }),
+  /** Multipart : le PV voyage avec la fiche, et les éléments en JSON. */
+  create: (input: {
+    inscription: number; nature: string; date_faits: string; motif: string;
+    pv_deliberation: File; elements: ElementDemande[];
+  }) => {
+    const corps = new FormData();
+    corps.append('inscription',     String(input.inscription));
+    corps.append('nature',          input.nature);
+    corps.append('date_faits',      input.date_faits);
+    corps.append('motif',           input.motif);
+    corps.append('pv_deliberation', input.pv_deliberation);
+    corps.append('elements',        JSON.stringify(input.elements));
+    return apiUpload<SanctionFraude>(`${BASE}/fraudes/`, corps);
+  },
+  lever: ({ id, motif_levee }: { id: number; motif_levee: string }) =>
+    apiFetch<SanctionFraude & { ecarts: { matiere: string; avant: string | null; apres: string | null }[] }>(
+      `${BASE}/fraudes/${id}/lever/`, { method: 'POST', body: { motif_levee } }),
+  pv: (id: number) => apiFetchBlob(`${BASE}/fraudes/${id}/pv/`),
 };

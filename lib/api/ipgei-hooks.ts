@@ -11,7 +11,7 @@ import {
 
 import {
   archivesEdtApi, absencesApi, classementApi, classesApi, concoursApi,
-  deliberationsApi,
+  deliberationsApi, fraudesApi,
   documentsApi, epreuvesApi, grillesApi, ponderationsClasseApi,
   inscriptionsApi, lignesDeliberationApi, matieresApi, membresJuryApi, notesApi,
   parametresApi,
@@ -24,7 +24,7 @@ import {
   type FiltresCollecte, type FiltresEmargement, type FiltresGrilleAnonyme, type LotCorrection,
   type Params,
   type TriDetailNotes,
-  type DocumentFilters, type InscriptionFilters, type MatiereFilters,
+  type DocumentFilters, type FraudeFilters, type InscriptionFilters, type MatiereFilters,
   type SemestreFilters,
 } from './ipgei';
 import type {
@@ -1555,5 +1555,35 @@ export function useSignataireMutations() {
       mutationFn: (id: number) => signatairesApi.remove(id),
       onSuccess:  invalider,
     }),
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Sanctions pour fraude
+// ═════════════════════════════════════════════════════════════════════════════
+export function useFraudes(filters: FraudeFilters = {}) {
+  return useQuery({
+    queryKey:        [...ipgeiKeys.all, 'fraudes', filters] as const,
+    queryFn:         () => fraudesApi.list(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSanctionnables(inscription: number | null | undefined) {
+  return useQuery({
+    queryKey: [...ipgeiKeys.all, 'fraudes', 'sanctionnables', inscription ?? 0] as const,
+    queryFn:  () => fraudesApi.sanctionnables(inscription as number),
+    enabled:  inscription != null,
+  });
+}
+
+export function useFraudeMutations() {
+  const qc = useQueryClient();
+  // Tout le module : une sanction change des notes, des moyennes et l'état
+  // des jurys qui les ont arrêtées.
+  const invalider = () => qc.invalidateQueries({ queryKey: ipgeiKeys.all });
+  return {
+    create: useMutation({ mutationFn: fraudesApi.create, onSuccess: invalider }),
+    lever:  useMutation({ mutationFn: fraudesApi.lever,  onSuccess: invalider }),
   };
 }

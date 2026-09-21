@@ -771,6 +771,14 @@ export interface Deliberation {
   nb_decisions_emises: number;
   /** Décisions que le jury peut prononcer à ce niveau — calculées côté serveur. */
   decisions_niveau:    { value: DecisionJury; label: string }[];
+  /**
+   * Sanctions pour fraude posées ou levées APRÈS la validation de ce jury,
+   * sur des notes qu'il a arrêtées : il doit redélibérer.
+   */
+  fraudes_non_vues?:   {
+    id: number; etudiant_matricule: string; etudiant_nom: string;
+    statut: 'appliquee' | 'levee'; cree_le: string; levee_le: string | null;
+  }[];
 }
 
 export interface DetailLigneDeliberation {
@@ -1253,4 +1261,93 @@ export interface PonderationClasseInput {
   /** Vide ou `null` pour garder le coefficient de la matière. */
   coefficient: string | null;
   motif:    string;
+}
+
+// ── Sanctions pour fraude ────────────────────────────────────────────────────
+export type NatureFraude =
+  | 'telephone' | 'document' | 'communication' | 'substitution' | 'autre';
+
+export const NATURES_FRAUDE: { value: NatureFraude; label: string }[] = [
+  { value: 'telephone',     label: 'Téléphone ou appareil électronique' },
+  { value: 'document',      label: 'Document non autorisé (antisèche)' },
+  { value: 'communication', label: 'Communication avec un autre candidat' },
+  { value: 'substitution',  label: 'Substitution de copie ou de personne' },
+  { value: 'autre',         label: 'Autre' },
+];
+
+export type ComposanteSanction = 'ds' | 'exam' | 'tp' | 'rattrapage';
+
+export interface ElementSanctionne {
+  id:                 number;
+  note:               number;
+  matiere_code:       string;
+  matiere_intitule:   string;
+  semestre_code:      string;
+  portee:             'matiere' | 'epreuve';
+  composante:         ComposanteSanction | '';
+  numero:             number | null;
+  libelle:            string;
+  note_retenue_avant: string | null;
+  /** La note retenue d'aujourd'hui — zéro tant que la sanction tient, sauf matière partagée. */
+  note_retenue:       string | null;
+}
+
+export interface SanctionFraude {
+  id:                  number;
+  inscription:         number;
+  etudiant_matricule:  string;
+  etudiant_nom:        string;
+  classe_nom:          string;
+  annee_universitaire: string;
+  nature:              NatureFraude;
+  nature_display:      string;
+  date_faits:          string;
+  motif:               string;
+  pv_nom:              string;
+  statut:              'appliquee' | 'levee';
+  statut_display:      string;
+  cree_par_nom:        string;
+  cree_le:             string;
+  motif_levee:         string;
+  levee_par_nom:       string;
+  levee_le:            string | null;
+  elements:            ElementSanctionne[];
+  /** Jurys validés AVANT la dernière action sur la fiche, et qui couvrent ses notes. */
+  jurys_a_redeliberer: { id: number; libelle: string; date_validation: string }[];
+}
+
+export interface EpreuveSanctionnable {
+  composante: ComposanteSanction;
+  numero:     number | null;
+  libelle:    string;
+  valeur:     string | null;
+}
+
+export interface NoteSanctionnable {
+  note:             number;
+  semestre_code:    string;
+  matiere_code:     string;
+  matiere_intitule: string;
+  note_retenue:     string | null;
+  verrouillee:      boolean;
+  /** Matière rattachée : ses DS et son TP se sanctionnent sur celle-ci. */
+  porteuse_code:    string | null;
+  sanction_active:  number | null;
+  epreuves:         EpreuveSanctionnable[];
+}
+
+export interface Sanctionnables {
+  inscription:         number;
+  etudiant_matricule:  string;
+  etudiant_nom:        string;
+  classe_nom:          string;
+  annee_universitaire: string;
+  notes:               NoteSanctionnable[];
+}
+
+export interface ElementDemande {
+  note:        number;
+  portee:      'matiere' | 'epreuve';
+  composante?: ComposanteSanction;
+  numero?:     number | null;
 }

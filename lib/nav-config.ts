@@ -345,6 +345,9 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       // c'est lui qui décide entre sortant, redoublant et réorienté.
       { href: '/dashboard/ipgei/notes/cnim', label: 'Résultat du concours (CNIM)',
         module: 'ipgei_deliberation', action: 'modifier' },
+      // Une sanction change ce qu'un jury a arrêté : même module que les jurys,
+      // et le droit de « voir » suffit à consulter les fiches.
+      { href: '/dashboard/ipgei/fraudes', label: 'Fraudes', module: 'ipgei_deliberation' },
     ],
   },
 
