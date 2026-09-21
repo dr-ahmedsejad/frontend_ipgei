@@ -22,6 +22,14 @@ import {
 import { useContexteFrais, useGrillesFrais } from '@/lib/api/ipgei-frais';
 import type { NouvelEtudiant } from '@/types/ipgei';
 
+/**
+ * Case « Auditeur libre » de l'étape Académique : masquée pour le moment, à la
+ * demande de la scolarité. Rien n'est retiré — l'état, l'envoi au serveur et
+ * les frais suivent toujours la case, qui reste décochée. Repasser à `true`
+ * pour la réafficher.
+ */
+const AFFICHER_AUDITEUR_LIBRE = false;
+
 const ETAPES = [
   { label: 'Identité' },
   { label: 'Académique' },
@@ -484,7 +492,10 @@ export default function NouvelleInscriptionPage() {
 
             {/* Le rattachement est l'endroit juste : c'est ici qu'on dit à
                 quelle promotion l'inscrit appartient — et l'auditeur, lui,
-                n'appartient à aucune. */}
+                n'appartient à aucune. Masquée pour le moment (cf.
+                `AFFICHER_AUDITEUR_LIBRE`) : la case reste là, l'inscrit
+                part simplement comme un étudiant ordinaire. */}
+            {AFFICHER_AUDITEUR_LIBRE && (
             <label className="flex items-start gap-2.5 p-3 rounded-xl border border-iss-border
                               bg-gray-50 cursor-pointer">
               <input type="checkbox" checked={auditeur} className="w-4 h-4 mt-0.5 accent-[#006633]"
@@ -498,6 +509,7 @@ export default function NouvelleInscriptionPage() {
                 </span>
               </span>
             </label>
+            )}
 
             {/* Il n'y a pas d'étape « inscription pédagogique » : la maquette
                 du niveau s'applique entière. Le dire ici évite de chercher où
