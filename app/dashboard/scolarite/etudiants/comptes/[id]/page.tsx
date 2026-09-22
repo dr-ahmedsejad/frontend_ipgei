@@ -10,6 +10,7 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { canAccess } from '@/lib/auth';
+import { DOMAINE_EMAIL_ETUDIANT } from '@/lib/ipgei-config';
 import type { Etudiant } from '@/types/scolarite';
 
 export default function CompleterEtudiantComptePage() {
@@ -104,7 +105,7 @@ export default function CompleterEtudiantComptePage() {
   if (!etudiant) return <p className="text-iss-gray p-6">Étudiant introuvable.</p>;
 
   const fullName = `${etudiant.prenom_fr} ${etudiant.nom_fr || etudiant.nom}`;
-  const emailPropose = `${etudiant.matricule}@isms.esp.mr`;
+  const emailPropose = `${etudiant.matricule}@${DOMAINE_EMAIL_ETUDIANT}`;
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">

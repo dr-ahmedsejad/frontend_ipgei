@@ -49,3 +49,10 @@ export const GROUPES_NAV_LMD = [
 // enseignants, pas de l'académique LMD. Il s'appuie sur Suivi et Emplois, donc
 // sur les départements miroir des classes IPGEI, et fait partie intégrante de la
 // partie pédagogique reprise de SIGA.
+
+/**
+ * Domaine des adresses universitaires des étudiants : `{matricule}@<domaine>`.
+ * Doit rester égal à `EMAIL_DOMAINE_ETUDIANT` côté serveur, qui crée le compte :
+ * l'écran ne fait qu'annoncer l'adresse.
+ */
+export const DOMAINE_EMAIL_ETUDIANT = 'ipgei.mr';

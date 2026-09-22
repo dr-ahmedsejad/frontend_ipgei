@@ -10,6 +10,7 @@ import { Pagination } from '@/components/Pagination';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 import { canAccess } from '@/lib/auth';
+import { DOMAINE_EMAIL_ETUDIANT } from '@/lib/ipgei-config';
 import type { Column } from '@/components/ui/DataTable';
 
 type StatutCompte = 'creable' | 'sans_cni' | 'sans_nbac' | 'username_pris';
@@ -310,7 +311,7 @@ export default function ComptesEtudiantsPage() {
         <ul className="list-disc list-inside space-y-1">
           <li><strong>Login initial</strong> = NNI de l&apos;étudiant</li>
           <li><strong>Mot de passe initial</strong> = N° de Bac</li>
-          <li><strong>Email</strong> = <code className="px-1 bg-white rounded">{`{matricule}@isms.esp.mr`}</code></li>
+          <li><strong>Email</strong> = <code className="px-1 bg-white rounded">{`{matricule}@${DOMAINE_EMAIL_ETUDIANT}`}</code></li>
           <li>Au <strong>1<sup>er</sup> login</strong>, l&apos;étudiant doit choisir un nouveau mot de passe ; son username devient automatiquement son matricule</li>
           <li>Pour les étudiants avec NNI ou N° Bac manquant : cliquer sur <Edit3 size={11} className="inline" /> pour compléter les données</li>
         </ul>
