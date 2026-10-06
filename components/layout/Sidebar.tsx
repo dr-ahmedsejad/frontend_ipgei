@@ -56,7 +56,7 @@ export default function Sidebar({
             return safe
               ? <Image src={safe} alt="logo" width={128} height={128}
                        className="object-contain" style={{ width: 64, height: 64 }} unoptimized />
-              : (sigle?.slice(0, 3) ?? 'ISS');
+              : (sigle?.slice(0, 3) ?? 'IPG');
           })()}
         </div>
         {!hideText && (
@@ -94,8 +94,10 @@ export default function Sidebar({
           <span className="w-4 h-1 rounded-full shrink-0" style={{ background: '#E5C018' }} />
           <span className="w-4 h-1 rounded-full shrink-0" style={{ background: '#C82020' }} />
         </div>
+        {/* Le sigle de l'institution, et IPGEI à défaut : le pied de page
+            annonçait « ISS », nom de l'établissement d'origine du socle. */}
         {!hideText && (
-          <p className="text-center text-[10px] text-iss-gray/40 truncate">© {new Date().getFullYear()} ISS — Mauritanie</p>
+          <p className="text-center text-[10px] text-iss-gray/40 truncate">© {new Date().getFullYear()} {sigle || 'IPGEI'} — Mauritanie</p>
         )}
       </div>
     </aside>
