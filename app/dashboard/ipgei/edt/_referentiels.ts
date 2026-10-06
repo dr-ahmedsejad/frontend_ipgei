@@ -52,9 +52,15 @@ function ordonnerTypes(types: Seance[]): Seance[] {
 const CINQ_MINUTES = 5 * 60 * 1000;
 
 export function useReferentielsEDT() {
+  // `all()` et non `list()` : la liste paginée des jours est réservée aux
+  // ADMINISTRATEURS (`JourViewSet` est en `IsAdmin`), et répondait 403 au
+  // directeur des études — la grille s'affichait alors avec ses créneaux en
+  // en-tête et AUCUNE ligne, sans rien dire. `all/` est l'adresse que le
+  // backend destine explicitement aux emplois du temps, ouverte à tout compte
+  // authentifié.
   const jours = useQuery({
     queryKey: ['ipgei', 'ref', 'jours'],
-    queryFn:  () => joursApi.list({ page: 1 }),
+    queryFn:  () => joursApi.all(),
     staleTime: CINQ_MINUTES,
   });
 
@@ -98,7 +104,7 @@ export function useReferentielsEDT() {
       Array.isArray(typesSeance.data) ? typesSeance.data : []),
     // Les créneaux pilotent les lignes de la grille : on respecte leur ordre
     // d'affichage et on écarte ceux désactivés.
-    jours:    jours.data?.results ?? [],
+    jours:    jours.data ?? [],
     creneaux: [...(creneaux.data ?? [])].sort((a, b) => a.ordre - b.ordre),
     salles:   salles.data?.results ?? [],
     profs:    profs.data?.results ?? [],
