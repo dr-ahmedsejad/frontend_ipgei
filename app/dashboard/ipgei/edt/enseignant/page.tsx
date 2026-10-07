@@ -3,12 +3,17 @@
 import { useMemo, useState } from 'react';
 import { Presentation } from 'lucide-react';
 
-import { CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
+import { CARTE, EnTetePage, Erreur, Vide } from '../../_ui';
+import { ChampRecherche } from '../../_champ-recherche';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
 import { BoutonPDF, GrilleConsultation, SelecteurSemaine } from '../_consultation';
 import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
+
+/** Minuscules sans accents : « Béchir » se trouve en tapant « bechir ». */
+const sansAccent = (texte: string) =>
+  texte.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
 /**
  * Emploi du temps d'un enseignant, toutes classes confondues.
@@ -23,6 +28,7 @@ export default function EdtParEnseignantPage() {
 
   const [profId, setProfId]       = useState<number | null>(null);
   const [semaineId, setSemaineId] = useState<number | null>(null);
+  const [recherche, setRecherche] = useState('');
 
   const { profs } = useReferentielsEDT();
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
@@ -46,6 +52,17 @@ export default function EdtParEnseignantPage() {
   // heures qui ne comptent pas encore.
   const { data: seances = [], isLoading, error } =
     useEdtPublie(semaineId, { prof: profId });
+  // La liste des enseignants est déjà chargée : on filtre ici plutôt que de
+  // repasser par le serveur à chaque lettre. Les accents sont ignorés — on ne
+  // tape pas « Béchir » avec son accent quand on cherche vite.
+  const propositions = useMemo(() => {
+    const cherche = sansAccent(recherche);
+    return profs
+      .filter(p => !cherche || sansAccent(p.nom).includes(cherche))
+      .slice(0, 50)
+      .map(p => ({ id: String(p.id), label: p.nom, detail: p.type }));
+  }, [profs, recherche]);
+
   const prof = profs.find(p => p.id === profId);
   const semaine = semaines.find(s => s.id === semaineId);
 
@@ -67,13 +84,18 @@ export default function EdtParEnseignantPage() {
 
       <div className={`${CARTE} p-4 print:hidden`}>
         <div className="flex items-end gap-3 flex-wrap">
-          <div style={{ minWidth: 260 }}>
+          <div style={{ minWidth: 300 }}>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Enseignant</label>
-            <select value={profId ?? ''} className={SELECT}
-                    onChange={e => setProfId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">— Enseignant —</option>
-              {profs.map(p => <option key={p.id} value={p.id}>{p.nom} ({p.type})</option>)}
-            </select>
+            {/* Autocomplétion, et non plus un menu déroulant : l'établissement
+                compte des dizaines d'enseignants, et les faire défiler pour en
+                trouver un prenait plus de temps que d'en taper trois lettres. */}
+            <ChampRecherche
+              value={profId ? String(profId) : ''}
+              propositions={propositions}
+              onChange={valeur => setProfId(valeur ? Number(valeur) : null)}
+              onSaisie={setRecherche}
+              placeholder="Nom de l'enseignant…"
+              vide="Aucun enseignant ne correspond" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semaine</label>
