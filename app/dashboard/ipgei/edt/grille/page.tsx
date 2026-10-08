@@ -11,7 +11,10 @@ import {
   BTN_PRIMAIRE, BTN_SECONDAIRE, Badge, CARTE, Chargement, DEGRADE, EnTetePage,
   Erreur, INPUT, SELECT, VERT, Vide,
 } from '../../_ui';
-import { anneeParDefaut, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import {
+  semestreCourantDeLaClasse, semestreDeLaSemaine, useSemainesDeLaClasse,
+} from '../_semaines-classe';
 import { useReferentielsEDT } from '../_referentiels';
 import { semaineAProposer } from '../_semaines';
 import {
@@ -81,11 +84,11 @@ const MSG_PERIODE =
 export default function GrilleTypePage() {
   const qc = useQueryClient();
 
-  // Année et période viennent de la session ouverte : ce sont les mêmes que
-  // celles choisies à la connexion, et les redemander ici permettrait d'éditer
-  // une période différente de celle qu'on croit consulter.
+  // L'année vient de la session ouverte. La PÉRIODE, elle, se lit sur la
+  // classe : c'est son calendrier qui dit où elle en est, et deux années
+  // d'étude peuvent ne pas être au même point — les MP en S4 quand les MPSI
+  // sont encore en S1.
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession() as TypeSemestre;
 
   const [classeId, setClasseId] = useState<number | null>(null);
   /**
@@ -110,23 +113,15 @@ export default function GrilleTypePage() {
   const { data: classes = [] } = useClassesSelect({ annee_universitaire: annee, actif: true });
   const classe = classes.find(c => c.id === classeId);
 
-  const { data: grille, isLoading, error: erreurGrille } = useGrillePourClasse(classeId, typeSemestre);
-  const grilleId = grille?.id ?? null;
   const mutations = useGrilleMutations();
 
   const { jours, creneaux, salles, profs, typesSeance, isLoading: chargeRef } = useReferentielsEDT();
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
 
-  // Semaines de la période : c'est ce qui peuple le sélecteur.
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-  const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
-                              && s.type_semestre === typeSemestre),
-    [classe, semestres, typeSemestre],
-  );
-  // La classe est passée : l'état affiché doit être le sien, pas celui de
-  // son niveau — MPSI B sans emploi du temps n'hérite pas du verdict de MPSI A.
-  const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
+  // Les semaines de la classe, ses deux semestres réunis et triés par date.
+  // L'état affiché est celui de la CLASSE, pas celui de son niveau — MPSI B
+  // sans emploi du temps n'hérite pas du verdict de MPSI A.
+  const { semaines, semestres: semestresClasse } = useSemainesDeLaClasse(classe, annee);
   const semainesCours = useMemo(
     () => semaines.filter(s => s.type_semaine === 'cours'),
     [semaines],
@@ -143,6 +138,19 @@ export default function GrilleTypePage() {
 
   const enModeSemaine = periodeId !== null;
   const semaine = semainesCours.find(s => s.id === periodeId);
+
+  // La période éditée : celle de la semaine ouverte, ou — sur le patron, qui
+  // n'est rattaché à aucune semaine — celle où la classe en est aujourd'hui.
+  const typeSemestre = ((
+    semestreDeLaSemaine(semestresClasse, semaine)
+    ?? semestreCourantDeLaClasse(semestresClasse, semaines)
+  )?.type_semestre ?? 'I') as TypeSemestre;
+
+  // Le patron dépend de cette période : une classe passée au S4 édite le
+  // patron du S4, sans qu'on ait à le déclarer à la connexion.
+  const { data: grille, isLoading, error: erreurGrille } =
+    useGrillePourClasse(classeId, typeSemestre);
+  const grilleId = grille?.id ?? null;
   // Les jours FERMÉS de la semaine éditée. Le patron n'a pas de dates, donc pas
   // de férié : la carte reste vide hors mode semaine.
   const joursFermes = useMemo(

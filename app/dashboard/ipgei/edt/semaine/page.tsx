@@ -8,11 +8,12 @@ import {
 import {
   Badge, CARTE, Chargement, EnTetePage, Erreur, SELECT, Toast, VERT, Vide,
 } from '../../_ui';
-import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import { semestreDeLaSemaine, useSemainesDeLaClasse } from '../_semaines-classe';
 import { useReferentielsEDT } from '../_referentiels';
 import { semaineAProposer } from '../_semaines';
 import {
-  useClassesSelect, useEdtSemaine, useEpreuvesSemaine, useSemaines, useSemestresAll,
+  useClassesSelect, useEdtSemaine, useEpreuvesSemaine,
 } from '@/lib/api/ipgei-hooks';
 import { TYPES_SEANCE, type SeanceReelle } from '@/types/ipgei';
 import {
@@ -30,25 +31,16 @@ export default function EdtSemainePage() {
   // connexion, les redemander ici n'ajouterait rien et permettrait de consulter
   // une période différente de celle qu'on croit ouverte.
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession();
 
   const [classeId, setClasseId]   = useState<number | null>(null);
   const [semaineId, setSemaineId] = useState<number | null>(null);
 
   const { data: classes = [] }   = useClassesSelect({ annee_universitaire: annee, actif: true });
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
   const classe = classes.find(c => c.id === classeId);
 
-  // Le semestre est entièrement déterminé par le niveau de la classe et la
-  // période de session : un seul candidat, donc aucun choix à faire.
-  const semestre = useMemo(
-    // Le semestre se rattache à une année d'étude, pas à un niveau.
-    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
-                              && s.type_semestre === typeSemestre),
-    [classe, semestres, typeSemestre],
-  );
-  const semestreId = semestre?.id ?? null;
-  const { data: semaines = [] } = useSemaines(semestreId);
+  // Les semaines de la classe, ses deux semestres réunis : au moment de la
+  // bascule, le S4 prend la suite du S3 dans la même liste.
+  const { semaines, semestres: semestresClasse } = useSemainesDeLaClasse(classe, annee);
   const semainesCours = useMemo(
     () => semaines.filter(s => s.type_semaine === 'cours'),
     [semaines],
@@ -61,6 +53,11 @@ export default function EdtSemainePage() {
     if (semaineId && semainesCours.some(s => s.id === semaineId)) return;
     setSemaineId(semaineAProposer(semainesCours)?.id ?? null);
   }, [semainesCours, semaineId]);
+
+  // Le semestre affiché est celui de la semaine choisie : la classe dit où
+  // elle en est, on ne le lui impose plus depuis la connexion.
+  const semestreAffiche = semestreDeLaSemaine(
+    semestresClasse, semaines.find(s => s.id === semaineId));
 
   const { jours, creneaux, salles, profs } = useReferentielsEDT();
   const { data: seances = [], isLoading, error } = useEdtSemaine(classeId, semaineId);
@@ -122,7 +119,7 @@ export default function EdtSemainePage() {
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: VERT }} />
               <span className="font-semibold text-iss-dark truncate">
-                {annee} · {semestre ? semestre.code : libelleSemestreSession()}
+                {annee}{semestreAffiche ? ` · ${semestreAffiche.code}` : ''}
               </span>
             </div>
           </div>
@@ -133,7 +130,7 @@ export default function EdtSemainePage() {
                       className="p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 disabled:opacity-40 transition-colors">
                 <ChevronLeft size={14} />
               </button>
-              <select value={semaineId ?? ''} className={SELECT} disabled={!semestreId}
+              <select value={semaineId ?? ''} className={SELECT} disabled={!classeId}
                       onChange={e => setSemaineId(e.target.value ? Number(e.target.value) : null)}>
                 <option value="">—</option>
                 {semainesCours.map(s => (

@@ -5,13 +5,14 @@ import { Presentation } from 'lucide-react';
 
 import { CARTE, EnTetePage, Erreur, Vide } from '../../_ui';
 import { ChampRecherche } from '../../_champ-recherche';
-import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import { useSemainesDeLAnnee } from '../_semaines-classe';
 import { useReferentielsEDT } from '../_referentiels';
 import {
   BoutonPDF, GrilleConsultation, SelecteurSemaineParDate, grouperSemainesParDate,
   libelleDatesSemaine,
 } from '../_consultation';
-import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
+import { useEdtPublie } from '@/lib/api/ipgei-hooks';
 
 /** Minuscules sans accents : « Béchir » se trouve en tapant « bechir ». */
 const sansAccent = (texte: string) =>
@@ -26,30 +27,19 @@ const sansAccent = (texte: string) =>
  */
 export default function EdtParEnseignantPage() {
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession();
 
   const [profId, setProfId]       = useState<number | null>(null);
   // Les identifiants des semaines de cette DATE, « 12,19 » : une par semestre
-  // de la période, réunies en une seule entrée.
+  // concerné, réunies en une seule entrée.
   const [semaineCle, setSemaineCle] = useState<string | null>(null);
   const [recherche, setRecherche] = useState('');
 
   const { profs } = useReferentielsEDT();
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-
-  // Un enseignant intervient en MPSI comme en MP : on réunit les semaines des
-  // deux niveaux pour la période de session, sans quoi la moitié de son
-  // service resterait invisible.
-  const semestresPeriode = useMemo(
-    () => semestres.filter(s => s.type_semestre === typeSemestre),
-    [semestres, typeSemestre],
-  );
-  const { data: semainesA = [] } = useSemaines(semestresPeriode[0]?.id ?? null);
-  const { data: semainesB = [] } = useSemaines(semestresPeriode[1]?.id ?? null);
-  const semaines = useMemo(
-    () => [...semainesA, ...semainesB].sort((a, b) => a.date_debut.localeCompare(b.date_debut)),
-    [semainesA, semainesB],
-  );
+  // Un enseignant intervient en MPSI comme en MP, et les deux années ne sont
+  // pas toujours au même point : on prend TOUTES les semaines de l'année, sans
+  // filtrer sur une période, sans quoi la moitié de son service disparaîtrait
+  // de l'écran le jour où les MP passent en S4.
+  const semaines = useSemainesDeLAnnee(annee);
 
   // Source : l'emploi du temps publié — celui sur lequel l'enseignant est
   // pointé, et donc payé. Afficher la grille en préparation lui montrerait des
@@ -78,7 +68,10 @@ export default function EdtParEnseignantPage() {
       <EnTetePage
         icone={<Presentation size={14} className="text-white" />}
         titre="Emploi du temps par enseignant"
-        sousTitre={`${annee} · ${libelleSemestreSession()}`}
+        sousTitre={semaine?.semestres.length
+          ? `${annee} · semestre${semaine.semestres.length > 1 ? 's' : ''} `
+            + semaine.semestres.join(' · ')
+          : annee}
         actions={profId ? (
           <BoutonPDF
             chemin="/api/v1/ipgei/archives-edt/pdf/"

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 
 import { Badge, CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
-import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import { semestresDeLaClasse } from '../_semaines-classe';
 import { BTN_FLECHE, BoutonPDF, GrilleConsultation } from '../_consultation';
 import {
   useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive, useOptionsNiveaux,
@@ -27,7 +28,6 @@ import { formatDate } from '@/lib/formatters';
 export default function HistoriqueEdtPage() {
   const optionsNiveaux = useOptionsNiveaux();
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession();
 
   const [niveau, setNiveau]     = useState('');
   const [classeId, setClasseId] = useState<number | null>(null);
@@ -43,14 +43,14 @@ export default function HistoriqueEdtPage() {
   const classe = classes.find(c => c.id === classeId);
 
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-  const semestre = useMemo(
-    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
-                              && s.type_semestre === typeSemestre),
-    [classe, semestres, typeSemestre],
-  );
+  // Toutes les publications de la classe, quel que soit le semestre : une
+  // archive de S3 et une de S4 se consultent au même endroit, et l'écran ne
+  // dépend plus de la période choisie à la connexion.
+  const semestresClasse = useMemo(
+    () => semestresDeLaClasse(semestres, classe), [semestres, classe]);
 
   const { data: versions = [], isLoading: chargeVersions, error } =
-    useVersionsArchive(classeId, semestre?.id ?? null);
+    useVersionsArchive(classeId, null);
 
   /**
    * Semaines archivées, dans l'ordre du calendrier.
@@ -85,6 +85,12 @@ export default function HistoriqueEdtPage() {
       : semainesArchivees[semainesArchivees.length - 1].id));
   }, [semainesArchivees]);
 
+  // Le semestre vient de la semaine archivée affichée, non de la session.
+  const semestreAffiche = useMemo(() => {
+    const version = versions.find(v => v.semaine === semaineId);
+    return semestresClasse.find(s => s.code === version?.semestre);
+  }, [versions, semaineId, semestresClasse]);
+
   // Changer de semaine ramène sur sa version la plus récente : conserver
   // « v2 » en passant à une semaine qui n'en a qu'une n'affichait rien.
   useEffect(() => {
@@ -106,7 +112,7 @@ export default function HistoriqueEdtPage() {
       <EnTetePage
         icone={<History size={14} className="text-white" />}
         titre="Historique des emplois du temps"
-        sousTitre={`${annee} · ${libelleSemestreSession()}`}
+        sousTitre={`${annee}${semestreAffiche ? ` · semestre ${semestreAffiche.code}` : ''}`}
         actions={semaineId ? (
           <BoutonPDF
             chemin="/api/v1/ipgei/archives-edt/pdf/"
@@ -188,8 +194,8 @@ export default function HistoriqueEdtPage() {
             </div>
           )}
 
-          {semestre && (
-            <div className="pb-2.5"><Badge ton="bleu">Semestre {semestre.code}</Badge></div>
+          {semestreAffiche && (
+            <div className="pb-2.5"><Badge ton="bleu">Semestre {semestreAffiche.code}</Badge></div>
           )}
         </div>
       </div>
@@ -226,7 +232,7 @@ export default function HistoriqueEdtPage() {
           isLoading={isLoading || chargeVersions}
           titreImpression={`EMPLOI DU TEMPS ARCHIVÉ — ${classe?.nom ?? ''}`}
           sousTitresImpression={[
-            [semestre && `Semestre ${semestre.code}`,
+            [semestreAffiche && `Semestre ${semestreAffiche.code}`,
              choisie?.numero && `Semaine ${choisie.numero}`,
              choisie && `du ${formatDate(choisie.date_debut)} au ${formatDate(choisie.date_fin)}`,
             ].filter(Boolean).join('  ·  '),

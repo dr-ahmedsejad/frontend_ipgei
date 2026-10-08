@@ -4,13 +4,14 @@ import { useMemo, useState } from 'react';
 import { DoorOpen } from 'lucide-react';
 
 import { CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
-import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import { useSemainesDeLAnnee } from '../_semaines-classe';
 import { useReferentielsEDT } from '../_referentiels';
 import {
   BoutonPDF, GrilleConsultation, SelecteurSemaineParDate, grouperSemainesParDate,
   libelleDatesSemaine,
 } from '../_consultation';
-import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
+import { useEdtPublie } from '@/lib/api/ipgei-hooks';
 
 /**
  * Occupation d'une salle sur une semaine.
@@ -20,7 +21,6 @@ import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hook
  */
 export default function EdtParSallePage() {
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession();
 
   const [salleId, setSalleId]     = useState<number | null>(null);
   // Les semaines de cette DATE, tous semestres de la période confondus : une
@@ -28,19 +28,10 @@ export default function EdtParSallePage() {
   const [semaineCle, setSemaineCle] = useState<string | null>(null);
 
   const { salles } = useReferentielsEDT();
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
 
-  // Une salle accueille indifféremment MPSI et MP : on couvre les deux niveaux.
-  const semestresPeriode = useMemo(
-    () => semestres.filter(s => s.type_semestre === typeSemestre),
-    [semestres, typeSemestre],
-  );
-  const { data: semainesA = [] } = useSemaines(semestresPeriode[0]?.id ?? null);
-  const { data: semainesB = [] } = useSemaines(semestresPeriode[1]?.id ?? null);
-  const semaines = useMemo(
-    () => [...semainesA, ...semainesB].sort((a, b) => a.date_debut.localeCompare(b.date_debut)),
-    [semainesA, semainesB],
-  );
+  // Une salle accueille indifféremment MPSI et MP, et les deux années ne sont
+  // pas toujours au même point : on prend toutes les semaines de l'année.
+  const semaines = useSemainesDeLAnnee(annee);
 
   // Source : l'emploi du temps publié. Une salle réservée sur une grille en
   // préparation ne l'est pas encore : l'afficher ferait croire à une
@@ -58,7 +49,10 @@ export default function EdtParSallePage() {
       <EnTetePage
         icone={<DoorOpen size={14} className="text-white" />}
         titre="Occupation des salles"
-        sousTitre={`${annee} · ${libelleSemestreSession()}`}
+        sousTitre={semaine?.semestres.length
+          ? `${annee} · semestre${semaine.semestres.length > 1 ? 's' : ''} `
+            + semaine.semestres.join(' · ')
+          : annee}
         actions={salleId ? (
           <BoutonPDF
             chemin="/api/v1/ipgei/archives-edt/pdf/"

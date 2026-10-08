@@ -7,13 +7,14 @@ import { CopyPlus, Users } from 'lucide-react';
 import {
   BTN_PRIMAIRE, Badge, CARTE, DEGRADE, EnTetePage, Erreur, SELECT, Vide,
 } from '../../_ui';
-import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
+import { anneeParDefaut } from '../../_annee';
+import { semestreDeLaSemaine, useSemainesDeLaClasse } from '../_semaines-classe';
 import {
   BandeauCoherence, BoutonPDF, GrilleConsultation, SelecteurSemaine,
 } from '../_consultation';
 import {
   useClassesSelect, useEdtPublie, useEdtSemaine, useEpreuvesSemaine,
-  useGrillePourClasse, useSemaines, useSemestresAll,
+  useGrillePourClasse,
   useSousGroupes, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
 import { formatDate } from '@/lib/formatters';
@@ -30,7 +31,6 @@ import type { EpreuveSurimpression, SeanceAffichable } from '@/types/ipgei';
 export default function EdtParClassePage() {
   const optionsNiveaux = useOptionsNiveaux();
   const annee = anneeParDefaut();
-  const typeSemestre = typeSemestreSession();
 
   const [niveau, setNiveau]       = useState('');
   const [classeId, setClasseId]   = useState<number | null>(null);
@@ -45,20 +45,15 @@ export default function EdtParClassePage() {
   );
   const classe = classes.find(c => c.id === classeId);
 
-  const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
-  // Le semestre découle du niveau de la classe et de la période de session.
-  const semestre = useMemo(
-    // `niveaux` et non `niveau` : un semestre relève d'une année d'étude, que
-    // MPSI et MPI partagent. La propriété au singulier ne rend que le premier
-    // niveau du rang — la classe MPSI ne trouvait plus son semestre, donc plus
-    // aucune semaine.
-    () => semestres.find(s => classe && s.niveaux.includes(classe.niveau)
-                              && s.type_semestre === typeSemestre),
-    [classe, semestres, typeSemestre],
-  );
-  const { data: semaines = [] } = useSemaines(semestre?.id ?? null, classeId);
+  // Les semaines de la classe, ses DEUX semestres réunis et triés par date :
+  // la bascule du S3 au S4 devient une semaine qui suit la précédente, et
+  // l'écran reste juste quand les deux années ne sont plus en phase.
+  const { semaines, semestres } = useSemainesDeLaClasse(classe, annee);
 
   const semaine = semaines.find(s => s.id === semaineId);
+  // Le semestre affiché est celui de la SEMAINE choisie, non celui de la
+  // session : c'est la classe, par son calendrier, qui dit où elle en est.
+  const semestreAffiche = semestreDeLaSemaine(semestres, semaine);
 
   /**
    * DEUX sources : l'archive publiée, ou les séances en préparation.
@@ -115,7 +110,9 @@ export default function EdtParClassePage() {
     () => (enAttente ? [] : source.data ?? []), [enAttente, source.data]);
   const isLoading = enAttente || source.isLoading;
   const error     = archive.error ?? vivant.error ?? requeteEpreuves.error;
-  const { data: grille } = useGrillePourClasse(classeId, typeSemestre);
+  // Le patron suit le semestre de la semaine affichée : la classe passe du
+  // S3 au S4 sans qu'on ait à redire la période.
+  const { data: grille } = useGrillePourClasse(classeId, semestreAffiche?.type_semestre ?? '');
   const { data: sousGroupes = [] } = useSousGroupes(classeId);
   /**
    * Emploi du temps d'un sous-groupe = les séances de sa classe **plus** les
@@ -154,7 +151,7 @@ export default function EdtParClassePage() {
       <EnTetePage
         icone={<Users size={14} className="text-white" />}
         titre="Emploi du temps par classe"
-        sousTitre={`${annee} · ${libelleSemestreSession()}`}
+        sousTitre={`${annee}${semestreAffiche ? ` · semestre ${semestreAffiche.code}` : ''}`}
         // Le PDF suit la source affichée. L'archive n'existe qu'une fois le
         // suivi généré ; avant cela, c'est la grille en préparation qu'on
         // imprime — même gabarit, et le document porte lui-même sa mention.
@@ -217,8 +214,8 @@ export default function EdtParClassePage() {
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semaine</label>
             <SelecteurSemaine semaines={semaines} semaineId={semaineId} onChange={setSemaineId} />
           </div>
-          {semestre && (
-            <div className="pb-2.5"><Badge ton="bleu">Semestre {semestre.code}</Badge></div>
+          {semestreAffiche && (
+            <div className="pb-2.5"><Badge ton="bleu">Semestre {semestreAffiche.code}</Badge></div>
           )}
           {nomPlan && (
             <div className="pb-2.5">
@@ -274,7 +271,7 @@ export default function EdtParClassePage() {
             (nomPlan ? ` — sous-groupe ${nomPlan}` : '')
           }
           sousTitresImpression={[
-            [semestre && `Semestre ${semestre.code}`,
+            [semestreAffiche && `Semestre ${semestreAffiche.code}`,
              semaine?.numero && `Semaine ${semaine.numero}`,
              semaine && `du ${formatDate(semaine.date_debut)} au ${formatDate(semaine.date_fin)}`,
             ].filter(Boolean).join('  ·  '),
