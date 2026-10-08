@@ -7,9 +7,11 @@ import { CARTE, EnTetePage, Erreur, Vide } from '../../_ui';
 import { ChampRecherche } from '../../_champ-recherche';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
-import { BoutonPDF, GrilleConsultation, SelecteurSemaine } from '../_consultation';
+import {
+  BoutonPDF, GrilleConsultation, SelecteurSemaineParDate, grouperSemainesParDate,
+  libelleDatesSemaine,
+} from '../_consultation';
 import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
-import { formatDate } from '@/lib/formatters';
 
 /** Minuscules sans accents : « Béchir » se trouve en tapant « bechir ». */
 const sansAccent = (texte: string) =>
@@ -27,7 +29,9 @@ export default function EdtParEnseignantPage() {
   const typeSemestre = typeSemestreSession();
 
   const [profId, setProfId]       = useState<number | null>(null);
-  const [semaineId, setSemaineId] = useState<number | null>(null);
+  // Les identifiants des semaines de cette DATE, « 12,19 » : une par semestre
+  // de la période, réunies en une seule entrée.
+  const [semaineCle, setSemaineCle] = useState<string | null>(null);
   const [recherche, setRecherche] = useState('');
 
   const { profs } = useReferentielsEDT();
@@ -51,7 +55,7 @@ export default function EdtParEnseignantPage() {
   // pointé, et donc payé. Afficher la grille en préparation lui montrerait des
   // heures qui ne comptent pas encore.
   const { data: seances = [], isLoading, error } =
-    useEdtPublie(semaineId, { prof: profId });
+    useEdtPublie(semaineCle, { prof: profId });
   // La liste des enseignants est déjà chargée : on filtre ici plutôt que de
   // repasser par le serveur à chaque lettre. Les accents sont ignorés — on ne
   // tape pas « Béchir » avec son accent quand on cherche vite.
@@ -64,7 +68,10 @@ export default function EdtParEnseignantPage() {
   }, [profs, recherche]);
 
   const prof = profs.find(p => p.id === profId);
-  const semaine = semaines.find(s => s.id === semaineId);
+  const semaine = useMemo(
+    () => grouperSemainesParDate(semaines).find(e => e.cle === semaineCle),
+    [semaines, semaineCle],
+  );
 
   return (
     <div className="space-y-4">
@@ -75,9 +82,9 @@ export default function EdtParEnseignantPage() {
         actions={profId ? (
           <BoutonPDF
             chemin="/api/v1/ipgei/archives-edt/pdf/"
-            params={{ prof: String(profId), semaine: String(semaineId ?? '') }}
-            nomDefaut={`Emploi_${prof?.nom ?? 'enseignant'}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId}
+            params={{ prof: String(profId), semaine: semaineCle ?? '' }}
+            nomDefaut={`Emploi_${prof?.nom ?? 'enseignant'}_${semaine?.date_debut ?? ''}.pdf`}
+            actif={!!semaineCle}
           />
         ) : undefined}
       />
@@ -99,7 +106,8 @@ export default function EdtParEnseignantPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semaine</label>
-            <SelecteurSemaine semaines={semaines} semaineId={semaineId} onChange={setSemaineId} />
+            <SelecteurSemaineParDate semaines={semaines} valeur={semaineCle}
+                                     onChange={setSemaineCle} />
           </div>
         </div>
       </div>
@@ -117,9 +125,12 @@ export default function EdtParEnseignantPage() {
           isLoading={isLoading}
           titreImpression={`EMPLOI DU TEMPS — ${prof?.nom ?? ''}`}
           sousTitresImpression={[
-            [libelleSemestreSession(),
-             semaine?.numero && `Semaine ${semaine.numero}`,
-             semaine && `du ${formatDate(semaine.date_debut)} au ${formatDate(semaine.date_fin)}`,
+            [semaine?.numero && `Semaine ${semaine.numero}`,
+             semaine && libelleDatesSemaine(semaine.date_debut, semaine.date_fin),
+             semaine?.semestres.length
+               ? `Semestre${semaine.semestres.length > 1 ? 's' : ''} `
+                 + semaine.semestres.join(' · ')
+               : '',
             ].filter(Boolean).join('  ·  '),
             `Année universitaire ${annee}`,
           ]}

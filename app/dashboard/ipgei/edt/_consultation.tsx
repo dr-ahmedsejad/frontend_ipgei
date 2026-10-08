@@ -45,6 +45,13 @@ export const BTN_FLECHE =
   'p-2.5 rounded-xl border border-gray-200 text-iss-gray hover:bg-gray-50 '
   + 'disabled:opacity-40 transition-colors';
 
+/** « du 05 au 10 octobre » — la semaine se reconnaît à ses dates. */
+export function libelleDatesSemaine(debut: string, fin: string): string {
+  const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR',
+    { day: '2-digit', month: 'short' });
+  return `du ${jour(debut)} au ${jour(fin)}`;
+}
+
 export function SelecteurSemaine({
   semaines, semaineId, onChange,
 }: {
@@ -80,12 +87,99 @@ export function SelecteurSemaine({
         <option value="">—</option>
         {cours.map(s => (
           <option key={s.id} value={s.id}>
-            S{s.numero} · {new Date(s.date_debut).toLocaleDateString('fr-FR')}
+            Semaine {s.numero} — {s.semestre_code} · {libelleDatesSemaine(s.date_debut, s.date_fin)}
           </option>
         ))}
       </select>
       <button onClick={() => cours[index + 1] && onChange(cours[index + 1].id)}
               disabled={index < 0 || index >= cours.length - 1} title="Semaine suivante"
+              className={BTN_FLECHE}>
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** Une entrée du sélecteur par DATE : les semaines de même dates réunies. */
+export interface SemaineGroupee {
+  /** Les identifiants des semaines couvertes, pour l'API : « 12,19 ». */
+  cle:        string;
+  numero:     number | null;
+  date_debut: string;
+  date_fin:   string;
+  /** Les semestres réunis, dans l'ordre : S1, S3. */
+  semestres:  string[];
+}
+
+/**
+ * Les semaines de MÊMES DATES réunies en une seule entrée.
+ *
+ * Une semaine de calendrier existe une fois par semestre de la période — S1
+ * pour les MPSI, S3 pour les MP. Un enseignant intervient dans les deux : la
+ * liste lui montrait donc chaque semaine en double, aux mêmes dates et sans
+ * rien pour les distinguer, et chaque entrée ne portait que la moitié de son
+ * service. Ici une date vaut une entrée, et la grille réunit les deux.
+ */
+export function grouperSemainesParDate(semaines: SemaineIPGEI[]): SemaineGroupee[] {
+  const par_date = new Map<string, SemaineGroupee>();
+  for (const s of semaines.filter(x => x.type_semaine === 'cours')) {
+    const existante = par_date.get(s.date_debut);
+    if (existante) {
+      existante.cle = `${existante.cle},${s.id}`;
+      if (!existante.semestres.includes(s.semestre_code)) {
+        existante.semestres.push(s.semestre_code);
+        existante.semestres.sort();
+      }
+    } else {
+      par_date.set(s.date_debut, {
+        cle: String(s.id), numero: s.numero,
+        date_debut: s.date_debut, date_fin: s.date_fin,
+        semestres: [s.semestre_code],
+      });
+    }
+  }
+  return [...par_date.values()].sort((a, b) => a.date_debut.localeCompare(b.date_debut));
+}
+
+export function SelecteurSemaineParDate({
+  semaines, valeur, onChange,
+}: {
+  semaines: SemaineIPGEI[];
+  valeur: string | null;
+  onChange: (cle: string | null) => void;
+}) {
+  const entrees = useMemo(() => grouperSemainesParDate(semaines), [semaines]);
+
+  // S'ouvre sur la semaine en cours plutôt que sur la première du semestre.
+  useEffect(() => {
+    if (entrees.length === 0) { onChange(null); return; }
+    if (valeur && entrees.some(e => e.cle === valeur)) return;
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const courante = entrees.find(e => e.date_debut <= aujourdhui && aujourdhui <= e.date_fin);
+    onChange((courante ?? entrees[0]).cle);
+  }, [entrees, valeur, onChange]);
+
+  const index = entrees.findIndex(e => e.cle === valeur);
+
+  return (
+    <div className="flex items-center gap-1">
+      <button onClick={() => entrees[index - 1] && onChange(entrees[index - 1].cle)}
+              disabled={index <= 0} title="Semaine précédente"
+              className={BTN_FLECHE}>
+        <ChevronLeft size={14} />
+      </button>
+      <select value={valeur ?? ''} className={SELECT} style={{ minWidth: 280 }}
+              onChange={e => onChange(e.target.value || null)}>
+        <option value="">—</option>
+        {entrees.map(e => (
+          <option key={e.cle} value={e.cle}>
+            Semaine {e.numero} {libelleDatesSemaine(e.date_debut, e.date_fin)}
+            {' '}· {e.semestres.join(' · ')}
+          </option>
+        ))}
+      </select>
+      <button onClick={() => entrees[index + 1] && onChange(entrees[index + 1].cle)}
+              disabled={index < 0 || index >= entrees.length - 1} title="Semaine suivante"
               className={BTN_FLECHE}>
         <ChevronRight size={14} />
       </button>

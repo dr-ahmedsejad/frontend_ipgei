@@ -1237,7 +1237,9 @@ export function useVersionsArchive(classe: number | null, semestre?: number | nu
  * `cible` désigne l'axe : classe, enseignant ou salle.
  */
 export function useEdtPublie(
-  semaine: number | null,
+  // Une chaîne « 12,19 » réunit les semaines de mêmes dates des deux semestres
+  // de la période : c'est ce que lisent les emplois par enseignant et par salle.
+  semaine: number | string | null,
   cible: { classe?: number | null; prof?: number | null; salle?: number | null },
   version?: number | null,
 ) {
@@ -1246,9 +1248,10 @@ export function useEdtPublie(
     queryKey: [...ipgeiKeys.all, 'archives', 'grille', semaine ?? 0,
                classe ?? 0, prof ?? 0, salle ?? 0, version ?? 0] as const,
     queryFn:  () => archivesEdtApi.grille({
-      semaine: semaine as number, classe, prof, salle, version,
+      semaine: semaine as number | string, classe, prof, salle, version,
     }),
-    enabled:  semaine != null && (classe != null || prof != null || salle != null),
+    enabled:  semaine != null && semaine !== ''
+              && (classe != null || prof != null || salle != null),
   });
 }
 

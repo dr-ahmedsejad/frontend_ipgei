@@ -961,8 +961,13 @@ export const archivesEdtApi = {
    * Emploi du temps publié d'une semaine, par classe, par enseignant ou par
    * salle. Sans `version`, la dernière publication de chaque classe.
    */
+  /**
+   * `semaine` accepte PLUSIEURS identifiants séparés par une virgule : une
+   * semaine de calendrier existe une fois par semestre de la période, et
+   * l'emploi du temps d'un enseignant ou d'une salle les réunit.
+   */
   grille: (f: {
-    semaine: number; classe?: number | null; prof?: number | null;
+    semaine: number | string; classe?: number | null; prof?: number | null;
     salle?: number | null; version?: number | null;
   }) => apiFetch<SeanceArchivee[]>(`${BASE}/archives-edt/grille/`,
     { params: nettoyer(f) }),

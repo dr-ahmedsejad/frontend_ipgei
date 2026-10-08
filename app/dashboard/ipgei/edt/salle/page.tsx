@@ -6,9 +6,11 @@ import { DoorOpen } from 'lucide-react';
 import { CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut, libelleSemestreSession, typeSemestreSession } from '../../_annee';
 import { useReferentielsEDT } from '../_referentiels';
-import { BoutonPDF, GrilleConsultation, SelecteurSemaine } from '../_consultation';
+import {
+  BoutonPDF, GrilleConsultation, SelecteurSemaineParDate, grouperSemainesParDate,
+  libelleDatesSemaine,
+} from '../_consultation';
 import { useEdtPublie, useSemaines, useSemestresAll } from '@/lib/api/ipgei-hooks';
-import { formatDate } from '@/lib/formatters';
 
 /**
  * Occupation d'une salle sur une semaine.
@@ -21,7 +23,9 @@ export default function EdtParSallePage() {
   const typeSemestre = typeSemestreSession();
 
   const [salleId, setSalleId]     = useState<number | null>(null);
-  const [semaineId, setSemaineId] = useState<number | null>(null);
+  // Les semaines de cette DATE, tous semestres de la période confondus : une
+  // salle accueille indifféremment les deux niveaux.
+  const [semaineCle, setSemaineCle] = useState<string | null>(null);
 
   const { salles } = useReferentielsEDT();
   const { data: semestres = [] } = useSemestresAll({ annee_universitaire: annee });
@@ -42,9 +46,12 @@ export default function EdtParSallePage() {
   // préparation ne l'est pas encore : l'afficher ferait croire à une
   // occupation qui n'engage personne.
   const { data: seances = [], isLoading, error } =
-    useEdtPublie(semaineId, { salle: salleId });
+    useEdtPublie(semaineCle, { salle: salleId });
   const salle = salles.find(s => s.id === salleId);
-  const semaine = semaines.find(s => s.id === semaineId);
+  const semaine = useMemo(
+    () => grouperSemainesParDate(semaines).find(e => e.cle === semaineCle),
+    [semaines, semaineCle],
+  );
 
   return (
     <div className="space-y-4">
@@ -55,9 +62,9 @@ export default function EdtParSallePage() {
         actions={salleId ? (
           <BoutonPDF
             chemin="/api/v1/ipgei/archives-edt/pdf/"
-            params={{ salle: String(salleId), semaine: String(semaineId ?? '') }}
-            nomDefaut={`Occupation_${salle?.nom ?? 'salle'}_S${semaine?.numero ?? ''}.pdf`}
-            actif={!!semaineId}
+            params={{ salle: String(salleId), semaine: semaineCle ?? '' }}
+            nomDefaut={`Occupation_${salle?.nom ?? 'salle'}_${semaine?.date_debut ?? ''}.pdf`}
+            actif={!!semaineCle}
           />
         ) : undefined}
       />
@@ -78,7 +85,8 @@ export default function EdtParSallePage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-iss-dark mb-1.5">Semaine</label>
-            <SelecteurSemaine semaines={semaines} semaineId={semaineId} onChange={setSemaineId} />
+            <SelecteurSemaineParDate semaines={semaines} valeur={semaineCle}
+                                     onChange={setSemaineCle} />
           </div>
           <p className="text-xs text-iss-gray pb-3">
             Les cases vides sont les créneaux libres de cette salle.
@@ -99,9 +107,12 @@ export default function EdtParSallePage() {
           isLoading={isLoading}
           titreImpression={`OCCUPATION DE LA SALLE — ${salle?.nom ?? ''}`}
           sousTitresImpression={[
-            [libelleSemestreSession(),
-             semaine?.numero && `Semaine ${semaine.numero}`,
-             semaine && `du ${formatDate(semaine.date_debut)} au ${formatDate(semaine.date_fin)}`,
+            [semaine?.numero && `Semaine ${semaine.numero}`,
+             semaine && libelleDatesSemaine(semaine.date_debut, semaine.date_fin),
+             semaine?.semestres.length
+               ? `Semestre${semaine.semestres.length > 1 ? 's' : ''} `
+                 + semaine.semestres.join(' · ')
+               : '',
             ].filter(Boolean).join('  ·  '),
             `Année universitaire ${annee}`,
           ]}
