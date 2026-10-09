@@ -204,6 +204,15 @@ export default function EditProfPage() {
     if (!NNI.trim())       { setError('Le NNI est requis.'); return; }
     if (!nom.trim())       { setError('Le nom est requis.'); return; }
     if (!telephone.trim()) { setError('Le téléphone est requis.'); return; }
+    // Le COURRIEL devient l'adresse du compte enseignant, et cette adresse est
+    // unique côté serveur. Une fiche sans adresse ne donne pas de compte — et
+    // c'est ainsi que vingt-sept enseignants sont restés sans accès pendant
+    // trois mois, sans qu'aucun écran ne le dise. Aucun domaine n'est imposé :
+    // une adresse personnelle convient.
+    if (!email.trim())     { setError("Le courriel est requis : il sert d'adresse au compte de l'enseignant."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Le courriel ne paraît pas valide. Ex : prenom.nom@gmail.com'); return;
+    }
     if (!banque)           { setError('La banque est requise.'); return; }
     setError(null);
 
@@ -276,8 +285,15 @@ export default function EditProfPage() {
             <input type="tel" value={telephone} onChange={e => setTelephone(e.target.value)} className={INPUT} />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-iss-dark mb-1.5">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={INPUT} />
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Email <span className="text-iss-secondary">*</span>
+            </label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="ex : prenom.nom@gmail.com" className={INPUT} />
+            <p className="mt-1 text-[11px] text-iss-gray">
+              Sert d&apos;adresse au compte de l&apos;enseignant, et doit lui
+              être propre.
+            </p>
           </div>
         </div>
 

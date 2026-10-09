@@ -74,7 +74,9 @@ function friendlyProfError(field: string, msg: string): string {
   if (field === 'NNI' && (m.includes('exist') || m.includes('unique') || m.includes('déjà'))) {
     return 'Ce NNI est déjà utilisé par un autre professeur.';
   }
-  if (field === 'non_field_errors') return msg;
+  // Les messages du serveur sur le courriel sont déjà écrits pour être lus —
+  // « déjà celui de X », « requis » : les préfixer du nom du champ les abîme.
+  if (field === 'email' || field === 'non_field_errors') return msg;
   return `${field} : ${msg}`;
 }
 
@@ -205,6 +207,15 @@ export default function AjouterProfPage() {
     if (!/^\d+$/.test(telephone.trim())) {
       setError('Le téléphone doit contenir uniquement des chiffres (sans « + », sans espaces ni indicatif). Ex : 22012345678.'); return;
     }
+    // Le COURRIEL devient l'adresse du compte enseignant, et cette adresse est
+    // unique côté serveur. Une fiche sans adresse ne donne pas de compte — et
+    // c'est ainsi que vingt-sept enseignants sont restés sans accès pendant
+    // trois mois, sans qu'aucun écran ne le dise. Aucun domaine n'est imposé :
+    // une adresse personnelle convient.
+    if (!email.trim())     { setError("Le courriel est requis : il sert d'adresse au compte de l'enseignant."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Le courriel ne paraît pas valide. Ex : prenom.nom@gmail.com'); return;
+    }
     if (!banque)           { setError('La banque est requise.'); return; }
     setError(null);
     createMut.mutate();
@@ -255,9 +266,15 @@ export default function AjouterProfPage() {
               placeholder="ex : 22012345678 (chiffres uniquement)" className={INPUT} />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-iss-dark mb-1.5">Email</label>
+            <label className="block text-xs font-semibold text-iss-dark mb-1.5">
+              Email <span className="text-iss-secondary">*</span>
+            </label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="ex : prof@iss.mr" className={INPUT} />
+              placeholder="ex : prenom.nom@gmail.com" className={INPUT} />
+            <p className="mt-1 text-[11px] text-iss-gray">
+              Sert d&apos;adresse au compte de l&apos;enseignant. Personnelle ou
+              institutionnelle, au choix — mais propre à lui.
+            </p>
           </div>
         </div>
 
