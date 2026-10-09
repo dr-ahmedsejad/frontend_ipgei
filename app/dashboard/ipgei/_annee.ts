@@ -21,21 +21,18 @@ export function anneeParDefaut(): string {
   return `${debut}-${debut + 1}`;
 }
 
-/**
- * Type de semestre de la session : `'I'` (impair) ou `'P'` (pair).
+/*
+ * La PÉRIODE DE SESSION a vécu ici — `typeSemestreSession` et son libellé.
  *
- * L'utilisateur choisit sa période à la connexion — la redemander sur chaque
- * écran d'emploi du temps serait redondant, et permettrait surtout d'éditer une
- * période différente de celle qu'il croit consulter.
+ * Un seul réglage, choisi à la connexion, valait pour toute l'application :
+ * donc pour les deux promotions à la fois. Le jour où les MP passent en S4
+ * pendant que les MPSI sont encore en S1, il devient faux pour l'une des deux,
+ * et l'écran s'ouvre vide sans rien expliquer.
+ *
+ * Les écrans IPGEI lisent désormais le calendrier de la classe consultée —
+ * `edt/_semaines-classe.ts`. Ne pas réintroduire de filtre de période ici : ce
+ * qui manque alors ne se voit pas, et c'est tout le problème.
  */
-export function typeSemestreSession(): 'I' | 'P' {
-  return getStoredUser()?.semestre === 'Pairs' ? 'P' : 'I';
-}
-
-/** Libellé lisible de la période de session, pour l'afficher sans la rendre modifiable. */
-export function libelleSemestreSession(): string {
-  return typeSemestreSession() === 'P' ? 'Semestres pairs' : 'Semestres impairs';
-}
 
 /**
  * `saisissables` : ne proposer que les années où une note peut encore être

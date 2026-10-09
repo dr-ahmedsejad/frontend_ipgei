@@ -73,8 +73,14 @@ function LoginForm() {
       .catch(() => {});
   }, []);
 
-  // Pre-cocher le semestre actif d'apres la table Semaine en BD (calendrier reel
-  // de l'institution). Fallback silencieux sur 'Impairs' en cas d'echec.
+  // Pré-cocher la période d'après la table Semaine en BD — le calendrier réel
+  // de l'institution, semaine du jour ou, hors cours, la plus proche. Repli
+  // silencieux sur « Impairs » en cas d'échec.
+  //
+  // Ce n'est plus qu'un PRÉRÉGLAGE : les écrans IPGEI lisent désormais le
+  // calendrier de la classe consultée et ignorent ce choix. Il ne gouverne plus
+  // que les écrans du socle — emplois, avancement, absences —, qui n'ont pas
+  // encore de classe pour le leur dire.
   useEffect(() => {
     fetch(`${API}/api/v1/parametres/semaines/actif/`)
       .then(r => r.ok ? r.json() : null)
@@ -321,7 +327,9 @@ function LoginForm() {
               </div>
 
               <div className="flex-1">
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">Période</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5 ml-1">
+                  Période d&apos;ouverture
+                </label>
                 <div className="relative">
                   <select value={semestre} onChange={e => setSemestre(e.target.value as SemestreType)} required 
                     className={`${INPUT_CLASS} appearance-none cursor-pointer font-medium text-gray-700`}>
@@ -332,6 +340,13 @@ function LoginForm() {
                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                   </div>
                 </div>
+                {/* Dit ce que ce choix fait, et surtout ce qu'il ne fait plus :
+                    il réglait l'application entière, il n'ouvre plus qu'une
+                    première vue. */}
+                <p className="mt-1.5 ml-1 text-[11px] text-gray-500">
+                  Simple préréglage : les écrans IPGEI suivent le calendrier de
+                  chaque classe.
+                </p>
               </div>
             </div>
 
