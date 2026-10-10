@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { nomFamille } from '../_familles';
 
 /**
  * Avancement par GROUPE — ce que l'écran des matières ne peut pas montrer.
@@ -410,7 +411,7 @@ export default function AvancementGroupesPage() {
                 <tr className="text-white" style={{ background: VERT_FONCE }}>
                   {[...FAMILLES, ...FAMILLES, ...FAMILLES].map((h, i) => (
                     <th key={i} className="px-2 py-2 text-center font-medium"
-                        style={{ border: '1px solid #004411' }}>{h}</th>
+                        style={{ border: '1px solid #004411' }}>{nomFamille(h)}</th>
                   ))}
                 </tr>
               </thead>

@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Award, Filter, Download, Loader2, CalendarRange } from 'lucide-react';
 import { apiFetch, API_BASE_URL as API } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { nomFamille } from '../_familles';
 
 interface AnneeOption { id: number; annee: string; }
 
@@ -231,7 +232,7 @@ export default function ChargePermanentsPage() {
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">Charge</th>
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">Décharge</th>
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark whitespace-nowrap">Charge résiduelle</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">CM</th>
+                  <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">{nomFamille('CM')}</th>
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">TD</th>
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">TP</th>
                   <th className="border border-gray-300 px-2 py-2 text-center font-semibold text-iss-dark">PR</th>

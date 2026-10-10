@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ClipboardList, Filter, Download, Loader2 } from 'lucide-react';
 import { apiFetch, API_BASE_URL as API } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { nomFamille } from '../_familles';
 import { formatDateShort } from '@/lib/formatters';
 
 interface SuiviDetail {
@@ -258,10 +259,10 @@ export default function DetailsEnseignementsPage() {
               return (
                 <div key={t} className="bg-white rounded-2xl p-4 shadow-card border border-gray-100">
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs text-iss-gray">Total {t}</p>
+                    <p className="text-xs text-iss-gray">Total {nomFamille(t)}</p>
                     <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold"
                       style={{ background: TYPE_BG[t], color: TYPE_COLOR[t] }}>
-                      {t}
+                      {nomFamille(t)}
                     </span>
                   </div>
                   <p className="text-2xl font-bold" style={{ color: TYPE_COLOR[t] }}>
@@ -354,7 +355,7 @@ export default function DetailsEnseignementsPage() {
                                   background: TYPE_BG[row.type_seance]   ?? TYPE_BG.Autre,
                                   color:      TYPE_COLOR[row.type_seance] ?? TYPE_COLOR.Autre,
                                 }}>
-                                {row.type_seance || '—'}
+                                {nomFamille(row.type_seance) || '—'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs text-iss-gray">{row.departement__nom || '—'}</td>

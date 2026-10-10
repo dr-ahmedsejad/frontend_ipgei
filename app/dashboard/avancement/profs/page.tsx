@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Users, Filter, Download, Loader2 } from 'lucide-react';
 import { apiFetch, API_BASE_URL as API } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { nomFamille } from '../_familles';
 import { useTimeout } from '@/hooks/useTimeout';
 
 interface AvancementEMProf {
@@ -239,7 +240,7 @@ export default function AvancementProfsPage() {
             </div>
             {(['CM','TD','TP','PR'] as const).map(f => (
               <div key={f} className="bg-white rounded-2xl p-4 shadow-card border border-gray-100">
-                <p className="text-xs text-iss-gray mb-1">Total {f}</p>
+                <p className="text-xs text-iss-gray mb-1">Total {nomFamille(f)}</p>
                 <p className="text-xl font-bold text-iss-dark">{(totaux[f] || 0).toFixed(1)} h</p>
               </div>
             ))}
@@ -296,7 +297,7 @@ export default function AvancementProfsPage() {
                 </tr>
                 <tr className="bg-[#005522] text-white">
                   {['CM','TD','TP','PR','CM','TD','TP','PR','CM','TD','TP','PR','DS','Examen','Rattrapage'].map((h,i) => (
-                    <th key={i} className="px-2 py-2 text-center border border-[#004411]">{h}</th>
+                    <th key={i} className="px-2 py-2 text-center border border-[#004411]">{nomFamille(h)}</th>
                   ))}
                 </tr>
               </thead>
@@ -347,13 +348,13 @@ export default function AvancementProfsPage() {
                 </tr>
                 <tr className="bg-[#005522] text-white">
                   {(['CM','TD','TP','PR'] as const).map(h => (
-                    <th key={`p-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-10">{h}</th>
+                    <th key={`p-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-10">{nomFamille(h)}</th>
                   ))}
                   {(['CM','TD','TP','PR'] as const).map(h => (
-                    <th key={`r-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-12">{h}</th>
+                    <th key={`r-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-12">{nomFamille(h)}</th>
                   ))}
                   {(['CM','TD','TP','PR'] as const).map(h => (
-                    <th key={`pct-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-10">{h}</th>
+                    <th key={`pct-${h}`} className="px-2 py-2 text-center font-medium border border-[#004411] w-10">{nomFamille(h)}</th>
                   ))}
                   <th className="px-2 py-2 text-center font-medium border border-[#004411] w-8">DS</th>
                   <th className="px-2 py-2 text-center font-medium border border-[#004411] w-14">Examen</th>
