@@ -3,7 +3,8 @@
 import { API_BASE_URL as API } from '@/lib/api';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Download, User, X, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Search, Download, User, X, Loader2, Camera } from 'lucide-react';
 import { etudiantsApi } from '@/lib/api/scolarite';
 import { useEtudiantsList } from '@/lib/api/scolarite-hooks';
 import { canAccess } from '@/lib/auth';
@@ -229,6 +230,13 @@ export default function EtudiantsPage() {
               <Download size={15} />
               {exporting ? 'Export…' : 'Exporter'}
             </button>
+          )}
+          {canEdit && (
+            <Link href="/dashboard/scolarite/etudiants/photos"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-iss-gray hover:bg-gray-50 transition-colors">
+              <Camera size={15} />
+              Photos
+            </Link>
           )}
         </div>
       </div>

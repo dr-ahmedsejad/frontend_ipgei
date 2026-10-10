@@ -116,6 +116,9 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     items: [
       { href: '/dashboard/scolarite/etudiants/chercher', label: 'Chercher un étudiant' },
       { href: '/dashboard/scolarite/etudiants',          label: 'Liste des étudiants' },
+      // Dépôt groupé, chaque photo nommée par le matricule : le droit de
+      // MODIFIER les étudiants, comme le serveur (apps/absence/photos.py).
+      { href: '/dashboard/scolarite/etudiants/photos',   label: 'Photos des étudiants', action: 'modifier' },
       // Composer les demi-groupes d'une classe : le geste de la rentrée, et
       // celui d'après chaque répartition entre classes, qui les vide.
       { href: '/dashboard/scolarite/etudiants/groupes',  label: 'Affectation aux groupes',
@@ -164,6 +167,10 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       // Le pendant du précédent : même fournée, mais désignée par matricules.
       // Une classe entière ne couvre pas la liste qui traverse les classes.
       { href: '/dashboard/ipgei/documents/matricules', label: 'Générer par matricules',
+        module: 'ipgei_documents', action: 'modifier' },
+      // Tous les relevés de semestre d'un ou de plusieurs élèves, toutes leurs
+      // années, en un seul PDF (apps/documents/releves_etudiant.py).
+      { href: '/dashboard/documents/releves-etudiant', label: "Relevés d'étudiants",
         module: 'ipgei_documents', action: 'modifier' },
       // Consultation : lecture seule, donc le droit de VOIR suffit — exiger
       // « modifier » interdirait de vérifier une moyenne à qui ne délivre pas.
