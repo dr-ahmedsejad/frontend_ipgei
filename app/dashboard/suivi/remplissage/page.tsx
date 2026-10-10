@@ -43,6 +43,11 @@ const JOURS_ORDER: Record<string, number> = {
 
 const COMMENTAIRES = ['Non fait', 'Fait', 'Reporté'] as const;
 
+// Le NOM AFFICHÉ, à côté du code. Purement cosmétique : « CM » reste la clé
+// partout où elle compte — familles d'avancement, équivalences horaires,
+// colonnes de volume de l'EM, recherche du taux de paiement.
+const NOM_AFFICHE: Record<string, string> = { CM: 'Cours' };
+
 export default function RemplissagePage() {
   const user  = getStoredUser();
   const annee = user?.annee_universitaire ?? '';
@@ -416,7 +421,7 @@ export default function RemplissagePage() {
                                           ? 'bg-orange-100 text-orange-700 font-semibold'
                                           : 'bg-gray-100 text-iss-gray'
                                       }`}>
-                                        {sp.type_seance_label}
+                                        {NOM_AFFICHE[sp.type_seance_label] ?? sp.type_seance_label}
                                       </span>
                                     ) : '—'}
                                   </td>

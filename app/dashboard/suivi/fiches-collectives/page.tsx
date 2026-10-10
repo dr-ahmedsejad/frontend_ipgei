@@ -23,6 +23,11 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; color: string }>
 };
 const DEFAULT_TC = { bg: 'rgba(96,125,139,0.08)', border: '#607D8B', color: '#37474F' };
 
+// Le NOM AFFICHÉ, à côté du code. Purement cosmétique : `TYPE_COLORS` et tout
+// le reste de l'application continuent de lire « CM », qui sert de clé aux
+// familles d'avancement, aux équivalences horaires et au taux de paiement.
+const NOM_AFFICHE: Record<string, string> = { CM: 'Cours' };
+
 export default function FichesCollectivesPage() {
   const user  = getStoredUser();
   const annee = user?.annee_universitaire ?? '';
@@ -225,7 +230,7 @@ export default function FichesCollectivesPage() {
                           <td className="px-3 py-2 text-xs text-iss-dark max-w-[160px] truncate" title={f.em_intitule}>{f.em_intitule || '—'}</td>
                           <td className="px-3 py-2">
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: tc.bg, color: tc.color, border: `1px solid ${tc.border}` }}>
-                              {f.type_seance}
+                              {NOM_AFFICHE[f.type_seance] ?? f.type_seance}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-xs text-iss-gray">{f.salle_nom || '—'}</td>

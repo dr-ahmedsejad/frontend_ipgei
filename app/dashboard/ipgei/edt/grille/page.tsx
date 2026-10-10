@@ -463,7 +463,14 @@ export default function GrilleTypePage() {
   const optSalles:   OptionAC[] = salles.map(s => ({ id: String(s.id), label: s.nom }));
   const optMatieres: OptionAC[] = matieres.map(m => ({ id: String(m.id), label: `${m.code} — ${m.intitule}` }));
   // Options prises du référentiel du socle, plus d'une liste figée.
-  const optTypes:    OptionAC[] = typesSeance.map(t => ({ id: String(t.id), label: t.type_seance }));
+  // Le menu montre « Cours » là où le référentiel dit « CM ». Purement
+  // cosmétique, et sans risque : l'option porte l'IDENTIFIANT du type, c'est
+  // lui qui part au serveur. Le code, lui, reste la clé partout ailleurs —
+  // couleur de la case, familles d'avancement, taux de paiement —, et le
+  // renommer en base casserait ces correspondances en silence.
+  const NOM_AFFICHE: Record<string, string> = { CM: 'Cours' };
+  const optTypes:    OptionAC[] = typesSeance.map(
+    t => ({ id: String(t.id), label: NOM_AFFICHE[t.type_seance] ?? t.type_seance }));
   /** Un type spécial (sport, instruction militaire) n'a ni enseignant ni salle. */
   const estSpecial = (id: string) => !!typesSeance.find(t => String(t.id) === id)?.is_special;
 
