@@ -109,7 +109,7 @@ export default function AnnoncesPage() {
   }, [grille, sel, parCle]);
 
   const nbEtudiants = (grille?.cases ?? []).filter(c => sel.has(c.cle)).reduce((n, c) => n + c.nb, 0);
-  const pret = sel.size > 0 && titre.trim() !== '' && texte.trim() !== '';
+  const pret = sel.size > 0 && nbEtudiants > 0 && titre.trim() !== '' && texte.trim() !== '';
 
   const envoyer = useMutation({
     mutationFn: () => apiFetch<Annonce>(API, {
@@ -244,11 +244,15 @@ export default function AnnoncesPage() {
               <span key={p} className="inline-flex items-center px-3 py-1 rounded-full bg-[#e8f3ec] text-[#005c2e] text-[13px] font-bold">{p}</span>
             ))}
             {resume.length === 0 && <span className="text-[13px] text-[#9a3412]">Cochez au moins une case.</span>}
-            {resume.length > 0 && (
-              <span className="ml-auto text-[13px] text-iss-dark">
-                <b>{nbEtudiants} étudiant{nbEtudiants > 1 ? 's' : ''}</b> recevront l’annonce
+            {resume.length > 0 && (nbEtudiants === 0 ? (
+              <span className="ml-auto text-[13px] text-[#9a3412]">
+                Aucun étudiant de cette sélection n’a de compte : personne ne recevrait l’annonce.
               </span>
-            )}
+            ) : (
+              <span className="ml-auto text-[13px] text-iss-dark">
+                <b>{nbEtudiants} étudiant{nbEtudiants > 1 ? 's' : ''}</b> {nbEtudiants > 1 ? 'recevront' : 'recevra'} l’annonce
+              </span>
+            ))}
           </div>
         </section>
 
