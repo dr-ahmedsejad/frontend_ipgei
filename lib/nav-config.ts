@@ -7,7 +7,7 @@ import {
   LayoutDashboard, AlertCircle, ClipboardCheck, Edit3,
   BookMarked, ArrowUpCircle, History, RefreshCw,
   Briefcase, Database, Repeat, BookOpenCheck,
-  Gavel, EyeOff, Settings, PenLine,
+  Gavel, EyeOff, Settings, PenLine, Megaphone,
 } from 'lucide-react';
 import type { UserRole, RbacAction } from '@/lib/auth';
 import {
@@ -78,6 +78,15 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Pilotage', roles: ALL, module: 'ipgei_classes',
     items: [
       { href: '/dashboard/ipgei', label: 'Tableau de bord' },
+    ],
+  },
+  // Un message aux étudiants, par classe (MPSI A, toutes les MP…) :
+  // notification sur l'app Groupe Polytechnique et dans la cloche du portail.
+  {
+    key: 'annonces', icon: Megaphone, label: 'Annonces',
+    section: 'Pilotage', roles: MANAGE, module: 'annonces',
+    items: [
+      { href: '/dashboard/annonces', label: 'Envoyer une annonce' },
     ],
   },
   {
