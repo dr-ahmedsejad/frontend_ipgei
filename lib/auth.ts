@@ -1,6 +1,7 @@
 import { API_BASE_URL as API } from '@/lib/api';
 import { invalidateAll as invalidateMemoryCache } from '@/lib/cache';
 import { getQueryClient } from '@/lib/query-client';
+import { rafraichirSession } from '@/lib/session-partagee';
 export type UserRole =
   | 'admin'
   | 'DE'
@@ -333,13 +334,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshToken(): Promise<boolean> {
-  try {
-    const res = await fetch(`${API}/api/v1/auth/token/refresh/`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+  // Même verrou que le renouvellement déclenché par un 401 (lib/api.ts) : deux
+  // renouvellements simultanés faisaient refuser le second, jeton déjà annulé.
+  return rafraichirSession(`${API}/api/v1/auth/token/refresh/`);
 }

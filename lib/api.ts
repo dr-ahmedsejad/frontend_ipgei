@@ -1,5 +1,6 @@
 import { getQueryClient } from './query-client';
 import { invalidateAll as invalidateMemoryCache } from './cache';
+import { rafraichirSession } from './session-partagee';
 
 /**
  * Base URL de l'API backend. Source unique de vérité — ne PAS référencer
@@ -57,22 +58,12 @@ interface FetchOptions {
   params?: Record<string, string | number | boolean>;
 }
 
-// ── Singleton refresh ────────────────────────────────────────────────────────
-// Évite le thundering herd : si N requêtes simultanées reçoivent un 401,
-// un seul appel de refresh est effectué ; les autres attendent sa résolution.
-let _refreshPromise: Promise<boolean> | null = null;
-
+// ── Renouvellement du jeton ──────────────────────────────────────────────────
+// Un seul à la fois dans TOUT le navigateur (onglets compris) : voir
+// lib/session-partagee.ts. Si N requêtes reçoivent un 401, elles attendent le
+// même renouvellement.
 async function _refreshToken(): Promise<boolean> {
-  if (!_refreshPromise) {
-    _refreshPromise = fetch(`${API}/api/v1/auth/token/refresh/`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-      .then(r => r.ok)
-      .catch(() => false)
-      .finally(() => { _refreshPromise = null; });
-  }
-  return _refreshPromise;
+  return rafraichirSession(`${API}/api/v1/auth/token/refresh/`);
 }
 
 /** Routes publiques qui ne nécessitent pas d'authentification. */
