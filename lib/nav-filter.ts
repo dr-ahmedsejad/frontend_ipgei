@@ -32,6 +32,10 @@ export function canSee(group: NavGroup, role: UserRole): boolean {
  */
 export function visibleItems(group: NavGroup): SubItem[] {
   return group.items.filter(item => {
+    // `horsMenu` : l'entrée n'existe que pour la matrice des permissions, où
+    // elle porte un second droit sur un écran déjà listé. L'afficher ici
+    // donnerait deux liens vers la même page.
+    if (item.horsMenu) return false;
     const modCode = item.module ?? group.module;
     if (!modCode) return true;
     return canAccess(modCode, item.action ?? 'voir');

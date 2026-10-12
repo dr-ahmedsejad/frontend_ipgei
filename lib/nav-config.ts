@@ -25,6 +25,18 @@ export interface SubItem {
   /** Module RBAC override pour ce sous-item. Si défini, prime sur group.module.
    *  Sert pour le découpage granulaire (ex: documents/diplome → 'doc_diplome'). */
   module?: string;
+  /**
+   * Entrée qui n'existe QUE pour la matrice des permissions.
+   *
+   * Cette matrice se construit à partir de ce menu : une case n'y apparaît que
+   * si une entrée porte le module. Or deux droits peuvent gouverner le MÊME
+   * écran — composer les sous-groupes de TP et créer des classes se font au
+   * même endroit, mais ne demandent pas la même main. Sans ce drapeau, la
+   * barre latérale afficherait deux liens vers la même page.
+   *
+   * `NavTree` la saute ; `/dashboard/comptes/permissions` la garde.
+   */
+  horsMenu?: boolean;
 }
 export interface NavGroup {
   key:          string;
@@ -162,6 +174,13 @@ const TOUS_LES_GROUPES: NavGroup[] = [
     section: 'Scolarité', roles: ALL, module: 'ipgei_classes',
     items: [
       { href: '/dashboard/ipgei/classes', label: 'Classes & sous-groupes', module: 'ipgei_classes' },
+      // Même écran, module distinct : composer les TP d'une classe et créer ou
+      // supprimer des classes ne demandent pas la même main. Un chef de
+      // département répartit ses groupes de TP sans toucher à la structure.
+      // L'entrée existe aussi pour que la case apparaisse dans la matrice des
+      // permissions, qui se construit à partir de ce menu.
+      { href: '/dashboard/ipgei/classes', label: 'Sous-groupes de TP',
+        module: 'ipgei_sous_groupes', action: 'modifier', horsMenu: true },
     ],
   },
   // Les pièces officielles : l'émission se distingue de la consultation.
