@@ -177,6 +177,8 @@ function BlocSemestres({ onNotifier }: { onNotifier: (m: string) => void }) {
                       aucune semaine reprise</span></>
                   )}
                 </p>
+                <ChampDecalage semestre={s} mutation={mutations.update}
+                               onNotifier={onNotifier} />
               </div>
 
               <BoutonReprise semestre={s} mutation={mutations.genererSemaines}
@@ -230,6 +232,63 @@ function BlocSemestres({ onNotifier }: { onNotifier: (m: string) => void }) {
  * que porte le calendrier, qui fait foi ; en reprendre la moitié n'aurait pas
  * de sens.
  */
+/**
+ * Le DÉCALAGE DE RENTRÉE du semestre, en semaines.
+ *
+ * Il n'existe qu'un seul calendrier par parité : S1 et S3 reçoivent les mêmes
+ * semaines, aux mêmes numéros. Quand une promotion entre plus tard — les MPSI
+ * arrivés quatre semaines après les MP —, ses étudiants lisent « semaine 5 »
+ * sur ce qui est leur première.
+ *
+ * Ce nombre recule l'AFFICHAGE. Le numéro en base ne bouge pas : c'est lui que
+ * lisent le suivi et la paie, et c'est ce qui les garde justes.
+ *
+ * Réglé ici, sur le semestre, et non sur chaque classe : ce n'est pas une
+ * propriété de « MPSI A » mais de la promotion. Le serveur le descend ensuite
+ * sur tous les groupes du niveau — quinze saisies identiques seraient quinze
+ * occasions d'en oublier une.
+ */
+function ChampDecalage({ semestre, mutation, onNotifier }: {
+  semestre:   SemestreIPGEI;
+  mutation:   { mutate: (v: { id: number; input: Partial<SemestreIPGEI> }, o?: object) => void };
+  onNotifier: (m: string) => void;
+}) {
+  const [valeur, setValeur] = useState(String(semestre.decalage_semaines ?? 0));
+
+  // À la sortie du champ, et non à chaque frappe : taper « 12 » enverrait
+  // d'abord « 1 », et le serveur propagerait un décalage d'une semaine à tous
+  // les groupes avant de se corriger.
+  const enregistrer = () => {
+    const n = Math.max(0, parseInt(valeur, 10) || 0);
+    setValeur(String(n));
+    if (n === (semestre.decalage_semaines ?? 0)) return;
+    mutation.mutate({ id: semestre.id, input: { decalage_semaines: n } }, {
+      onSuccess: () => onNotifier(n === 0
+        ? `${semestre.code} : décalage retiré`
+        : `${semestre.code} : rentrée décalée de ${n} semaine${n > 1 ? 's' : ''}`),
+    });
+  };
+
+  return (
+    <label className="mt-1 flex items-center gap-2 text-xs text-iss-gray">
+      <span>Rentrée décalée de</span>
+      <input type="number" min={0} max={20} value={valeur}
+             onChange={e => setValeur(e.target.value)}
+             onBlur={enregistrer}
+             className="w-14 px-2 py-1 rounded-lg border border-gray-200 text-center
+                        text-iss-dark tabular-nums focus:outline-none
+                        focus:border-[#006633]" />
+      <span>semaine{Number(valeur) > 1 ? 's' : ''}</span>
+      {Number(valeur) > 0 && (
+        <span className="text-[11px] text-iss-gray/70">
+          — la semaine n°{Number(valeur) + 1} s'affichera « 1 »
+        </span>
+      )}
+    </label>
+  );
+}
+
+
 function BoutonReprise({ semestre, mutation, onNotifier }: {
   semestre:   SemestreIPGEI;
   mutation:   { mutate: (v: { id: number }, o?: object) => void; isPending: boolean };

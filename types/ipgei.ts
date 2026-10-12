@@ -114,6 +114,16 @@ export interface SemestreIPGEI {
     premiere_semaine: string | null;
     derniere_semaine: string | null;
   };
+  /**
+   * Semaines de retard à la rentrée de ce semestre.
+   *
+   * Il n'existe qu'UN calendrier par parité : S1 et S3 reçoivent les mêmes
+   * semaines, aux mêmes numéros. Quand une promotion entre plus tard, ses
+   * étudiants lisent « semaine 5 » sur ce qui est leur première. Ce nombre
+   * recule l'AFFICHAGE ; la numérotation en base ne bouge pas, et c'est elle
+   * que lisent le suivi et la paie.
+   */
+  decalage_semaines:    number;
   est_cloture:          boolean;
   /** 1 = première année, 2 = deuxième. C'est le vrai rattachement du semestre. */
   rang:                 number;
