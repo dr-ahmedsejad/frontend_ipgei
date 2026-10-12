@@ -47,5 +47,10 @@ export function useProfsMutations() {
     onSuccess:  () => qc.invalidateQueries({ queryKey: profsKeys.all }),
   });
 
-  return { remove, archiver, restaurer };
+  const genererComptes = useMutation({
+    mutationFn: () => profsApi.genererComptes(),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: profsKeys.all }),
+  });
+
+  return { remove, archiver, restaurer, genererComptes };
 }

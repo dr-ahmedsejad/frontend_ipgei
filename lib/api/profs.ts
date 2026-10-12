@@ -45,6 +45,14 @@ export interface ProfsListFilters {
   actif?:     boolean;
 }
 
+/** Réponse de « Générer les comptes » : qui a reçu un compte, et pourquoi les autres non. */
+export interface ResultatComptes {
+  created:   number;
+  crees:     { id: number; nom: string; identifiant: string }[];
+  non_crees: { id: number; nom: string; raison: string }[];
+  detail:    string;
+}
+
 export const profsApi = {
   list: (filters: ProfsListFilters = {}) => {
     const params: Record<string, string | number> = {};
@@ -75,4 +83,8 @@ export const profsApi = {
   // Note : create / update utilisent FormData (uploads CV/diplome) :
   // ils restent geres directement dans les pages /ajouter et /[id]
   // via apiUpload ; a migrer en sprint future si necessaire.
+
+  /** Crée les comptes des enseignants ACTIFS qui n'en ont pas (administrateur seul). */
+  genererComptes: () =>
+    apiFetch<ResultatComptes>(`${BASE}/generer-comptes/`, { method: 'POST' }),
 };

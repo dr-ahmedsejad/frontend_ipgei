@@ -27,7 +27,7 @@ import { CARTE, Chargement, EnTetePage, Erreur, INPUT } from '../ipgei/_ui';
 const lettre = (c: Axe) => c.label.replace(/^Classe\s+/, '');
 const LIBELLES = {
   sigle: 'IPGEI',
-  sousTitre: 'Un message aux étudiants, par classe',
+  sousTitre: 'Un message aux étudiants et aux enseignants, par classe',
   aide: 'Une case = une classe. Cochez MPSI ou MP pour toutes ses classes.',
   coin: 'Niveau / classe',
   tout: 'Tous les étudiants de l’IPGEI',
@@ -38,12 +38,20 @@ const LIBELLES = {
 };
 
 interface Axe { id: string; label: string; sub: string }
-interface Case { cle: string; ligne: string; colonne: string; nb: number }
-interface Grille { annee: string; lignes: Axe[]; colonnes: Axe[]; cases: Case[] }
+interface Case {
+  cle: string; ligne: string; colonne: string; nb: number;
+  nb_enseignants?: number; enseignants?: number[];
+}
+interface Grille {
+  annee: string; lignes: Axe[]; colonnes: Axe[]; cases: Case[]; nb_enseignants?: number;
+}
 interface Annonce {
   id: number; titre: string; texte: string; resume: string;
   nb_destinataires: number; auteur_nom: string; cree_le: string;
+  etudiants?: boolean; enseignants?: '' | 'tous' | 'cases';
 }
+/** Quels enseignants : tous ceux de l'école, ou ceux qui ont cours dans les cases. */
+type ModeEnseignants = 'tous' | 'cases';
 
 const API = '/api/v1/annonces/';
 
@@ -60,6 +68,10 @@ export default function AnnoncesPage() {
   });
 
   const [sel, setSel] = useState<Set<string>>(new Set());
+  // LE PUBLIC (maquette validée le 11/10/2026) : étudiants, enseignants, ou les deux.
+  const [pourEtudiants, setPourEtudiants] = useState(true);
+  const [pourEnseignants, setPourEnseignants] = useState(false);
+  const [modeEns, setModeEns] = useState<ModeEnseignants>('cases');
   const [titre, setTitre] = useState('');
   const [texte, setTexte] = useState('');
   const [confirmer, setConfirmer] = useState(false);
@@ -108,20 +120,42 @@ export default function AnnoncesPage() {
     return r;
   }, [grille, sel, parCle]);
 
-  const nbEtudiants = (grille?.cases ?? []).filter(c => sel.has(c.cle)).reduce((n, c) => n + c.nb, 0);
-  const pret = sel.size > 0 && nbEtudiants > 0 && titre.trim() !== '' && texte.trim() !== '';
+  const casesCochees = (grille?.cases ?? []).filter(c => sel.has(c.cle));
+  const nbEtudiants = pourEtudiants ? casesCochees.reduce((n, c) => n + c.nb, 0) : 0;
+  // Un enseignant de plusieurs cases ne compte (et ne reçoit) qu'une fois.
+  const nbEnseignants = !pourEnseignants ? 0
+    : modeEns === 'tous' ? (grille?.nb_enseignants ?? 0)
+    : new Set(casesCochees.flatMap(c => c.enseignants ?? [])).size;
+  const grilleUtile = pourEtudiants || (pourEnseignants && modeEns === 'cases');
+  const total = nbEtudiants + nbEnseignants;
+  const pret = (!grilleUtile || sel.size > 0) && total > 0 && titre.trim() !== '' && texte.trim() !== '';
+  /** Le public, en mots : pour la confirmation et le compteur. */
+  const publicTexte = [
+    pourEtudiants && `${nbEtudiants} étudiant${nbEtudiants > 1 ? 's' : ''}`,
+    pourEnseignants && `${nbEnseignants} enseignant${nbEnseignants > 1 ? 's' : ''}`,
+  ].filter(Boolean).join(' et ');
+  /** Le résumé gardé dans l'historique. */
+  const resumeEnvoi = [
+    grilleUtile && resume.length ? resume.join(', ') : '',
+    pourEnseignants ? (modeEns === 'tous' ? 'tous les enseignants'
+      : pourEtudiants ? 'et leurs enseignants' : 'leurs enseignants') : '',
+  ].filter(Boolean).join(' — ');
 
   const envoyer = useMutation({
     mutationFn: () => apiFetch<Annonce>(API, {
       method: 'POST',
-      body: { titre: titre.trim(), texte: texte.trim(), cibles: [...sel], resume: resume.join(', ') },
+      body: {
+        titre: titre.trim(), texte: texte.trim(),
+        cibles: grilleUtile ? [...sel] : [], resume: resumeEnvoi,
+        etudiants: pourEtudiants, enseignants: pourEnseignants ? modeEns : '',
+      },
     }),
     onSuccess: a => {
       setConfirmer(false);
       setEnvoyee(a);
       setSel(new Set()); setTitre(''); setTexte('');
       qc.invalidateQueries({ queryKey: ['annonces', 'historique'] });
-      toast.success(`Annonce envoyée à ${a.nb_destinataires} étudiant${a.nb_destinataires > 1 ? 's' : ''}.`);
+      toast.success(`Annonce envoyée à ${a.nb_destinataires} destinataire${a.nb_destinataires > 1 ? 's' : ''}.`);
     },
     onError: e => { setConfirmer(false); toast.error((e as Error).message); },
   });
@@ -134,7 +168,7 @@ export default function AnnoncesPage() {
       <ConfirmModal
         open={confirmer}
         title="Envoyer l’annonce ?"
-        message={`« ${titre.trim()} » sera envoyée à ${nbEtudiants} étudiant${nbEtudiants > 1 ? 's' : ''} (${resume.join(', ')}). Une notification envoyée ne se retire pas.`}
+        message={`« ${titre.trim()} » sera envoyée à ${publicTexte} (${resumeEnvoi}). Une notification envoyée ne se retire pas.`}
         confirmLabel="Envoyer"
         variant="success"
         confirmIcon={<Send size={14} />}
@@ -157,7 +191,7 @@ export default function AnnoncesPage() {
       {envoyee && (
         <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#e8f3ec] border border-[#b7dcc6] text-[#14532d] text-sm">
           <CheckCircle2 size={18} className="text-[#006633] shrink-0" />
-          <span><b>Annonce envoyée</b> à {envoyee.resume || 'la sélection'} ({envoyee.nb_destinataires} étudiant{envoyee.nb_destinataires > 1 ? 's' : ''}). Elle arrive sur leur téléphone dans les deux minutes.</span>
+          <span><b>Annonce envoyée</b> à {envoyee.resume || 'la sélection'} ({envoyee.nb_destinataires} destinataire{envoyee.nb_destinataires > 1 ? 's' : ''}). Elle arrive sur leur téléphone dans les deux minutes.</span>
         </div>
       )}
 
@@ -171,10 +205,52 @@ export default function AnnoncesPage() {
               <span className="text-[#006633]">1.</span> Destinataires
               {grille?.annee && <span className="ml-2 text-xs font-semibold text-iss-gray">{grille.annee}</span>}
             </h2>
-            <span className="text-xs text-iss-gray">{LIBELLES.aide}</span>
           </div>
 
-          {isLoading ? <Chargement /> : lignes.length === 0 ? (
+          {/* Le public : étudiants, enseignants, ou les deux. */}
+          <div className="flex flex-wrap items-center gap-2.5 mb-3">
+            <span className="text-sm font-bold text-iss-dark">Envoyer aux :</span>
+            {([['etu', 'Étudiants', pourEtudiants, setPourEtudiants, pourEnseignants],
+               ['ens', 'Enseignants', pourEnseignants, setPourEnseignants, pourEtudiants]] as const)
+              .map(([cle, nom, actif, changer, autre]) => (
+                <button key={cle} type="button" aria-pressed={actif}
+                        // Toujours au moins un public : on ne décoche pas le dernier.
+                        onClick={() => { if (actif && !autre) return; setEnvoyee(null); changer(!actif); }}
+                        className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-bold text-iss-dark ${
+                          actif ? 'border-[#006633] bg-[#e8f3ec]' : 'border-gray-300 bg-white'}`}>
+                  <span className={`w-[18px] h-[18px] rounded inline-flex items-center justify-center text-[12px] text-white border ${
+                    actif ? 'bg-[#006633] border-[#006633]' : 'bg-white border-gray-300'}`}>✓</span>
+                  {nom}
+                </button>
+              ))}
+          </div>
+
+          {pourEnseignants && (
+            <div className="mb-3 rounded-xl border border-[#d5e5dc] bg-[#f6fbf8] px-3.5 py-3 flex flex-col gap-2">
+              <span className="text-xs font-extrabold text-[#005c2e] uppercase tracking-wide">Quels enseignants ?</span>
+              <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+                <input type="radio" name="mode-enseignants" className="w-[18px] h-[18px] accent-[#006633]"
+                       checked={modeEns === 'tous'} onChange={() => setModeEns('tous')} />
+                <span><b>Tous les enseignants de l’IPGEI</b> <span className="text-iss-gray">· {grille?.nb_enseignants ?? 0} avec un compte</span></span>
+              </label>
+              <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+                <input type="radio" name="mode-enseignants" className="w-[18px] h-[18px] accent-[#006633]"
+                       checked={modeEns === 'cases'} onChange={() => setModeEns('cases')} />
+                <span><b>Ceux qui enseignent dans les cases cochées</b> <span className="text-iss-gray">· selon l’emploi du temps de l’année</span></span>
+              </label>
+            </div>
+          )}
+
+          {grilleUtile && (
+            <p className="text-xs text-iss-gray mb-2">
+              {pourEtudiants && pourEnseignants
+                ? 'Une case = une classe : ses élèves, et les enseignants qui y ont cours.'
+                : pourEtudiants ? LIBELLES.aide
+                : 'Une case = une classe : les enseignants qui y ont cours.'}
+            </p>
+          )}
+
+          {!grilleUtile ? null : isLoading ? <Chargement /> : lignes.length === 0 ? (
             <p className="text-sm text-iss-gray py-8 text-center">Aucune classe n’est définie pour l’année en cours.</p>
           ) : (
             <div className="overflow-x-auto border border-gray-200 rounded-xl">
@@ -227,7 +303,11 @@ export default function AnnoncesPage() {
                                  className={`border-l border-gray-100 flex flex-col items-center justify-center gap-0.5 min-h-[48px] cursor-pointer ${kon ? 'bg-[#e8f3ec]' : ''}`}>
                             <input type="checkbox" className="w-[18px] h-[18px] accent-[#006633]"
                                    aria-label={LIBELLES.caseNom(l, c)} checked={kon} onChange={() => basculer([k.cle], !kon)} />
-                            <span className="text-[10px] text-iss-gray">{k.nb}</span>
+                            <span className="text-[10px] text-iss-gray">
+                              {[pourEtudiants && `${k.nb} étu.`,
+                                pourEnseignants && modeEns === 'cases' && `${k.nb_enseignants ?? 0} ens.`]
+                                .filter(Boolean).join(' · ')}
+                            </span>
                           </label>
                         );
                       })}
@@ -240,17 +320,20 @@ export default function AnnoncesPage() {
 
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-bold text-[#475569]">Sélection :</span>
-            {resume.map(p => (
+            {pourEnseignants && modeEns === 'tous' && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#e8f3ec] text-[#005c2e] text-[13px] font-bold">Tous les enseignants</span>
+            )}
+            {grilleUtile && resume.map(p => (
               <span key={p} className="inline-flex items-center px-3 py-1 rounded-full bg-[#e8f3ec] text-[#005c2e] text-[13px] font-bold">{p}</span>
             ))}
-            {resume.length === 0 && <span className="text-[13px] text-[#9a3412]">Cochez au moins une case.</span>}
-            {resume.length > 0 && (nbEtudiants === 0 ? (
+            {grilleUtile && resume.length === 0 && <span className="text-[13px] text-[#9a3412]">Cochez au moins une case.</span>}
+            {(!grilleUtile || resume.length > 0) && (total === 0 ? (
               <span className="ml-auto text-[13px] text-[#9a3412]">
-                Aucun étudiant de cette sélection n’a de compte : personne ne recevrait l’annonce.
+                Personne dans cette sélection n’a de compte : l’annonce n’arriverait à personne.
               </span>
             ) : (
               <span className="ml-auto text-[13px] text-iss-dark">
-                <b>{nbEtudiants} étudiant{nbEtudiants > 1 ? 's' : ''}</b> {nbEtudiants > 1 ? 'recevront' : 'recevra'} l’annonce
+                <b>{publicTexte}</b> {total > 1 ? 'recevront' : 'recevra'} l’annonce
               </span>
             ))}
           </div>
@@ -306,7 +389,7 @@ export default function AnnoncesPage() {
                   <th className="px-3 py-2 font-extrabold rounded-l-lg">Date</th>
                   <th className="px-3 py-2 font-extrabold">Titre</th>
                   <th className="px-3 py-2 font-extrabold">Destinataires</th>
-                  <th className="px-3 py-2 font-extrabold text-right">Étudiants</th>
+                  <th className="px-3 py-2 font-extrabold text-right">Personnes</th>
                   <th className="px-3 py-2 font-extrabold rounded-r-lg">Envoyée par</th>
                 </tr>
               </thead>

@@ -4,15 +4,16 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Users, Plus, Pencil, Trash2, CheckCircle, Search, Phone, Mail, FileText, Award,
-  Archive, ArchiveRestore
+  Archive, ArchiveRestore, KeyRound, Loader2, X
 } from 'lucide-react';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { popFlash } from '@/lib/flash';
+import { getStoredUser } from '@/lib/auth';
 import HistoryButton from '@/components/audit/HistoryButton';
 import { useProfsList, useProfsMutations } from '@/lib/api/profs-hooks';
 import { safeFileUrl } from '@/lib/safe-file-url';
-import type { Prof } from '@/lib/api/profs';
+import type { Prof, ResultatComptes } from '@/lib/api/profs';
 
 const TYPE_LABELS: Record<string, string> = {
   vacataire: 'Vacataire', permanent: 'Permanent', contractuel: 'Contractuel',
@@ -50,7 +51,12 @@ export default function ProfsPage() {
   const [toast,      setToast]      = useState<string | null>(null);
 
   const { data, isLoading, error: queryError } = useProfsList({ page, search, type: filterType, actif: !showArchived });
-  const { remove, archiver, restaurer } = useProfsMutations();
+  const { remove, archiver, restaurer, genererComptes } = useProfsMutations();
+  // Créer des comptes de connexion est un geste d'administrateur (le serveur le
+  // refuse à tout autre rôle, même avec le droit de modifier les enseignants).
+  const estAdmin = getStoredUser()?.role === 'admin';
+  const [confirmComptes, setConfirmComptes] = useState(false);
+  const [resultatComptes, setResultatComptes] = useState<ResultatComptes | null>(null);
 
   const items   = data?.results ?? [];
   const count   = data?.count   ?? 0;
@@ -89,6 +95,14 @@ export default function ProfsPage() {
     });
   };
 
+  const handleGenererComptes = () => {
+    setConfirmComptes(false);
+    genererComptes.mutate(undefined, {
+      onSuccess: (r) => setResultatComptes(r),
+      onError:   (e) => alert(e instanceof Error ? e.message : 'Erreur'),
+    });
+  };
+
   return (
     <div className="space-y-5 max-w-6xl">
       {/* Header */}
@@ -103,12 +117,49 @@ export default function ProfsPage() {
           </div>
           <p className="text-sm text-iss-gray">{count} professeur{count !== 1 ? 's' : ''} au total</p>
         </div>
+        {estAdmin && (
+          <button onClick={() => setConfirmComptes(true)} disabled={genererComptes.isPending}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border border-[#006633]/30 text-[#006633] bg-white hover:bg-[#006633]/5 disabled:opacity-60 transition-all"
+            title="Créer un compte pour chaque enseignant actif qui n'en a pas">
+            {genererComptes.isPending ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+            Générer les comptes
+          </button>
+        )}
         <Link href="/dashboard/profs/ajouter"
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-all"
           style={{ background: 'linear-gradient(135deg,#006633,#008844)' }}>
           <Plus size={14} /> Ajouter
         </Link>
       </div>
+
+      {/* Résultat de « Générer les comptes » : qui, et pourquoi pas les autres */}
+      {resultatComptes && (
+        <div className="rounded-2xl border border-gray-100 bg-white shadow-card p-4 text-sm space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-semibold text-iss-dark">{resultatComptes.detail}</p>
+            <button onClick={() => setResultatComptes(null)} title="Fermer"
+              className="p-1 rounded-lg text-iss-gray hover:bg-gray-100"><X size={14} /></button>
+          </div>
+          {resultatComptes.crees.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-green-700 mb-1">
+                Comptes créés — identifiant : le téléphone ; mot de passe initial : le NNI, à changer à la première connexion
+              </p>
+              <ul className="text-xs text-iss-dark-soft space-y-0.5">
+                {resultatComptes.crees.map(c => <li key={c.id}>{c.nom} — identifiant <span className="font-mono">{c.identifiant}</span></li>)}
+              </ul>
+            </div>
+          )}
+          {resultatComptes.non_crees.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-amber-700 mb-1">Non créés</p>
+              <ul className="text-xs text-iss-dark-soft space-y-0.5">
+                {resultatComptes.non_crees.map(c => <li key={c.id}>{c.nom} — {c.raison}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search + filter */}
       <div className="flex gap-3">
@@ -300,6 +351,19 @@ export default function ProfsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmComptes}
+        title="Générer les comptes manquants ?"
+        message={"Un compte est créé pour chaque enseignant ACTIF qui n'en a pas — jamais pour le "
+          + "personnel administratif ou militaire, ni pour une fiche archivée. Identifiant : son téléphone. "
+          + "Mot de passe initial : son NNI, à changer obligatoirement à la première connexion."}
+        confirmLabel="Générer"
+        variant="primary"
+        confirmIcon={<KeyRound size={14} />}
+        onConfirm={handleGenererComptes}
+        onCancel={() => setConfirmComptes(false)}
+      />
 
       <ConfirmModal
         open={toDelete !== null}
