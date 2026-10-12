@@ -11,6 +11,7 @@ import { anneeParDefaut } from '../../_annee';
 import { semestreDeLaSemaine, useSemainesDeLaClasse } from '../_semaines-classe';
 import {
   BandeauCoherence, BoutonPDF, GrilleConsultation, SelecteurSemaine,
+  libelleSemaine,
 } from '../_consultation';
 import {
   useClassesSelect, useEdtPublie, useEdtSemaine, useEpreuvesSemaine,
@@ -272,7 +273,7 @@ export default function EdtParClassePage() {
           }
           sousTitresImpression={[
             [semestreAffiche && `Semestre ${semestreAffiche.code}`,
-             semaine?.numero && `Semaine ${semaine.numero}`,
+             semaine && libelleSemaine(semaine),
              semaine && `du ${formatDate(semaine.date_debut)} au ${formatDate(semaine.date_fin)}`,
             ].filter(Boolean).join('  ·  '),
             `Année universitaire ${annee}`,

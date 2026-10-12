@@ -9,7 +9,7 @@ import { useSemainesDeLAnnee } from '../_semaines-classe';
 import { useReferentielsEDT } from '../_referentiels';
 import {
   BoutonPDF, GrilleConsultation, SelecteurSemaineParDate, grouperSemainesParDate,
-  libelleDatesSemaine,
+  libelleDatesSemaine, libelleSemaineGroupee,
 } from '../_consultation';
 import { useEdtPublie } from '@/lib/api/ipgei-hooks';
 
@@ -101,7 +101,7 @@ export default function EdtParSallePage() {
           isLoading={isLoading}
           titreImpression={`OCCUPATION DE LA SALLE — ${salle?.nom ?? ''}`}
           sousTitresImpression={[
-            [semaine?.numero && `Semaine ${semaine.numero}`,
+            [semaine && libelleSemaineGroupee(semaine),
              semaine && libelleDatesSemaine(semaine.date_debut, semaine.date_fin),
              semaine?.semestres.length
                ? `Semestre${semaine.semestres.length > 1 ? 's' : ''} `

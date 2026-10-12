@@ -150,6 +150,17 @@ export interface SemaineIPGEI {
   semestre:      number;
   semestre_code: CodeSemestre;
   numero:        number | null;
+  /**
+   * Le numéro tel que la PROMOTION le compte — `null` avant sa rentrée.
+   *
+   * Un seul calendrier par parité : S1 et S3 portent les mêmes numéros. Quand
+   * une promotion entre plus tard, le décalage de son semestre recule
+   * l'affichage, et la semaine 5 devient sa première. Les semaines d'avant
+   * n'existent pas pour elle : on les nomme par leurs dates.
+   *
+   * `numero` reste le numéro STOCKÉ — celui du suivi et de la paie.
+   */
+  numero_affiche: number | null;
   date_debut:    string;
   date_fin:      string;
   type_semaine:  TypeSemaine;

@@ -37,7 +37,7 @@ import {
 import {
   ModalePermutation,
 } from '../_seance-modales';
-import { BandeauCoherence } from '../_consultation';
+import { BandeauCoherence, libelleSemaine } from '../_consultation';
 
 /**
  * Une case de la grille peut porter plusieurs séances : deux TP dédoublés
@@ -612,7 +612,7 @@ export default function GrilleTypePage() {
                 <option value="">Grille type (toutes semaines)</option>
                 {semainesCours.map(s => (
                   <option key={s.id} value={s.id}>
-                    Semaine {s.numero} · {new Date(s.date_debut).toLocaleDateString('fr-FR')}
+                    {libelleSemaine(s)} · {new Date(s.date_debut).toLocaleDateString('fr-FR')}
                   </option>
                 ))}
               </select>
@@ -709,7 +709,7 @@ export default function GrilleTypePage() {
                 le patron ou une seule semaine n'a pas les mêmes conséquences. */}
             <Badge ton={enModeSemaine ? 'violet' : 'vert'}>
               {enModeSemaine
-                ? `Semaine ${semaine?.numero} — cette semaine seulement`
+                ? `${semaine ? libelleSemaine(semaine) : 'Semaine'} — cette semaine seulement`
                 : 'Grille type — toutes les semaines à venir'}
             </Badge>
             <Badge ton="neutre">

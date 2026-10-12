@@ -6,7 +6,9 @@ import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { Badge, CARTE, EnTetePage, Erreur, SELECT, Vide } from '../../_ui';
 import { anneeParDefaut } from '../../_annee';
 import { semestresDeLaClasse } from '../_semaines-classe';
-import { BTN_FLECHE, BoutonPDF, GrilleConsultation } from '../_consultation';
+import {
+  BTN_FLECHE, BoutonPDF, GrilleConsultation, libelleSemaine,
+} from '../_consultation';
 import {
   useClassesSelect, useGrilleArchive, useSemestresAll, useVersionsArchive, useOptionsNiveaux,
 } from '@/lib/api/ipgei-hooks';
@@ -233,7 +235,7 @@ export default function HistoriqueEdtPage() {
           titreImpression={`EMPLOI DU TEMPS ARCHIVÉ — ${classe?.nom ?? ''}`}
           sousTitresImpression={[
             [semestreAffiche && `Semestre ${semestreAffiche.code}`,
-             choisie?.numero && `Semaine ${choisie.numero}`,
+             choisie && libelleSemaine(choisie),
              choisie && `du ${formatDate(choisie.date_debut)} au ${formatDate(choisie.date_fin)}`,
             ].filter(Boolean).join('  ·  '),
             `Version ${choisie?.version ?? ''} · générée le ${dateDeVue(choisie)}`,

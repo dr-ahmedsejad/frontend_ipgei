@@ -46,6 +46,26 @@ export const BTN_FLECHE =
   + 'disabled:opacity-40 transition-colors';
 
 /** « du 05 au 10 octobre » — la semaine se reconnaît à ses dates. */
+/**
+ * Le libellé d'une semaine — « Semaine 3 », ou ses dates avant la rentrée.
+ *
+ * Il n'existe qu'un calendrier par parité : S1 et S3 portent les mêmes
+ * numéros. Quand une promotion entre plus tard, `numero_affiche` recule — la
+ * semaine 5 devient sa première — et vaut `null` pour les semaines qui
+ * précèdent sa rentrée.
+ *
+ * Dans ce cas on ne retombe PAS sur `numero` : la semaine du 14 septembre et
+ * celle du 12 octobre s'appelleraient toutes deux « Semaine 1 ». On les nomme
+ * par ce qui les distingue — leurs dates.
+ */
+export function libelleSemaine(
+  semaine: { numero: number | null; numero_affiche?: number | null },
+): string {
+  const n = semaine.numero_affiche;
+  return n ? `Semaine ${n}` : 'Avant la rentrée';
+}
+
+
 export function libelleDatesSemaine(debut: string, fin: string): string {
   const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR',
     { day: '2-digit', month: 'short' });
@@ -87,7 +107,7 @@ export function SelecteurSemaine({
         <option value="">—</option>
         {cours.map(s => (
           <option key={s.id} value={s.id}>
-            Semaine {s.numero} — {s.semestre_code} · {libelleDatesSemaine(s.date_debut, s.date_fin)}
+            {libelleSemaine(s)} — {s.semestre_code} · {libelleDatesSemaine(s.date_debut, s.date_fin)}
           </option>
         ))}
       </select>
@@ -109,6 +129,14 @@ export interface SemaineGroupee {
   date_fin:   string;
   /** Les semestres réunis, dans l'ordre : S1, S3. */
   semestres:  string[];
+  /**
+   * Le numéro vu par CHAQUE semestre, aligné sur `semestres`.
+   *
+   * Une même date est la semaine 1 des MPSI et la semaine 5 des MP quand la
+   * première promotion est entrée quatre semaines plus tard. Un numéro unique
+   * ne peut pas servir les deux : on les garde côte à côte.
+   */
+  numeros:    (number | null)[];
 }
 
 /**
@@ -120,6 +148,24 @@ export interface SemaineGroupee {
  * rien pour les distinguer, et chaque entrée ne portait que la moitié de son
  * service. Ici une date vaut une entrée, et la grille réunit les deux.
  */
+/**
+ * Le libellé d'une entrée groupée — plusieurs semestres sur les mêmes dates.
+ *
+ * Quand les deux promotions comptent pareil, un seul numéro suffit. Quand
+ * elles divergent — la promotion entrée en retard est quatre semaines en
+ * arrière —, on nomme les deux : « S1 n°1 · S3 n°5 ». Afficher un seul numéro
+ * mentirait à l'une des deux, et c'est précisément ce qu'on corrige ici.
+ */
+export function libelleSemaineGroupee(entree: SemaineGroupee): string {
+  const vus = entree.numeros;
+  const tous_egaux = vus.every(n => n === vus[0]);
+  if (tous_egaux) return vus[0] ? `Semaine ${vus[0]}` : 'Avant la rentrée';
+  return entree.semestres
+    .map((code, i) => (vus[i] ? `${code} n°${vus[i]}` : `${code} avant la rentrée`))
+    .join(' · ');
+}
+
+
 export function grouperSemainesParDate(semaines: SemaineIPGEI[]): SemaineGroupee[] {
   const par_date = new Map<string, SemaineGroupee>();
   for (const s of semaines.filter(x => x.type_semaine === 'cours')) {
@@ -128,13 +174,20 @@ export function grouperSemainesParDate(semaines: SemaineIPGEI[]): SemaineGroupee
       existante.cle = `${existante.cle},${s.id}`;
       if (!existante.semestres.includes(s.semestre_code)) {
         existante.semestres.push(s.semestre_code);
-        existante.semestres.sort();
+        // Les deux listes restent alignées : on les trie ensemble.
+        existante.numeros.push(s.numero_affiche ?? null);
+        const paires = existante.semestres
+          .map((code, i) => [code, existante.numeros[i]] as const)
+          .sort((x, y) => x[0].localeCompare(y[0]));
+        existante.semestres = paires.map(q => q[0]);
+        existante.numeros   = paires.map(q => q[1]);
       }
     } else {
       par_date.set(s.date_debut, {
         cle: String(s.id), numero: s.numero,
         date_debut: s.date_debut, date_fin: s.date_fin,
         semestres: [s.semestre_code],
+        numeros: [s.numero_affiche ?? null],
       });
     }
   }
@@ -173,8 +226,7 @@ export function SelecteurSemaineParDate({
         <option value="">—</option>
         {entrees.map(e => (
           <option key={e.cle} value={e.cle}>
-            Semaine {e.numero} {libelleDatesSemaine(e.date_debut, e.date_fin)}
-            {' '}· {e.semestres.join(' · ')}
+            {libelleSemaineGroupee(e)} {libelleDatesSemaine(e.date_debut, e.date_fin)}
           </option>
         ))}
       </select>
@@ -282,7 +334,7 @@ export function BandeauCoherence({ semaine, previsionnel }: {
       <Icone size={16} style={{ flexShrink: 0, marginTop: 1 }} />
       <div>
         <span className="font-semibold">
-          Semaine {semaine.numero} — {previsionnel
+          {libelleSemaine(semaine)} — {previsionnel
             ? 'Prévisionnel'
             : semaine.libelle_coherence}
         </span>
