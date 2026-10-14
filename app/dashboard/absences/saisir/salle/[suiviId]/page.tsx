@@ -10,6 +10,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { bulkPresences } from '@/lib/api/absences';
+import { safeNextUrl } from '@/lib/safe-redirect';
 import { StatutPresence } from '@/types/absences';
 import type { Etudiant } from '@/types/absences';
 
@@ -56,6 +57,10 @@ function PointageSalleContent() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const depIdParam   = searchParams.get('depId'); // passé depuis salle/page.tsx
+  // Venu de la vue de surveillance : la validation ramène sur la journée
+  // qu'on regardait. Chemin interne seulement (safeNextUrl).
+  const retourParam  = searchParams.get('retour');
+  const retour       = safeNextUrl(retourParam, '/dashboard/absences/saisir/salle');
   const user = getStoredUser();
   const annee = user?.annee_universitaire ?? '';
 
@@ -171,7 +176,7 @@ function PointageSalleContent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['absences'] });
       setSaved(true);
-      setTimeout(() => router.push('/dashboard/absences/saisir/salle'), 2000);
+      setTimeout(() => router.push(retour), 2000);
     },
     onError: (err: unknown) => {
       setError(err instanceof Error ? err.message : 'Erreur lors de la validation.');
@@ -215,7 +220,7 @@ function PointageSalleContent() {
       {/* Header sticky */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.back()}
+          <button onClick={() => (retourParam ? router.push(retour) : router.back())}
             className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
             <ArrowLeft size={20} />
           </button>

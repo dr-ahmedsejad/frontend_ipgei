@@ -7,7 +7,7 @@ import {
   LayoutDashboard, AlertCircle, ClipboardCheck, Edit3,
   BookMarked, ArrowUpCircle, History, RefreshCw,
   Briefcase, Database, Repeat, BookOpenCheck,
-  Gavel, EyeOff, Settings, PenLine, Megaphone,
+  Gavel, Eye, EyeOff, Settings, PenLine, Megaphone,
 } from 'lucide-react';
 import type { UserRole, RbacAction } from '@/lib/auth';
 import {
@@ -242,6 +242,17 @@ const TOUS_LES_GROUPES: NavGroup[] = [
       { href: '/dashboard/ipgei/edt/enseignant', label: 'Emploi par enseignant', module: 'ipgei_edt' },
       { href: '/dashboard/ipgei/edt/salle',      label: 'Occupation des salles', module: 'ipgei_edt' },
       { href: '/dashboard/ipgei/edt/historique', label: 'Historique',            module: 'ipgei_edt' },
+    ],
+  },
+  // La vue de surveillance : toutes les classes et leurs sous-groupes sur une
+  // journée, pour ceux qui veillent sur les étudiants. Son propre module RBAC
+  // (« surveillance », DA et AA par défaut) : la voir n'ouvre pas l'emploi du
+  // temps, et l'inverse non plus. Un seul lien : `NavTree` le rend en direct.
+  {
+    key: 'surveillance', icon: Eye, label: 'Vue de surveillance',
+    section: 'Enseignement', roles: ALL, module: 'surveillance',
+    items: [
+      { href: '/dashboard/ipgei/edt/surveillance', label: 'Vue de surveillance' },
     ],
   },
   {
