@@ -186,9 +186,16 @@ export default function EditProfPage() {
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (typeof parsed === 'object' && parsed !== null) {
-            const firstField = Object.keys(parsed)[0];
-            const msgs = parsed[firstField];
+          // Le serveur enveloppe les erreurs de validation :
+          // {"status": 400, "errors": {champ: [msg]}, "request_id": …}
+          // (core/exceptions.py). Lire `errors` d'abord : sans cela, la 1re clé
+          // était « status » et l'écran affichait « status : 400 » au lieu du
+          // vrai motif (NNI déjà utilisé, fichier refusé…).
+          const champs = parsed && typeof parsed.errors === 'object' && parsed.errors !== null
+            ? parsed.errors : parsed;
+          if (typeof champs === 'object' && champs !== null && Object.keys(champs).length) {
+            const firstField = Object.keys(champs)[0];
+            const msgs = champs[firstField];
             const msg  = Array.isArray(msgs) ? msgs[0] : String(msgs);
             setError(firstField === 'non_field_errors' ? msg : `${firstField} : ${msg}`);
             return;
