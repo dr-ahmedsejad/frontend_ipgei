@@ -18,6 +18,7 @@ import BilingualInput from '@/components/ui/BilingualInput';
 import FileDropzone from '@/components/ui/FileDropzone';
 import FiliereSelect from '@/components/scolarite/FiliereSelect';
 import type { ImportMersResult, InscriptionNouvellePayload, CandidatBac } from '@/types/inscriptions';
+import { champsErreur } from '@/lib/api';
 
 // ── Constantes ──────────────────────────────────────────────────────────────────
 
@@ -517,7 +518,7 @@ function FormulaireTab({
     onError: (e) => {
       const err = e as Error;
       try {
-        const parsed = JSON.parse(err.message);
+        const parsed = champsErreur(e) ?? JSON.parse(err.message);
         const flat: Record<string, string> = {};
         let nonField = '';
         for (const [k, v] of Object.entries(parsed)) {

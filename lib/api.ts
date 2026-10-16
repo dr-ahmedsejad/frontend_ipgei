@@ -24,6 +24,10 @@ function resolveApiBase(): string {
 }
 
 export const API_BASE_URL = resolveApiBase();
+// Les erreurs du serveur : message lisible + erreurs par champ (lib/erreurs-api.ts).
+import { ErreurApi, champsErreur, lireErreur as _lireErreur } from './erreurs-api';
+export { ErreurApi, champsErreur };
+
 const API = API_BASE_URL;   // alias interne, conserve pour minimiser le diff
 
 /**
@@ -154,33 +158,20 @@ export async function apiFetch<T = unknown>(path: string, options: FetchOptions 
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    // non_field_errors → plain string (form will toast it)
-    // field errors     → JSON string (form can parse and show per-field)
-    // Le gestionnaire d'exceptions du backend enveloppe les erreurs de
-    // validation : {status, errors: {champ: [...]}, request_id}. On renvoie le
-    // contenu de `errors`, sans quoi les formulaires liraient la première clé
-    // de l'enveloppe et afficheraient « status : 400 » au lieu du vrai motif.
-    const erreursChamps =
-      data?.errors && typeof data.errors === 'object' ? data.errors : null;
-
-    const msg =
-      data?.error ||
-      data?.detail ||
-      (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : null) ||
-      (Array.isArray(erreursChamps?.non_field_errors)
-        ? erreursChamps.non_field_errors[0] : null) ||
-      (erreursChamps ? JSON.stringify(erreursChamps) : null) ||
-      JSON.stringify(data) ||
-      `Erreur ${res.status}`;
+    // Le serveur enveloppe ses erreurs (core/exceptions.py) ; elles se lisent
+    // ici une fois pour tous les écrans : message lisible tel quel, erreurs
+    // par champ sur `champs` (16/10/2026 — on affichait le JSON brut, ou
+    // « status : 400 » dans les écrans qui le décodaient).
+    const { msg, champs } = _lireErreur(data, res.status, undefined);
     // Inclure le request_id (côté serveur) UNIQUEMENT pour les 5xx : ça donne
     // une référence à l'utilisateur pour contacter le support sans exposer de
     // détails techniques. Les 4xx restent inchangés (messages métier explicites).
     const requestId: string | null =
       data?.request_id || res.headers.get('X-Request-Id') || null;
     if (res.status >= 500 && requestId) {
-      throw new Error(`${msg} (Réf: ${requestId})`);
+      throw new ErreurApi(`${msg} (Réf: ${requestId})`, res.status, champs);
     }
-    throw new Error(msg);
+    throw new ErreurApi(msg, res.status, champs);
   }
 
   return data as T;
@@ -213,7 +204,11 @@ export async function apiUpload<T = unknown>(
         try {
           const data = JSON.parse(xhr.responseText);
           if (xhr.status >= 200 && xhr.status < 300) resolve(data as T);
-          else reject(new Error(data?.error || data?.detail || `Erreur ${xhr.status}`));
+          else {
+            // Même lecture qu'apiFetch : message lisible, erreurs par champ.
+            const { msg, champs } = _lireErreur(data, xhr.status, undefined);
+            reject(new ErreurApi(msg, xhr.status, champs));
+          }
         } catch { reject(new Error(`Erreur ${xhr.status}`)); }
       };
       xhr.onerror = () => reject(new Error('Erreur réseau'));

@@ -17,6 +17,7 @@ import Badge from '@/components/ui/Badge';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import { canAccess } from '@/lib/auth';
 import type { Module, ElementModule, EMPlanification } from '@/types/scolarite';
+import { champsErreur } from '@/lib/api';
 
 export default function ModuleDetailPage() {
   const params = useParams();
@@ -102,7 +103,7 @@ export default function ModuleDetailPage() {
       onSuccess: () => toast.success('Module mis à jour'),
       onError: (e) => {
         const err = e as Error;
-        try { setErrors(JSON.parse(err.message)); } catch { toast.error(err.message); }
+        try { setErrors(champsErreur(e) ?? JSON.parse(err.message)); } catch { toast.error(err.message); }
       },
     });
   }

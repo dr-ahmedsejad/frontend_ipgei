@@ -17,6 +17,7 @@ import { popFlash } from '@/lib/flash';
 import { canAccess } from '@/lib/auth';
 import type { DepartementAcademique } from '@/types/scolarite';
 import type { Column } from '@/components/ui/DataTable';
+import { champsErreur } from '@/lib/api';
 
 interface Institution { id: number; acronyme: string; nom: string; est_principale: boolean; }
 
@@ -112,7 +113,7 @@ export default function DepartementsAcademiquesPage() {
     },
     onError: (e) => {
       const err = e as Error;
-      try { setErrors(JSON.parse(err.message)); } catch { toast.error(err.message); }
+      try { setErrors(champsErreur(e) ?? JSON.parse(err.message)); } catch { toast.error(err.message); }
     },
   });
   const saving = saveMut.isPending;

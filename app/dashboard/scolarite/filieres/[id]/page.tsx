@@ -15,6 +15,7 @@ import StatusPill from '@/components/ui/StatusPill';
 import { canAccess } from '@/lib/auth';
 import { getNiveauxPossibles, formatNiveau, clampNiveau } from '@/lib/niveaux';
 import type { TypeDiplome } from '@/types/scolarite';
+import { champsErreur } from '@/lib/api';
 
 export default function FilierePage() {
   const params = useParams();
@@ -104,7 +105,7 @@ export default function FilierePage() {
       onError: (e) => {
         const err = e as Error;
         try {
-          const parsed = JSON.parse(err.message);
+          const parsed = champsErreur(e) ?? JSON.parse(err.message);
           const flat: Record<string, string> = {};
           let nonField = '';
           for (const [k, v] of Object.entries(parsed)) {

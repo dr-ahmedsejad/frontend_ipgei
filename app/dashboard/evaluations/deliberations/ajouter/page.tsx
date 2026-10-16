@@ -13,6 +13,7 @@ import { useToast, ToastContainer } from '@/components/ui/Toast';
 import FiliereSelect from '@/components/scolarite/FiliereSelect';
 import AnneeSelect from '@/components/scolarite/AnneeSelect';
 import { getStoredUser } from '@/lib/auth';
+import { champsErreur } from '@/lib/api';
 
 const NIVEAUX   = [
   { value: 1, label: 'L1 — 1ère année' },
@@ -78,7 +79,7 @@ export default function AjouterDeliberationPage() {
       router.push(`/dashboard/evaluations/deliberations/${delib.id}`);
     } catch (e) {
       const err = e as Error;
-      try { setErrors(JSON.parse(err.message)); } catch { toast.error(err.message); }
+      try { setErrors(champsErreur(e) ?? JSON.parse(err.message)); } catch { toast.error(err.message); }
     } finally {
       setSaving(false);
     }

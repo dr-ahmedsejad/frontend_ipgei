@@ -12,6 +12,7 @@ import BilingualInput from '@/components/ui/BilingualInput';
 import FormField from '@/components/ui/FormField';
 import FiliereSelect from '@/components/scolarite/FiliereSelect';
 import type { Genre, NiveauEtude } from '@/types/scolarite';
+import { champsErreur } from '@/lib/api';
 
 const STEPS = [
   { label: 'Identité',      description: 'Informations personnelles' },
@@ -91,7 +92,7 @@ export default function AjouterEtudiantPage() {
       },
       onError: (e) => {
         const err = e as Error;
-        try { setErrors(JSON.parse(err.message)); setStep(0); } catch { toast.error(err.message); }
+        try { setErrors(champsErreur(e) ?? JSON.parse(err.message)); setStep(0); } catch { toast.error(err.message); }
       },
     });
   }

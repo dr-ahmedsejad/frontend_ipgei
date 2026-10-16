@@ -11,6 +11,7 @@ import FormField from '@/components/ui/FormField';
 import FileDropzone from '@/components/ui/FileDropzone';
 import EtudiantPicker from '@/components/scolarite/EtudiantPicker';
 import type { Etudiant } from '@/types/scolarite';
+import { champsErreur } from '@/lib/api';
 
 export default function AjouterDerogationPage() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function AjouterDerogationPage() {
       router.push('/dashboard/stages/derogations');
     } catch (e) {
       const err = e as Error;
-      try { setErrors(JSON.parse(err.message)); } catch { toast.error(err.message); }
+      try { setErrors(champsErreur(e) ?? JSON.parse(err.message)); } catch { toast.error(err.message); }
     } finally {
       setSaving(false); setProgress(null);
     }

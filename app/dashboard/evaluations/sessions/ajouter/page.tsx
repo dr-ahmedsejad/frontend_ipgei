@@ -11,6 +11,7 @@ import { setFlash } from '@/lib/flash';
 import { useToast, ToastContainer } from '@/components/ui/Toast';
 import FormField from '@/components/ui/FormField';
 import type { TypeSession, TypeSemestre } from '@/types/evaluations';
+import { champsErreur } from '@/lib/api';
 
 export default function AjouterSessionPage() {
   const router = useRouter();
@@ -83,7 +84,7 @@ export default function AjouterSessionPage() {
       onError: (e) => {
         const err = e as Error;
         try {
-          const parsed = JSON.parse(err.message);
+          const parsed = champsErreur(e) ?? JSON.parse(err.message);
           const flat: Record<string, string> = {};
           let nonField = '';
           for (const [k, v] of Object.entries(parsed)) {

@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 import { profsKeys } from '@/lib/api/profs-hooks';
 import { setFlash } from '@/lib/flash';
 import { validateUpload } from '@/lib/file-validation';
+import { champsErreur } from '@/lib/api';
 
 const INPUT = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:bg-white focus:border-[#006633] transition-all";
 const INPUT_DISABLED = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-100 text-iss-gray cursor-not-allowed";
@@ -182,7 +183,8 @@ export default function EditProfPage() {
     },
     onError: (e) => {
       const raw = e instanceof Error ? e.message : 'Erreur';
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const champsServeur = champsErreur(e);
+      const jsonMatch = champsServeur ? [JSON.stringify(champsServeur)] : raw.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);

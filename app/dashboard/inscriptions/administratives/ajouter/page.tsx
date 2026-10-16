@@ -12,6 +12,7 @@ import FiliereSelect from '@/components/scolarite/FiliereSelect';
 import FormField from '@/components/ui/FormField';
 import { getStoredUser } from '@/lib/auth';
 import type { Etudiant } from '@/types/scolarite';
+import { champsErreur } from '@/lib/api';
 
 const NIVEAUX = [
   { value: '1', label: 'Licence 1 (L1)' },
@@ -76,7 +77,7 @@ export default function AjouterInscriptionAdminPage() {
     } catch (e) {
       const err = e as Error;
       try { 
-        setErrors(JSON.parse(err.message)); 
+        setErrors(champsErreur(e) ?? JSON.parse(err.message)); 
       } catch { 
         toast.error(err.message); 
       }
