@@ -21,12 +21,39 @@ import {
 } from '@/lib/api/ipgei-hooks';
 import type { SeanceReelle } from '@/types/ipgei';
 
+/**
+ * Les choix possibles d'abord, puis ceux déjà pris ailleurs sur le créneau —
+ * grisés et inertes, avec le groupe qui les tient. Celui de la séance reste
+ * choisissable : c'est le sien.
+ */
+function optionsAvecDispo(
+  liste: { id: number; nom: string }[], occupes: Map<string, string> | undefined,
+  choisi: number | null,
+) {
+  const pris = (id: number) => !!occupes?.has(String(id)) && id !== choisi;
+  return [...liste.filter(x => !pris(x.id)), ...liste.filter(x => pris(x.id))].map(x => (
+    <option key={x.id} value={x.id} disabled={pris(x.id)}>
+      {x.nom}{pris(x.id) ? ` — pris (${occupes?.get(String(x.id))})` : ''}
+    </option>
+  ));
+}
+
 export function ModaleEditionSeance({
-  seance, profs, salles, onFerme, onFait,
+  seance, profs, salles, occupes, disponibilitesNonVerifiees, onFerme, onFait,
 }: {
   seance: SeanceReelle;
   profs: { id: number; nom: string }[];
   salles: { id: number; nom: string }[];
+  /**
+   * Enseignants et salles déjà pris sur ce créneau, cette semaine, par un autre
+   * groupe (id → « MPSI B · B1 »). Grisés dans les listes : sans cela, la
+   * fenêtre proposait tout le monde et le refus tombait à l'enregistrement.
+   * Ne vaut que pour la semaine affichée — un report en lot reste contrôlé
+   * semaine par semaine par le serveur.
+   */
+  occupes?: { profs: Map<string, string>; salles: Map<string, string> };
+  /** L'occupation n'a pas pu être lue : les listes ne sont pas filtrées. */
+  disponibilitesNonVerifiees?: boolean;
   onFerme: () => void; onFait: (m: string) => void;
 }) {
   const { update, appliquerLot } = useSeanceMutations();
@@ -91,7 +118,7 @@ export function ModaleEditionSeance({
             <select value={prof ?? ''} className={SELECT}
                     onChange={e => setProf(e.target.value ? Number(e.target.value) : null)}>
               <option value="">Non affecté</option>
-              {profs.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+              {optionsAvecDispo(profs, occupes?.profs, seance.prof)}
             </select>
           </div>
           <div>
@@ -99,9 +126,16 @@ export function ModaleEditionSeance({
             <select value={salle ?? ''} className={SELECT}
                     onChange={e => setSalle(e.target.value ? Number(e.target.value) : null)}>
               <option value="">Non affectée</option>
-              {salles.map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              {optionsAvecDispo(salles, occupes?.salles, seance.salle)}
             </select>
           </div>
+          {disponibilitesNonVerifiees && (
+            <p className="text-xs px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
+              <strong>Disponibilités non vérifiées.</strong> Les enseignants et
+              salles déjà pris ailleurs n&apos;ont pas pu être lus :
+              l&apos;enregistrement refusera un éventuel doublon.
+            </p>
+          )}
 
           <label className="flex items-center gap-2 text-sm text-iss-dark cursor-pointer">
             <input type="checkbox" checked={annulee} onChange={e => setAnnulee(e.target.checked)}

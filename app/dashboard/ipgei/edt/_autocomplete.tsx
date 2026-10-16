@@ -26,7 +26,47 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import { useTimeout } from '@/hooks/useTimeout';
 
-export interface OptionAC { id: string; label: string }
+export interface OptionAC {
+  id:    string;
+  label: string;
+  /**
+   * Pourquoi ce choix est impossible ici — « pris (MPSI B · B1) ». L'option
+   * reste dans la liste, grisée et inerte : un nom qui disparaît se lit comme
+   * un oubli du référentiel, un nom grisé qui dit où il est pris se comprend
+   * tout seul.
+   */
+  indisponible?: string;
+}
+
+/** Entre deux groupes qui tiennent le même nom : « MPSI A et MPSI B · B1 ». */
+const ET = ' et ';
+
+/**
+ * Retient qu'un enseignant ou une salle est pris par `groupe`. Un même nom
+ * tenu par deux groupes — une donnée ancienne, d'avant le contrôle du
+ * serveur — les nomme tous les deux : n'en citer qu'un laissait chercher au
+ * mauvais endroit.
+ */
+export const noterPris = (m: Map<string, string>, id: string, groupe: string) => {
+  const deja = m.get(id);
+  if (!deja) m.set(id, groupe);
+  else if (!deja.split(ET).includes(groupe)) m.set(id, `${deja}${ET}${groupe}`);
+};
+
+/**
+ * Marque « pris (…) » les options occupées ailleurs (id → groupe qui les
+ * tient). Celle déjà choisie reste sélectionnable : c'est la sienne.
+ */
+export const avecDispo = (options: OptionAC[], occupes: Map<string, string> | undefined,
+                          choisi: string): OptionAC[] =>
+  occupes && occupes.size
+    ? options.map(o => (occupes.has(o.id) && o.id !== choisi
+        ? { ...o, indisponible: `pris (${occupes.get(o.id)})` } : o))
+    : options;
+
+/** Les choix possibles d'abord, les indisponibles ensuite. */
+const disponiblesDAbord = (opts: OptionAC[]) =>
+  [...opts.filter(o => !o.indisponible), ...opts.filter(o => o.indisponible)];
 
 export function AC({
   value, options, onChange, placeholder, disabled,
@@ -63,20 +103,31 @@ export function AC({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  /** L'option dont le libellé est exactement le texte saisi, casse ignorée. */
+  /**
+   * L'option dont le libellé est exactement le texte saisi, casse ignorée.
+   * Un nom indisponible tapé en entier ne vaut pas choix : le serveur le
+   * refuserait à l'enregistrement.
+   */
   const exacte = (t: string) =>
-    options.find(o => o.label.toLowerCase() === t.trim().toLowerCase());
+    options.find(o => !o.indisponible && o.label.toLowerCase() === t.trim().toLowerCase());
 
   const saisir = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
     setTexte(q);
-    setFiltre(q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options);
+    setFiltre(disponiblesDAbord(
+      q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options));
     setOuvert(true);
     setActif(-1);
     if (!q) onChange('');
   };
 
-  const focus = () => { setFiltre(options); setOuvert(true); setActif(-1); };
+  const focus = () => { setFiltre(disponiblesDAbord(options)); setOuvert(true); setActif(-1); };
+
+  /**
+   * Les indisponibles sont en fin de liste : le curseur clavier ne parcourt
+   * que les choix possibles, il ne s'arrête jamais sur un nom grisé.
+   */
+  const nbChoisissables = filtre.filter(o => !o.indisponible).length;
 
   /**
    * Fermeture différée : sans ce délai, le blur précède le clic sur l'option et
@@ -115,21 +166,29 @@ export function AC({
     }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      if (!ouvert) { setFiltre(options); setOuvert(true); setActif(0); return; }
-      if (filtre.length === 0) return;
+      if (!ouvert) {
+        const liste = disponiblesDAbord(options);
+        setFiltre(liste); setOuvert(true);
+        setActif(liste.some(o => !o.indisponible) ? 0 : -1);
+        return;
+      }
+      if (nbChoisissables === 0) return;
       const pas = e.key === 'ArrowDown' ? 1 : -1;
-      setActif(i => (i + pas + filtre.length) % filtre.length);
+      setActif(i => (i + pas + nbChoisissables) % nbChoisissables);
       return;
     }
     if (e.key === 'Enter') {
       // Pas de formulaire ici, mais Entrée ne doit rien déclencher d'autre.
       e.preventDefault();
-      if (ouvert && actif >= 0 && filtre[actif]) { choisir(filtre[actif]); return; }
+      if (ouvert && actif >= 0 && filtre[actif] && !filtre[actif].indisponible) {
+        choisir(filtre[actif]); return;
+      }
       const opt = exacte(texte);
       if (opt) choisir(opt);
       return;
     }
-    if (e.key === 'Tab' && ouvert && actif >= 0 && filtre[actif]) {
+    if (e.key === 'Tab' && ouvert && actif >= 0 && filtre[actif]
+        && !filtre[actif].indisponible) {
       // Tab valide ce qui est sous le curseur : c'est ce qu'on attend en
       // enchaînant les champs d'une case.
       choisir(filtre[actif]);
@@ -169,7 +228,22 @@ export function AC({
           boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
           padding: 0, margin: 0, listStyle: 'none',
         }}>
-          {filtre.map((opt, i) => (
+          {filtre.map((opt, i) => opt.indisponible ? (
+            // `preventDefault` : le clic ne doit même pas retirer le focus du
+            // champ — sinon la liste se fermerait sur un choix refusé.
+            <li key={opt.id} id={`${idListe}-${opt.id}`} role="option"
+                aria-selected={false} aria-disabled="true"
+                title={`${opt.label} — ${opt.indisponible}`}
+                onMouseDown={e => e.preventDefault()}
+                style={{
+                  padding: '4px 8px', fontSize: 11, cursor: 'not-allowed',
+                  borderBottom: '1px solid #f0f0f0',
+                  color: '#9ca3af', background: '#f9fafb',
+                }}>
+              {opt.label}{' '}
+              <span style={{ fontStyle: 'italic' }}>— {opt.indisponible}</span>
+            </li>
+          ) : (
             // `onMouseDown` et non `onClick` : le blur du champ précède le clic,
             // et fermerait la liste avant que la sélection n'arrive.
             <li key={opt.id} id={`${idListe}-${opt.id}`} role="option"

@@ -13,12 +13,13 @@ import { semestreDeLaSemaine, useSemainesDeLaClasse } from '../_semaines-classe'
 import { useReferentielsEDT } from '../_referentiels';
 import { semaineAProposer } from '../_semaines';
 import {
-  useClassesSelect, useEdtSemaine, useEpreuvesSemaine,
+  useClassesSelect, useEdtSemaine, useEpreuvesSemaine, useOccupationCreneaux,
 } from '@/lib/api/ipgei-hooks';
 import { TYPES_SEANCE, type SeanceReelle } from '@/types/ipgei';
 import {
   ModaleEditionSeance, ModalePermutation,
 } from '../_seance-modales';
+import { noterPris } from '../_autocomplete';
 import {
   BandeauEpreuve, BandeauFeries, CarteSeance, CaseFeriee, CaseVide, EnteteJourFerme,
   FOND_JOUR_FERME, decouperLigne,
@@ -89,6 +90,36 @@ export default function EdtSemainePage() {
 
   const seancesDeLaCase = (jour: number, creneau: number) =>
     seances.filter(s => s.jour === jour && s.creneau === creneau);
+
+  // Ce que les autres classes tiennent CETTE semaine — les séances réelles,
+  // celles que le serveur contrôle à l'enregistrement. La fenêtre d'édition
+  // proposait tout le monde, et le refus tombait au moment d'enregistrer.
+  const { data: occupation = [], isError: occupationIllisible } = useOccupationCreneaux(
+    semaineId ? classeId : null, semaineId, semestreAffiche?.type_semestre ?? 'I');
+
+  /**
+   * Ce qui est pris sur la case d'une séance, pour sa fenêtre d'édition
+   * (id → « MPSI B · B1 »). Deux sources, comme sur la grille : les autres
+   * classes, et les autres plans de la même classe sur la même case — deux TP
+   * dédoublés ne partagent ni leur enseignant ni leur salle. Une séance
+   * annulée libère le créneau, comme le veut le serveur.
+   */
+  const occupesPour = (s: SeanceReelle) => {
+    const profs = new Map<string, string>(), salles = new Map<string, string>();
+    for (const o of occupation) {
+      if (o.jour !== s.jour || o.creneau !== s.creneau) continue;
+      if (o.prof)  noterPris(profs,  String(o.prof),  o.classe);
+      if (o.salle) noterPris(salles, String(o.salle), o.classe);
+    }
+    for (const v of seancesDeLaCase(s.jour, s.creneau)) {
+      if (v.id === s.id || v.annulee) continue;
+      const ici = v.sous_groupe_libelle
+        ? `${v.classe_nom} · ${v.sous_groupe_libelle}` : v.classe_nom;
+      if (v.prof)  noterPris(profs,  String(v.prof),  ici);
+      if (v.salle) noterPris(salles, String(v.salle), ici);
+    }
+    return { profs, salles };
+  };
 
   // Les jours FERMÉS de la semaine, par identifiant de jour.
   const joursFermes = useMemo(
@@ -315,6 +346,8 @@ export default function EdtSemainePage() {
       {seanceEditee && (
         <ModaleEditionSeance
           seance={seanceEditee} profs={profs} salles={salles}
+          occupes={occupesPour(seanceEditee)}
+          disponibilitesNonVerifiees={occupationIllisible}
           onFerme={() => setSeanceEditee(null)}
           onFait={(m) => { setSeanceEditee(null); notifier(m); }}
         />

@@ -22,7 +22,7 @@ import {
   STYLE_CELLULE, STYLE_CELLULE_JOUR, STYLE_ENTETE_CRENEAU, STYLE_ENTETE_JOUR,
   STYLE_ENTETE_LIGNE, STYLE_TABLE, couleurType,
 } from '../_cellule';
-import { AC, type OptionAC } from '../_autocomplete';
+import { AC, avecDispo, noterPris, type OptionAC } from '../_autocomplete';
 import {
   ipgeiKeys, useClassesSelect, useEdtSemaine, useGrilleMutations,
   useOccupationCreneaux,
@@ -30,6 +30,7 @@ import {
   useSousGroupes,
 } from '@/lib/api/ipgei-hooks';
 import { seancesApi, seancesTypeApi } from '@/lib/api/ipgei';
+import { messageLisible } from '@/lib/api';
 import {
   type NiveauIPGEI, type ResultatDuplication, type SeanceReelle,
   type TypeSemestre,
@@ -164,7 +165,13 @@ export default function GrilleTypePage() {
   // Ce que les autres classes retiennent déjà sur chaque créneau. La liste
   // locale ne voit que la classe affichée ; sans cet appel, un enseignant placé
   // en MPSI A restait proposé en MPSI B au même moment.
-  const { data: occupation = [] } =
+  // En mode semaine, c'est la semaine ouverte qui est lue — ses séances
+  // réelles, celles que le serveur contrôle à l'enregistrement —, sur le
+  // patron ce sont les autres patrons de la période.
+  //
+  // `isError` est lu : sans cette lecture, les listes proposent tout le monde,
+  // et ne rien en dire laissait le refus tomber à l'enregistrement.
+  const { data: occupation = [], isError: occupationIllisible } =
     useOccupationCreneaux(classeId, periodeId, typeSemestre);
   // Le repli `?? []` doit être mémoïsé : écrit en valeur par défaut de
   // déstructuration, il fabriquait un tableau neuf à chaque rendu, relançant
@@ -333,6 +340,17 @@ export default function GrilleTypePage() {
       }
 
       let crees = 0, modifies = 0, supprimes = 0, erreurs = 0;
+      /**
+       * Les motifs des refus, sans doublon. « 1 erreur » seul ne disait ni
+       * quelle case ni pourquoi — le serveur, lui, nomme l'enseignant et le
+       * groupe qui le tient (« … sur ce créneau (MPSI B · B1) »).
+       */
+      const motifs: string[] = [];
+      const refuse = (e: unknown) => {
+        erreurs++;
+        const m = messageLisible(e);
+        if (m && !motifs.includes(m)) motifs.push(m);
+      };
 
       // ── Mode semaine : on écrit des séances RÉELLES ──────────────────────
       if (enModeSemaine) {
@@ -383,9 +401,9 @@ export default function GrilleTypePage() {
               await seancesApi.remove(origine.idOrigine as number);
               supprimes++;
             }
-          } catch { erreurs++; }
+          } catch (e) { refuse(e); }
         }
-        return { crees, modifies, supprimes, erreurs };
+        return { crees, modifies, supprimes, erreurs, motifs };
       }
 
       const toutes = new Set([...Object.keys(cases), ...Object.keys(originaux.current)]);
@@ -431,11 +449,16 @@ export default function GrilleTypePage() {
             await seancesTypeApi.remove(origine.idOrigine as number);
             supprimes++;
           }
-        } catch { erreurs++; }
+        } catch (e) { refuse(e); }
       }
-      return { crees, modifies, supprimes, erreurs };
+      return { crees, modifies, supprimes, erreurs, motifs };
     },
-    onSuccess: ({ crees, modifies, supprimes, erreurs }) => {
+    onSuccess: ({ crees, modifies, supprimes, erreurs, motifs }) => {
+      // Le reste est enregistré ; ce qui a été refusé se lit, motif compris,
+      // jusqu'au prochain enregistrement.
+      setErreur(motifs.length
+        ? `${motifs.length > 1 ? 'Refus du serveur' : 'Refusé par le serveur'} : ${motifs.join(' · ')}`
+        : null);
       const parts: string[] = [];
       if (crees)     parts.push(`${crees} ajoutée${crees > 1 ? 's' : ''}`);
       if (modifies)  parts.push(`${modifies} modifiée${modifies > 1 ? 's' : ''}`);
@@ -475,22 +498,36 @@ export default function GrilleTypePage() {
   const estSpecial = (id: string) => !!typesSeance.find(t => String(t.id) === id)?.is_special;
 
   /**
-   * Un enseignant ou une salle déjà pris sur ce créneau n'est plus proposé.
+   * « MPSI B · B1 » pour un plan de la classe affichée, « MPSI B » pour la
+   * classe entière — écrit comme l'occupation et le refus du serveur.
+   */
+  const nomDuPlan = (sousGroupe: string) => {
+    const nom = classe?.nom ?? 'cette classe';
+    if (!sousGroupe) return nom;
+    const sg = sousGroupes.find(g => String(g.id) === sousGroupe);
+    return sg ? `${nom} · ${sg.libelle}` : nom;
+  };
+
+  /**
+   * Les enseignants et salles déjà pris sur ce créneau, avec le groupe qui les
+   * tient (id → « MPSI B · B1 »).
    *
    * Deux sources : la grille en cours d'édition, et les autres classes de la
    * même période. La seconde manquait, et c'est par là qu'un professeur se
    * retrouvait sur deux classes à la même heure — jusque dans le suivi, où ses
    * heures étaient comptées deux fois.
+   *
+   * Ils ne sont plus retirés des listes mais grisés (16/10/2026) : un nom qui
+   * disparaît se lit comme un oubli du référentiel, un nom grisé qui dit où il
+   * est pris se comprend tout seul.
    */
   const occupes = (jour: number, creneau: number, kCourant: string) => {
-    const pro = new Set<string>(), sal = new Set<string>();
-    /** Où le nom masqué est retenu — sinon sa disparition est inexplicable. */
-    const ou = new Map<string, string>();
+    const profs = new Map<string, string>(), salles = new Map<string, string>();
 
     for (const o of occupation) {
       if (o.jour !== jour || o.creneau !== creneau) continue;
-      if (o.prof)  { pro.add(String(o.prof));  ou.set(`p${o.prof}`,  o.classe); }
-      if (o.salle) { sal.add(String(o.salle)); ou.set(`s${o.salle}`, o.classe); }
+      if (o.prof)  noterPris(profs,  String(o.prof),  o.classe);
+      if (o.salle) noterPris(salles, String(o.salle), o.classe);
     }
 
     for (const [k, v] of Object.entries(cases)) {
@@ -499,12 +536,12 @@ export default function GrilleTypePage() {
       // enseignant peut évidemment assurer le créneau de 09h45 le lundi ET le
       // mardi. Ne comparer que le créneau le rendait indisponible toute la
       // semaine dès qu'il était placé une fois.
-      const [kJour, kCreneau] = k.split('__');
+      const [kJour, kCreneau, kSousGroupe] = k.split('__');
       if (Number(kJour) !== jour || Number(kCreneau) !== creneau) continue;
-      if (v.profId)  pro.add(v.profId);
-      if (v.salleId) sal.add(v.salleId);
+      if (v.profId)  noterPris(profs,  v.profId,  nomDuPlan(kSousGroupe));
+      if (v.salleId) noterPris(salles, v.salleId, nomDuPlan(kSousGroupe));
     }
-    return { pro, sal, ou };
+    return { profs, salles };
   };
 
   const modifie   = JSON.stringify(cases) !== JSON.stringify(originaux.current);
@@ -684,6 +721,17 @@ export default function GrilleTypePage() {
 
       {erreur && <Erreur erreur={new Error(erreur)} />}
 
+      {/* Sans cette lecture, les listes proposent tout le monde : le dire,
+          plutôt que de laisser le refus tomber à l'enregistrement. */}
+      {classeId && occupationIllisible && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3
+                        text-xs text-amber-900">
+          <strong>Disponibilités non vérifiées.</strong>{' '}
+          Les enseignants et salles déjà pris dans les autres classes n&apos;ont
+          pas pu être lus : l&apos;enregistrement refusera un éventuel doublon.
+        </div>
+      )}
+
       {/* C'est ici qu'on provoque la divergence — et ici qu'on la corrige. */}
       {enModeSemaine && <BandeauCoherence semaine={semaine} />}
       {enModeSemaine && <BandeauFeries jours={semaine?.jours_feries ?? []} />}
@@ -791,19 +839,18 @@ export default function GrilleTypePage() {
                           return !!bloc?.matiereId;
                         });
 
-                        const { pro, sal, ou } = occupes(j.id, c.id, k);
+                        const pris = occupes(j.id, c.id, k);
 
-                        // Un nom qui disparaît sans explication laisse croire à
-                        // un bug. Il ne reste pas dans la liste — ce serait
-                        // proposer l'impossible — mais l'infobulle du champ dit
-                        // qui est pris et où.
+                        // Les noms pris restent dans la liste, grisés et
+                        // inertes, avec le groupe qui les tient ; l'infobulle
+                        // du champ les résume sans avoir à l'ouvrir.
                         const masques = (
-                          options: OptionAC[], pris: Set<string>,
-                          choisi: string, prefixe: 'p' | 's',
+                          options: OptionAC[], occupesIci: Map<string, string>,
+                          choisi: string,
                         ) => {
                           const noms = options
-                            .filter(o => pris.has(o.id) && o.id !== choisi)
-                            .map(o => `${o.label} — ${ou.get(prefixe + o.id) ?? 'cette grille'}`);
+                            .filter(o => occupesIci.has(o.id) && o.id !== choisi)
+                            .map(o => `${o.label} — ${occupesIci.get(o.id)}`);
                           return noms.length
                             ? `Déjà pris sur ce créneau : ${noms.join(' · ')}`
                             : undefined;
@@ -933,10 +980,10 @@ export default function GrilleTypePage() {
                                   ces champs inviterait à compter des heures,
                                   donc une vacation, pour un cours non donné. */}
                               {!speciale && (
-                                <div title={masques(optProfs, pro, cellule.profId, 'p')}>
+                                <div title={masques(optProfs, pris.profs, cellule.profId)}>
                                   <AC value={cellule.profId} placeholder="Professeur"
                                       disabled={estHerite}
-                                      options={optProfs.filter(p => !pro.has(p.id) || p.id === cellule.profId)}
+                                      options={avecDispo(optProfs, pris.profs, cellule.profId)}
                                       onChange={v => majCase(k, 'profId', v)} />
                                 </div>
                               )}
@@ -949,10 +996,10 @@ export default function GrilleTypePage() {
                                   disabled={estHerite}
                                   onChange={v => majCase(k, 'typeSeance', v)} />
                               {!speciale && (
-                                <div title={masques(optSalles, sal, cellule.salleId, 's')}>
+                                <div title={masques(optSalles, pris.salles, cellule.salleId)}>
                                   <AC value={cellule.salleId} placeholder="Salle"
                                       disabled={estHerite}
-                                      options={optSalles.filter(s => !sal.has(s.id) || s.id === cellule.salleId)}
+                                      options={avecDispo(optSalles, pris.salles, cellule.salleId)}
                                       onChange={v => majCase(k, 'salleId', v)} />
                                 </div>
                               )}
