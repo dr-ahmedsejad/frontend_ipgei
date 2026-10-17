@@ -10,8 +10,9 @@ import {
   MessageSquare, X, Smartphone, Clock,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
-import { getStoredUser } from '@/lib/auth';
+import { canAccess, getStoredUser } from '@/lib/auth';
 import { useSaisieAbsences } from '@/hooks/useSaisieAbsences';
+import { toutesLesPages } from '@/lib/api/absences';
 import { STATUTS } from '@/components/absences/StatutBadge';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import type { Etudiant } from '@/types/absences';
@@ -29,6 +30,9 @@ function deptLabel(d: Departement, tous?: Departement[]): string {
   return deptLabelPartage(d, tous);
 }
 
+/* Une séance de la semaine, telle que la rend `presences/fiches-seances/` :
+   dédoublonnée et triée par le serveur. Une classe y amène aussi les séances
+   de ses sous-groupes — ses TP, introuvables jusqu'ici (17/10/2026). */
 interface SuivieRow {
   id: number;
   jour_label: string | null;
@@ -39,12 +43,36 @@ interface SuivieRow {
   numero_semaine: number;
   departement: number | null;
   dept_nom: string | null;
+  groupe?: string | null;
+  sous_groupe?: boolean;
+}
+
+/** La liste d'appel d'un groupe — `presences/liste-appel/`, la règle de
+ *  `apps/ipgei/liste_appel.py` : la classe pour un cours, le sous-groupe pour
+ *  un TP. */
+interface ListeAppel {
+  source: string;
+  liste_non_verifiee: boolean;
+  etudiants: { id: number; matricule: string; nom: string; genre: Etudiant['genre']; mention: string }[];
+}
+
+/** Une ligne de la grille : un étudiant d'au moins une liste d'appel du jour,
+ *  ou déjà pointé sur une séance du jour (« hors liste »). */
+interface LigneAppel {
+  id: number;
+  matricule: string;
+  nom: string;
+  genre: Etudiant['genre'];
+  /** « auditeur libre », « hors liste » — vide pour un étudiant ordinaire. */
+  mention: string;
 }
 
 interface PresenceRow {
   id: number;
   suivi: number;
   etudiant: number;
+  etudiant_nom?: string;
+  etudiant_matricule?: string;
   statut: number;
   commentaire: string;
   justificatif?: string | null;
@@ -69,11 +97,16 @@ export default function SaisirAbsencesPage() {
   /* Les DA/admin/scolarite peuvent utiliser le cycle complet (P/A/S/J).
      Les enseignants et agents n'ont accès qu'au cycle binaire (P/A). */
   const canFullCycle = ['admin', 'DA', 'scolarite', 'DE'].includes(user?.role ?? '');
+  /* « J » seulement pour qui peut justifier, selon la MATRICE et non une liste
+     de rôles : le serveur ignore un « J » posé sans `abs_justificatifs` /
+     `modifier` (17/10/2026). À l'IPGEI, la scolarité fait l'appel sans
+     justifier. */
+  const canJustify = canAccess('abs_justificatifs', 'modifier');
 
   const {
-    cellMap, dirty, saving, error: saveError, savedAt,
-    getCell, setCell, toggleCell, resetAll, save,
-  } = useSaisieAbsences({ canFullCycle });
+    dirty, saving, error: saveError, savedAt, ignorees, piecesEchouees,
+    getCell, setCell, toggleCell, resetAll, charger, save,
+  } = useSaisieAbsences({ canFullCycle, canJustify });
 
   /* ─── Filtres ── */
   const [selSemaine, setSelSemaine] = useState('');
@@ -100,14 +133,18 @@ export default function SaisirAbsencesPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  /* ─── Chargement initial : semaines + classes ── */
+  /* ─── Chargement initial : semaines + classes ──
+     Les semaines et les séances se lisent sous `abs_saisie` : `/suivi/
+     suivies/` exigeait `suivi_saisie` et un groupe délégué, que la scolarité
+     de l'IPGEI — qui fait l'appel — n'a pas (17/10/2026). Une erreur se dit
+     au lieu de passer pour « aucune semaine ». */
   const semainesQuery = useQuery({
-    queryKey: ['suivi', 'semaines-generees', 'absences-saisir', annee, ts] as const,
+    queryKey: ['absences', 'fiches-semaines', annee, ts] as const,
     queryFn:  async () => {
-      const res = await apiFetch<{ semaines_generees: number[] }>(
-        `/api/v1/suivi/suivies/semaines-generees/?annee_universitaire=${annee}&type_semestre=${ts}`,
-      ).catch(() => ({ semaines_generees: [] as number[] }));
-      return [...(res?.semaines_generees ?? [])].sort((a, b) => b - a);
+      const res = await apiFetch<{ semaines: number[] }>(
+        `/api/v1/absences/presences/fiches-semaines/?annee_universitaire=${encodeURIComponent(annee)}&type_semestre=${ts}`,
+      );
+      return [...(res?.semaines ?? [])].sort((a, b) => b - a);
     },
     enabled: !!annee,
   });
@@ -136,72 +173,84 @@ export default function SaisirAbsencesPage() {
     if (semaines.length && !selSemaine) setSelSemaine(String(Math.max(...semaines)));
   }, [semaines, selSemaine]);
 
-  /* ─── Chargement matrice (suivies + étudiants) ── */
+  /* ─── Chargement matrice (séances + listes d'appel + présences) ── */
   const matrixQuery = useQuery({
     queryKey: ['absences', 'saisir', 'matrix', { annee, ts, selSemaine, selJour, selDepId }] as const,
     queryFn:  async () => {
-      const [suiviesRes, etusRes] = await Promise.all([
-        apiFetch<{ results: SuivieRow[] } | SuivieRow[]>(
-          // type_semestre : un même numéro de semaine existe en Impair ET Pair —
-          // on borne à la session courante pour ne pas mélanger les 2 semestres.
-          `/api/v1/suivi/suivies/?annee_universitaire=${annee}&type_semestre=${ts}&numero_semaine=${selSemaine}&page_size=500`,
-        ),
-        apiFetch<{ results: Etudiant[] } | Etudiant[]>(
-          `/api/v1/absences/etudiants/?departement=${selDepId}&page_size=500`,
-        ),
-      ]);
-      const suiviesAll = Array.isArray(suiviesRes) ? suiviesRes : suiviesRes.results;
-      const etusList   = Array.isArray(etusRes)    ? etusRes    : etusRes.results;
-
-      // Le TYPE de séance suffit à faire une colonne : c'est lui qui distingue
-      // une séance tenue d'une case vide du quadrillage de la semaine. Exiger
-      // en plus un enseignant rendait invisible toute épreuve dont le
-      // surveillant n'est pas encore désigné — précisément le cas où le
-      // pointage compte le plus, et où l'écran répondait « aucune séance ».
-      const cols = suiviesAll.filter(s =>
-        s.jour_label === selJour &&
-        s.departement === Number(selDepId) &&
-        s.type_seance_label,
+      // type_semestre : un même numéro de semaine existe en Impair ET Pair —
+      // on borne à la session courante pour ne pas mélanger les 2 semestres.
+      // La classe amène ses TP ; le TYPE suffit à faire une séance (une
+      // épreuve sans surveillant désigné se pointe) — règles du serveur.
+      const seances = await apiFetch<SuivieRow[]>(
+        `/api/v1/absences/presences/fiches-seances/?annee_universitaire=${encodeURIComponent(annee)}`
+        + `&type_semestre=${ts}&numero_semaine=${selSemaine}&departement=${selDepId}`,
       );
+      const uniqueCols = seances.filter(s => s.jour_label === selJour);
 
-      const seen = new Set<string>();
-      const uniqueCols: SuivieRow[] = [];
-      for (const c of cols) {
-        const key = `${c.creneau_label}|${c.type_seance_label}|${c.prof_nom}`;
-        if (!seen.has(key)) { seen.add(key); uniqueCols.push(c); }
-      }
-      uniqueCols.sort((a, b) => (a.creneau_label ?? '').localeCompare(b.creneau_label ?? ''));
+      // Chaque séance appelle SA liste : la classe pour un cours, le
+      // sous-groupe pour un TP. Le groupe entier par `Etudiant.departement`
+      // laissait les TP sans personne (17/10/2026). Une liste par groupe du jour.
+      const groupes = [...new Set(uniqueCols.map(c => c.departement).filter((d): d is number => d != null))];
+      const listes = new Map<number, ListeAppel>();
+      await Promise.all(groupes.map(async dep => {
+        listes.set(dep, await apiFetch<ListeAppel>(
+          `/api/v1/absences/presences/liste-appel/?departement=${dep}`
+          + `&annee_universitaire=${encodeURIComponent(annee)}`,
+        ));
+      }));
 
-      // Charger les présences existantes — F-4 : 1 seule requete avec ?suivi__in=
-      // (au lieu de N requetes paralleles ?suivi=X). Gain : N round-trips -> 1.
+      // TOUTES les présences, page après page au plafond du serveur (1000) :
+      // `page_size=2000` était ramené à 1000 en silence. Et une erreur n'est
+      // plus avalée — elle laissait la matrice « tout présent », et enregistrer
+      // écrasait le pointage existant (17/10/2026).
       let presList: PresenceRow[] = [];
-      if (uniqueCols.length > 0 && etusList.length > 0) {
+      if (uniqueCols.length > 0) {
         const ids = uniqueCols.map(c => c.id).join(',');
-        try {
-          const res = await apiFetch<{ results: PresenceRow[] } | PresenceRow[]>(
-            `/api/v1/absences/presences/?suivi__in=${ids}&page_size=2000`,
-          );
-          presList = Array.isArray(res) ? res : res.results;
-        } catch {
-          presList = [];
+        presList = await toutesLesPages<PresenceRow>(`/api/v1/absences/presences/?suivi__in=${ids}`);
+      }
+
+      const appels: Record<number, Set<number>> = {};
+      const lignes = new Map<number, LigneAppel>();
+      for (const c of uniqueCols) {
+        const l = c.departement != null ? listes.get(c.departement) : undefined;
+        const ids = new Set<number>();
+        for (const e of l?.etudiants ?? []) {
+          ids.add(e.id);
+          if (!lignes.has(e.id)) lignes.set(e.id, { ...e });
+        }
+        appels[c.id] = ids;
+      }
+      // Déjà pointé sur une séance sans être sur sa liste (abandon déclaré
+      // après coup) : la case reste visible et modifiable — on ne cache pas
+      // une présence enregistrée.
+      for (const p of presList) {
+        const ids = appels[p.suivi];
+        if (!ids || ids.has(p.etudiant)) continue;
+        ids.add(p.etudiant);
+        if (!lignes.has(p.etudiant)) {
+          lignes.set(p.etudiant, { id: p.etudiant, matricule: p.etudiant_matricule ?? '',
+                                   nom: p.etudiant_nom ?? '', genre: 'M', mention: 'hors liste' });
         }
       }
+      const etusList = [...lignes.values()].sort((a, b) =>
+        a.matricule.localeCompare(b.matricule, 'fr', { numeric: true }));
 
-      return { colonnes: uniqueCols, etudiants: etusList, presences: presList };
+      return { colonnes: uniqueCols, etudiants: etusList, presences: presList, appels };
     },
     enabled: !!annee && !!selSemaine && !!selJour && !!selDepId,
   });
   const colonnes  = matrixQuery.data?.colonnes  ?? [];
   const etudiants = matrixQuery.data?.etudiants ?? [];
+  /** La case d'un étudiant dans une séance ne se pointe que s'il est sur SA liste. */
+  const appele = (etuId: number, suiviId: number) =>
+    !!matrixQuery.data?.appels[suiviId]?.has(etuId);
   const loading   = matrixQuery.isLoading || matrixQuery.isFetching;
 
   // Sync des présences existantes vers cellMap quand la matrice charge
   useEffect(() => {
     if (!matrixQuery.data) return;
-    resetAll();
-    matrixQuery.data.presences.forEach(p => {
-      setCell(p.etudiant, p.suivi, { statut: p.statut as never, commentaire: p.commentaire || '' });
-    });
+    // Chargées, pas touchées : seules les cases modifiées seront renvoyées.
+    charger(matrixQuery.data.presences);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matrixQuery.data]);
 
@@ -252,13 +301,17 @@ export default function SaisirAbsencesPage() {
 
   /* ─── Sauvegarde ── */
   async function handleSave() {
-    await save(etudiants, colonnes.map(c => c.id));
+    // Une case hors de la liste d'appel de sa séance n'est jamais envoyée.
+    const pointables = new Map(Object.entries(matrixQuery.data?.appels ?? {})
+      .map(([sid, ids]) => [Number(sid), ids] as [number, Set<number>]));
+    await save(etudiants, colonnes.map(c => c.id), pointables);
   }
 
   /* ─── Récap ── */
   const recap = etudiants.map(etu => {
     let abs = 0, sanc = 0, just = 0;
     colonnes.forEach(col => {
+      if (!appele(etu.id, col.id)) return;
       const s = getCell(etu.id, col.id).statut;
       if (s === 1) abs++;
       else if (s === 2) sanc++;
@@ -335,6 +388,11 @@ export default function SaisirAbsencesPage() {
             (cycle binaire P↔A — requalification S/J via DA)
           </span>
         )}
+        {canFullCycle && !canJustify && (
+          <span className="text-[10px] text-gray-400 flex items-center gap-1 ml-1">
+            (« J » se pose dans « Justificatifs »)
+          </span>
+        )}
         {dirty && (
           <span className="flex items-center gap-1 text-xs text-[#B8960C] font-semibold ml-auto bg-[#B8960C]/10 px-3 py-1.5 rounded-xl">
             <AlertCircle size={14} /> Modifications non enregistrées
@@ -402,6 +460,20 @@ export default function SaisirAbsencesPage() {
           <CheckCircle size={16} /> Absences enregistrées avec succès.
         </div>
       )}
+      {savedAt && !dirty && ignorees > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <AlertCircle size={16} />
+          {ignorees} case{ignorees > 1 ? 's' : ''} non {ignorees > 1 ? 'modifiées' : 'modifiée'} par le
+          serveur : une absence justifiée ne se pose ni ne se défait sans le droit de justifier.
+        </div>
+      )}
+      {savedAt && !dirty && piecesEchouees > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <AlertCircle size={16} />
+          {piecesEchouees} justificatif{piecesEchouees > 1 ? 's' : ''} non {piecesEchouees > 1 ? 'envoyés' : 'envoyé'} :
+          la présence est enregistrée, la pièce est à redéposer dans « Justificatifs ».
+        </div>
+      )}
 
       {/* Matrice */}
       {searched && !loading && (
@@ -448,6 +520,13 @@ export default function SaisirAbsencesPage() {
                               title={col.prof_nom || 'Aucun enseignant désigné'}>
                               {col.prof_nom || 'sans enseignant'}
                             </span>
+                            {/* Un TP n'appelle que son sous-groupe. */}
+                            {col.sous_groupe && col.groupe && (
+                              <span className="text-[10px] px-1.5 rounded bg-green-50 text-green-800 font-semibold"
+                                title={`Séance du sous-groupe ${col.dept_nom ?? col.groupe}`}>
+                                {col.groupe}
+                              </span>
+                            )}
                           </div>
                         </th>
                       );
@@ -471,9 +550,23 @@ export default function SaisirAbsencesPage() {
                           <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
                             style={{ background: 'rgba(233,30,140,0.1)', color: '#e91e8c' }}>F</span>
                         )}
+                        {etu.mention && (
+                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">
+                            {etu.mention}
+                          </span>
+                        )}
                       </td>
 
                       {colonnes.map(col => {
+                        // Hors de la liste d'appel de cette séance : rien à pointer.
+                        if (!appele(etu.id, col.id)) {
+                          return (
+                            <td key={col.id} className="text-center py-2 px-1 text-gray-300 text-xs"
+                                title="Pas de cette séance (TP d'un autre sous-groupe)">
+                              —
+                            </td>
+                          );
+                        }
                         const cell    = getCell(etu.id, col.id);
                         const st      = STATUTS[cell.statut];
                         const hasNote = cell.commentaire.length > 0;

@@ -45,12 +45,18 @@ export interface CaseSurveillance {
   paralleles:  { groupe: string; salle: string }[];
   /** Deux séances posées sur la même case : seule la première est montrée. */
   doublon:     boolean;
-  /** L'utilisateur peut ouvrir la saisie des absences de cette séance — mêmes
-      règles que l'écran de saisie (droits, institution principale, groupes
-      délégués) ; jamais pour une journée à venir. */
+  /** L'utilisateur peut ouvrir l'appel de cette séance — mêmes règles que
+      l'écran d'appel (abs_saisie, institution principale) ; jamais pour une
+      journée à venir. Un TP s'ouvre sur son sous-groupe (17/10/2026). */
   pointable:   boolean;
   /** Pour qui a les droits de saisie : pourquoi la case ne s'ouvre pas. */
   motif:       string;
+  /** L'état de l'appel de la séance (17/10/2026) — null quand il n'a pas lieu
+      d'être : pas de ligne de suivi, journée à venir, séance annulée ou
+      spéciale, épreuve (elle a sa feuille d'émargement). */
+  appel: {
+    saisi: boolean; presents: number; absents: number; sanctions: number; justifiees: number;
+  } | null;
 }
 
 export interface GroupeSurveillance {

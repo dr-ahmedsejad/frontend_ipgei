@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft, Smartphone, Loader2, AlertCircle,
-  Clock, MapPin, BookOpen, User,
+  Clock, MapPin, BookOpen, User, CheckCircle,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { deptLabel as deptLabelPartage } from '@/lib/format-depts';
+import {
+  aujourdhuiIso, bilanParJour, garderChoix, jourAProposer, libelleBilan, libelleDates, lireChoix,
+} from '@/lib/salle-appel';
 
 interface Departement { id: number; nom: string; niveau_nom?: string | null; filiere_code?: string | null; is_container?: boolean; }
 
@@ -22,27 +25,27 @@ function deptLabel(d: Departement, tous?: Departement[]): string {
   return deptLabelPartage(d, tous);
 }
 
-interface SuivieRow {
+/* Une séance de la semaine, telle que la rend `presences/fiches-seances/` :
+   dédoublonnée et triée par le serveur, avec le bilan de son appel. Une
+   classe y amène aussi les séances de ses sous-groupes (ses TP). */
+interface SeanceRow {
   id: number;
   jour_label: string | null;
   creneau_label: string | null;
   type_seance_label: string | null;
   prof_nom: string | null;
   em_intitule: string | null;
-  dept_nom?: string | null;
   salle_nom?: string | null;
   numero_semaine: number;
   departement: number | null;
+  groupe?: string | null;
+  sous_groupe?: boolean;
   date_suivie?: string | null;
+  /* `saisi` faux tant que personne n'a fait l'appel. */
+  appel: { saisi: boolean; presents: number; absents: number; sanctions: number; justifiees: number };
 }
 
 const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-
-function jourToday(): string {
-  const d = new Date().getDay();
-  const map: Record<number, string> = { 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi' };
-  return map[d] ?? 'Lundi';
-}
 
 function seanceTypeColor(label: string | null) {
   const t = (label ?? '').toUpperCase();
@@ -52,32 +55,50 @@ function seanceTypeColor(label: string | null) {
   return { bg: '#f1f5f9', color: '#475569' };
 }
 
+/* « 19/10 » à partir de « 2026-10-19 ». */
+function jourMois(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const [, m, d] = iso.split('-');
+  return d && m ? `${d}/${m}` : '';
+}
+
 export default function SalleSaisirPage() {
   const user  = getStoredUser();
   const annee = user?.annee_universitaire ?? '';
   const ts    = user?.semestre === 'Pairs' ? 'P' : 'I';
+  const aujourdhui = aujourdhuiIso();
 
-  const [jourFilter, setJourFilter] = useState<string>(jourToday());
-  const [semaine,    setSemaine]    = useState<string>('');
-  const [selDepId,   setSelDepId]   = useState<string>('');
+  // Le dernier choix (classe, semaine, jour) : au retour d'un appel, on
+  // retrouve la même journée au lieu de tout resélectionner (17/10/2026).
+  const memoire = useMemo(() => lireChoix(), []);
+  const [jourFilter, setJourFilter] = useState<string>(memoire.jour ?? '');
+  const [semaine,    setSemaine]    = useState<string>(memoire.semaine ?? '');
+  const [selDepId,   setSelDepId]   = useState<string>(memoire.dep ?? '');
 
-  /* ─── Semaines générées ── */
+  /* ─── Semaines générées, avec leurs dates ──
+     Lues sous `abs_saisie` : `/suivi/suivies/semaines-generees/` exigeait
+     `suivi_saisie`, que la scolarité de l'IPGEI n'a pas — elle ne voyait
+     aucune semaine (17/10/2026). */
   const semainesQuery = useQuery({
-    queryKey: ['suivi', 'semaines-generees', 'absences-saisir-salle', annee, ts] as const,
-    queryFn:  async () => {
-      const res = await apiFetch<{ semaines_generees: number[] }>(
-        `/api/v1/suivi/suivies/semaines-generees/?annee_universitaire=${annee}&type_semestre=${ts}`,
-      ).catch(() => ({ semaines_generees: [] as number[] }));
-      return (res?.semaines_generees ?? []).slice().sort((a, b) => b - a);
-    },
+    queryKey: ['absences', 'fiches-semaines', annee, ts] as const,
+    queryFn:  () => apiFetch<{ semaines: number[]; courante: number | null;
+                               dates?: Record<string, { debut: string; fin: string }> }>(
+      `/api/v1/absences/presences/fiches-semaines/?annee_universitaire=${encodeURIComponent(annee)}&type_semestre=${ts}`,
+    ),
     enabled: !!annee,
   });
-  const semaines = useMemo(() => semainesQuery.data ?? [], [semainesQuery.data]);
+  const semaines = useMemo(() => [...(semainesQuery.data?.semaines ?? [])].sort((a, b) => b - a),
+                           [semainesQuery.data]);
+  const semaineCourante = semainesQuery.data?.courante ?? null;
+  const datesSemaines = semainesQuery.data?.dates ?? {};
 
-  // Sélectionner automatiquement la semaine la plus récente
+  // La semaine en cours, sauf si l'on revient sur une autre encore proposée.
   useEffect(() => {
-    if (semaines.length && !semaine) setSemaine(String(semaines[0]));
-  }, [semaines, semaine]);
+    if (!semaines.length) return;
+    if (!semaine || !semaines.includes(Number(semaine))) {
+      setSemaine(String(semaineCourante ?? semaines[0]));
+    }
+  }, [semaines, semaineCourante, semaine]);
 
   /* ─── Classes ── */
   const departementsQuery = useQuery({
@@ -95,57 +116,56 @@ export default function SalleSaisirPage() {
     },
     enabled: !!annee,
   });
-  const departements = departementsQuery.data ?? [];
+  const departements = useMemo(() => departementsQuery.data ?? [], [departementsQuery.data]);
+
+  // Une classe mémorisée qui n'est plus proposée est oubliée ; une seule
+  // classe proposée est choisie d'office.
+  useEffect(() => {
+    if (!departements.length) return;
+    if (selDepId && !departements.some(d => String(d.id) === selDepId)) setSelDepId('');
+    else if (!selDepId && departements.length === 1) setSelDepId(String(departements[0].id));
+  }, [departements, selDepId]);
 
   const initLoading = semainesQuery.isLoading || departementsQuery.isLoading;
 
-  /* ─── Séances ── */
+  /* ─── Les séances de la SEMAINE de la classe (tous les jours) ──
+     Une requête : séances dédoublonnées, triées par jour puis créneau, TP des
+     sous-groupes compris, chacune avec le bilan de son appel. */
   const seancesQuery = useQuery({
-    queryKey: ['suivi', 'suivies', 'list', { annee, ts, semaine }] as const,
-    queryFn:  () => apiFetch<{ results: SuivieRow[] } | SuivieRow[]>(
-      // type_semestre : borne à la session courante (un même n° de semaine
-      // existe en Impair ET Pair) — évite de mélanger les 2 semestres.
-      `/api/v1/suivi/suivies/?annee_universitaire=${annee}&type_semestre=${ts}&numero_semaine=${semaine}&page_size=500`,
+    queryKey: ['absences', 'fiches-seances', { annee, ts, semaine, selDepId }] as const,
+    queryFn:  () => apiFetch<SeanceRow[]>(
+      // type_semestre : un même n° de semaine existe en Impair ET Pair.
+      `/api/v1/absences/presences/fiches-seances/?annee_universitaire=${encodeURIComponent(annee)}`
+      + `&type_semestre=${ts}&numero_semaine=${semaine}&departement=${selDepId}`,
     ),
     enabled: !!annee && !!semaine && !!selDepId,
   });
-  const loading = seancesQuery.isLoading || seancesQuery.isFetching;
-  const error = seancesQuery.error
-    ? (seancesQuery.error instanceof Error ? seancesQuery.error.message : 'Erreur de chargement.')
+  // Le premier chargement seulement : un rafraîchissement (retour d'un appel)
+  // ne remplace pas la liste par un sablier.
+  const loading = seancesQuery.isLoading;
+  const firstError = seancesQuery.error ?? semainesQuery.error;
+  const error = firstError
+    ? (firstError instanceof Error ? firstError.message : 'Erreur de chargement.')
     : null;
 
-  const seances = useMemo<SuivieRow[]>(() => {
-    if (!seancesQuery.data || !selDepId) return [];
-    const all = Array.isArray(seancesQuery.data) ? seancesQuery.data : seancesQuery.data.results;
-    const filtered = all.filter(s =>
-      s.jour_label === jourFilter &&
-      s.prof_nom &&
-      s.type_seance_label &&
-      s.departement === Number(selDepId),
-    );
-    const seen = new Set<string>();
-    const unique: SuivieRow[] = [];
-    for (const s of filtered) {
-      const key = `${s.creneau_label}|${s.type_seance_label}|${s.prof_nom}|${s.departement}`;
-      if (!seen.has(key)) { seen.add(key); unique.push(s); }
-    }
-    unique.sort((a, b) => (a.creneau_label ?? '').localeCompare(b.creneau_label ?? ''));
-    return unique;
-  }, [seancesQuery.data, selDepId, jourFilter]);
+  const deLaSemaine = useMemo(() => seancesQuery.data ?? [], [seancesQuery.data]);
+  const parJour = useMemo(() => bilanParJour(deLaSemaine), [deLaSemaine]);
 
-  // Jours qui portent une séance pour ce groupe et cette semaine. Le filtre
-  // par défaut est le jour COURANT : s'il n'y a cours ni ce jour-là ni dans
-  // cette semaine, l'écran répondait « aucune séance » sans dire où en
-  // trouver, et l'on pouvait parcourir les six jours pour rien.
-  const joursAvecSeances = useMemo<Set<string>>(() => {
-    if (!seancesQuery.data || !selDepId) return new Set();
-    const all = Array.isArray(seancesQuery.data) ? seancesQuery.data : seancesQuery.data.results;
-    return new Set(
-      all.filter(s => s.prof_nom && s.type_seance_label && s.departement === Number(selDepId))
-         .map(s => s.jour_label)
-         .filter((j): j is string => !!j),
-    );
-  }, [seancesQuery.data, selDepId]);
+  // Le jour proposé : le choisi s'il a cours, sinon aujourd'hui, sinon le
+  // premier jour qui a cours — jamais une journée vide.
+  useEffect(() => {
+    if (!seancesQuery.data) return;
+    const propose = jourAProposer(JOURS, parJour, jourFilter || null, aujourdhui);
+    if (propose && propose !== jourFilter) setJourFilter(propose);
+  }, [seancesQuery.data, parJour, jourFilter, aujourdhui]);
+
+  useEffect(() => {
+    if (selDepId || semaine || jourFilter) garderChoix({ dep: selDepId, semaine, jour: jourFilter });
+  }, [selDepId, semaine, jourFilter]);
+
+  const seances = useMemo(() => deLaSemaine.filter(s => s.jour_label === jourFilter),
+                          [deLaSemaine, jourFilter]);
+  const bilanDuJour = parJour.get(jourFilter);
 
   const peutAfficher = semaine && selDepId;
 
@@ -176,11 +196,11 @@ export default function SalleSaisirPage() {
               <Loader2 size={12} className="animate-spin" /> Chargement…
             </div>
           ) : (
-            <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Classe */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  Groupe / Classe <span className="text-[#C82020]">*</span>
+                  Classe <span className="text-[#C82020]">*</span>
                 </label>
                 <select
                   value={selDepId}
@@ -194,44 +214,55 @@ export default function SalleSaisirPage() {
                 </select>
               </div>
 
-              {/* Semaine */}
+              {/* Semaine, avec ses dates */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">Semaine</label>
                 <select value={semaine} onChange={e => setSemaine(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:border-[#C82020]">
-                  <option value="">— Choisir —</option>
-                  {semaines.map(s => <option key={s} value={s}>Semaine {s}</option>)}
+                  {semaines.length === 0 && <option value="">Aucune semaine générée</option>}
+                  {semaines.map(s => (
+                    <option key={s} value={s}>
+                      Semaine {s}
+                      {datesSemaines[String(s)] ? ` · ${libelleDates(datesSemaines[String(s)])}` : ''}
+                      {s === semaineCourante ? ' · en cours' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
-            </>
+            </div>
           )}
 
-          {/* Jour */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Jour</label>
-            <div className="flex gap-1 flex-wrap">
-              {JOURS.map(j => {
-                const porte = joursAvecSeances.has(j);
-                return (
-                <button key={j} onClick={() => setJourFilter(j)}
-                  title={porte ? undefined : 'Aucune séance ce jour pour ce groupe'}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                    inline-flex items-center gap-1.5 ${
-                    jourFilter === j ? 'text-white'
-                      : porte ? 'border border-gray-200 text-gray-700 hover:bg-gray-50'
-                              : 'border border-gray-100 text-gray-300'
-                  }`}
-                  style={jourFilter === j ? { background: '#C82020' } : {}}>
-                  {porte && (
-                    <span className="w-1.5 h-1.5 rounded-full"
-                          style={{ background: jourFilter === j ? '#fff' : '#C82020' }} />
-                  )}
-                  {j}
-                </button>
-                );
-              })}
+          {/* Jour : sa date, et ses appels faits / à faire. Une journée sans
+              cours ne s'ouvre pas. */}
+          {peutAfficher && !loading && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Jour</label>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {JOURS.map(j => {
+                  const b = parJour.get(j);
+                  const actif = jourFilter === j;
+                  const toutFait = !!b && b.faits === b.seances;
+                  const estAujourdhui = b?.date === aujourdhui;
+                  return (
+                    <button key={j} onClick={() => b && setJourFilter(j)} disabled={!b}
+                      className={`rounded-xl px-2 py-1.5 text-left transition-colors ${
+                        actif ? 'text-white' : b ? 'border border-gray-200 hover:bg-gray-50' : 'border border-dashed border-gray-200 opacity-40 cursor-not-allowed'
+                      }`}
+                      style={actif ? { background: '#C82020' } : {}}
+                      title={b ? `${b.seances} séance(s), ${b.faits} appel(s) fait(s)` : 'Aucune séance'}>
+                      <span className="block text-xs font-bold">
+                        {j} {jourMois(b?.date)}
+                        {estAujourdhui && <span className={actif ? '' : 'text-[#C82020]'}> •</span>}
+                      </span>
+                      <span className={`block text-[10px] ${actif ? 'text-white/90' : toutFait ? 'text-[#006633]' : 'text-gray-500'}`}>
+                        {b ? (toutFait ? '✓ appels faits' : `${b.faits}/${b.seances} appel${b.seances > 1 ? 's' : ''}`) : '—'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Erreur */}
@@ -241,11 +272,11 @@ export default function SalleSaisirPage() {
           </div>
         )}
 
-        {/* Invite si groupe non sélectionné */}
+        {/* Invite si classe non sélectionnée */}
         {!selDepId && !initLoading && (
           <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
             <BookOpen size={28} className="mx-auto mb-2 text-gray-200" />
-            <p className="text-sm text-gray-400">Sélectionnez un groupe pour voir les séances.</p>
+            <p className="text-sm text-gray-400">Sélectionnez une classe pour voir les séances.</p>
           </div>
         )}
 
@@ -259,44 +290,36 @@ export default function SalleSaisirPage() {
           ) : seances.length === 0 ? (
             <div className="bg-white rounded-2xl p-10 text-center shadow-sm border border-gray-100">
               <Clock size={32} className="mx-auto mb-3 text-gray-200" />
-              <p className="text-sm font-semibold text-gray-600">
-                Aucune séance le {jourFilter.toLowerCase()}
-              </p>
-              {joursAvecSeances.size > 0 ? (
-                <>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Ce groupe a cours en semaine {semaine} le :
-                  </p>
-                  <div className="flex gap-1.5 justify-center flex-wrap mt-2">
-                    {JOURS.filter(j => joursAvecSeances.has(j)).map(j => (
-                      <button key={j} onClick={() => setJourFilter(j)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200
-                                   text-gray-700 hover:bg-gray-50 transition-colors">
-                        {j}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs text-gray-400 mt-1">
-                  Aucune séance pour ce groupe en semaine {semaine}. Le suivi de la
-                  semaine a-t-il été généré depuis l&apos;emploi du temps ?
-                </p>
-              )}
+              <p className="text-sm font-semibold text-gray-600">Aucune séance cette semaine</p>
+              <p className="text-xs text-gray-400 mt-1">Choisissez une autre semaine ou une autre classe.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
-                {seances.length} séance(s) — {jourFilter}
-              </p>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  {jourFilter} {jourMois(bilanDuJour?.date)} — {seances.length} séance{seances.length > 1 ? 's' : ''}
+                </p>
+                {bilanDuJour && (
+                  <p className={`text-xs font-semibold ${bilanDuJour.faits === bilanDuJour.seances ? 'text-[#006633]' : 'text-gray-500'}`}>
+                    {bilanDuJour.faits === bilanDuJour.seances
+                      ? <span className="inline-flex items-center gap-1"><CheckCircle size={12} /> Tous les appels sont faits</span>
+                      : `${bilanDuJour.seances - bilanDuJour.faits} appel${bilanDuJour.seances - bilanDuJour.faits > 1 ? 's' : ''} à faire`}
+                  </p>
+                )}
+              </div>
               {seances.map(s => {
                 const label = s.type_seance_label || '?';
                 const { bg, color } = seanceTypeColor(label);
                 const creneau = s.creneau_label || null;
+                const fait = s.appel.saisi;
+                // À venir : signalé, mais ouvrable — une absence se saisit
+                // parfois d'avance (absence annoncée).
+                const aVenir = !!s.date_suivie && s.date_suivie > aujourdhui;
 
                 return (
-                  <Link key={s.id} href={`/dashboard/absences/saisir/salle/${s.id}?depId=${selDepId}`}
-                    className="block bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all active:scale-[0.99]">
+                  <Link key={s.id} href={`/dashboard/absences/saisir/salle/${s.id}`}
+                    className={`block bg-white rounded-2xl p-4 shadow-sm border hover:shadow-md transition-all active:scale-[0.99] ${
+                      fait ? 'border-green-100' : 'border-gray-100 hover:border-gray-200'}`}>
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs"
                         style={{ background: bg, color }}>
@@ -304,17 +327,23 @@ export default function SalleSaisirPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-gray-900 truncate">
-                          {s.em_intitule || '—'}
+                          {s.em_intitule || label}
+                          {/* Un TP n'appelle que son sous-groupe : on le dit. */}
+                          {s.sous_groupe && s.groupe && (
+                            <span className="ml-1.5 px-1.5 rounded bg-green-50 text-green-800 text-[10px] font-semibold align-middle">
+                              {s.groupe}
+                            </span>
+                          )}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-2">
+                          {creneau && (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-gray-700">
+                              <Clock size={10} /> {creneau}
+                            </span>
+                          )}
                           {s.prof_nom && (
                             <span className="flex items-center gap-1 text-xs text-gray-500">
                               <User size={10} /> {s.prof_nom}
-                            </span>
-                          )}
-                          {creneau && (
-                            <span className="flex items-center gap-1 text-xs text-gray-500">
-                              <Clock size={10} /> {creneau}
                             </span>
                           )}
                           {s.salle_nom && (
@@ -324,8 +353,25 @@ export default function SalleSaisirPage() {
                           )}
                         </div>
                       </div>
-                      <div className="text-gray-300 shrink-0 self-center">
-                        <ArrowLeft size={16} className="rotate-180" />
+                      {/* L'appel : fait (et son bilan), ou à faire. */}
+                      <div className="shrink-0 self-center text-right">
+                        {fait ? (
+                          <>
+                            <p className="text-[11px] font-bold text-[#006633]">✓ Appel fait</p>
+                            <p className="text-[11px]"
+                              style={{ color: s.appel.absents ? '#C82020' : '#6b7280' }}>
+                              {libelleBilan(s.appel)}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span className="inline-block text-[11px] font-bold text-white px-2.5 py-1 rounded-lg"
+                              style={{ background: '#C82020' }}>
+                              Appel à faire
+                            </span>
+                            {aVenir && <p className="text-[10px] text-gray-400 mt-0.5">à venir</p>}
+                          </>
+                        )}
                       </div>
                     </div>
                   </Link>

@@ -28,8 +28,10 @@ import {
  * Source : l'emploi du temps vivant et les épreuves (apps/ipgei/surveillance.py).
  * La case ouvre la saisie des absences de SA ligne de suivi, qui ramène ici,
  * sur la même journée — seulement là où elle s'ouvrira (`pointable`, calculé
- * au serveur avec les règles de l'écran de saisie). Module RBAC
- * « surveillance » : DA et AA par défaut.
+ * au serveur avec les règles de l'écran de saisie). Elle dit aussi où en est
+ * son appel — « ✓ Appel » ou « Appel à faire » —, et l'en-tête compte les
+ * appels du jour (17/10/2026). Module RBAC « surveillance » : DA et AA par
+ * défaut.
  */
 
 const CASE = 'border border-gray-200 align-top';
@@ -77,7 +79,24 @@ function Marque({ children, ton }: { children: React.ReactNode; ton: 'vert' | 'a
   );
 }
 
-function Case({ c, lien, motif }: { c?: CaseSurveillance; lien: string | null; motif: string }) {
+/** Une séance où l'on fait l'appel : le serveur n'en donne l'état que là
+ *  (ni séance spéciale, ni épreuve, ni annulée, ni journée à venir). */
+const avecAppel = (c: CaseSurveillance | undefined): c is CaseSurveillance & {
+  appel: NonNullable<CaseSurveillance['appel']>;
+} => !!c && !c.special && !c.evaluation && !c.annulee && !!c.appel;
+
+/** Le bilan d'un appel fait, en une ligne pour l'infobulle. */
+function bilanAppel(a: NonNullable<CaseSurveillance['appel']>): string {
+  return [`${a.presents} présent${a.presents > 1 ? 's' : ''}`,
+          `${a.absents} absent${a.absents > 1 ? 's' : ''}`,
+          a.sanctions ? `${a.sanctions} sanctionné${a.sanctions > 1 ? 's' : ''}` : '',
+          a.justifiees ? `${a.justifiees} justifié${a.justifiees > 1 ? 's' : ''}` : '',
+         ].filter(Boolean).join(' · ');
+}
+
+function Case({ c, lien, motif, commencee }: {
+  c?: CaseSurveillance; lien: string | null; motif: string; commencee: boolean;
+}) {
   if (!c) {
     return <div className="h-full min-h-[84px] flex items-center justify-center text-xs text-gray-400">libre</div>;
   }
@@ -140,6 +159,18 @@ function Case({ c, lien, motif }: { c?: CaseSurveillance; lien: string | null; m
           <Marque ton="ambre">Deux séances sur ce créneau</Marque>
         </span>
       )}
+      {/* L'état de l'appel : on voit d'un coup d'œil où il manque. Rien pour
+          une séance qui n'a pas commencé, spéciale ou d'examen. */}
+      {avecAppel(c) && commencee && (c.appel.saisi
+        ? <span className="self-start px-1.5 rounded text-[10px] font-bold bg-green-50 text-[#006633]"
+                title={bilanAppel(c.appel)}>
+            ✓ Appel{c.appel.absents + c.appel.sanctions + c.appel.justifiees > 0
+              ? ` · ${c.appel.absents + c.appel.sanctions + c.appel.justifiees} abs.` : ''}
+          </span>
+        : <span className="self-start px-1.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700"
+                title="Aucune présence enregistrée pour cette séance.">
+            Appel à faire
+          </span>)}
       {lien && (
         <div className="mt-auto pt-0.5 text-[11px] text-[#006633] font-semibold inline-flex items-center gap-1">
           <UserCheck size={11} /> Absences
@@ -232,6 +263,24 @@ export default function VueSurveillancePage() {
   const lienDe = (c: CaseSurveillance | undefined, creneau: string) =>
     c && c.pointable && c.suivi && !j?.a_venir && commence(creneau) ? lienAbsences(c.suivi, date) : null;
 
+  // Les appels du jour : les séances commencées où l'on fait l'appel, chacune
+  // UNE fois — la case d'un sous-groupe qui suit sa classe porte la même
+  // séance que la classe.
+  const appelsDuJour = (() => {
+    if (!j || j.a_venir) return null;
+    const parSeance = new Map<number, boolean>();
+    for (const g of j.groupes) {
+      for (const c of j.creneaux) {
+        const k = j.cases[`${g.id}:${c.id}`];
+        if (avecAppel(k) && k.seance != null && commence(c.libelle)) {
+          parSeance.set(k.seance, k.appel.saisi);
+        }
+      }
+    }
+    if (parSeance.size === 0) return null;
+    return { seances: parSeance.size, faits: [...parSeance.values()].filter(Boolean).length };
+  })();
+
   const ligneGroupe = (g: GroupeSurveillance) => (
     <tr key={g.id} className={g.sous_groupe ? 'bg-gray-50/40' : undefined}>
       <td className={CASE + ' px-3 py-2 align-middle ' + (g.sous_groupe ? 'pl-7 text-sm font-semibold text-iss-gray' : 'font-bold text-iss-dark')}>
@@ -241,7 +290,8 @@ export default function VueSurveillancePage() {
         const k = j!.cases[`${g.id}:${c.id}`];
         return (
           <td key={c.id} className={CASE + (c.id === creneauEnCours ? ' bg-green-50/60' : '')}>
-            <Case c={k} lien={lienDe(k, c.libelle)} motif={j!.a_venir ? '' : (k?.motif ?? '')} />
+            <Case c={k} lien={lienDe(k, c.libelle)} motif={j!.a_venir ? '' : (k?.motif ?? '')}
+                  commencee={!j!.a_venir && commence(c.libelle)} />
           </td>
         );
       })}
@@ -315,6 +365,17 @@ export default function VueSurveillancePage() {
                 Journée sans cours ({j.type_semaine}) — aucune classe n&apos;est attendue
               </span>
             )}
+            {/* Le compteur des appels du jour (17/10/2026). */}
+            {appelsDuJour && (
+              <span className={'px-2 py-0.5 rounded border text-xs font-semibold ' + (
+                appelsDuJour.faits === appelsDuJour.seances
+                  ? 'bg-green-50 text-[#006633] border-green-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200')}>
+                {appelsDuJour.faits === appelsDuJour.seances
+                  ? '✓ Tous les appels sont faits'
+                  : `${appelsDuJour.faits}/${appelsDuJour.seances} appels faits`}
+              </span>
+            )}
             {!j.dans_le_calendrier && (
               <span className="px-2 py-0.5 rounded bg-gray-50 text-iss-gray border border-gray-200 text-xs font-semibold">
                 Hors calendrier de l&apos;année {annee}
@@ -359,6 +420,7 @@ export default function VueSurveillancePage() {
           <p className="px-4 py-2 text-[11px] text-iss-gray border-t border-gray-100">
             Salle en gros : c&apos;est là qu&apos;on vérifie. Rouge : devoir ou examen. « Réuni » : même cours, même salle ;
             « En parallèle » : même cours, autre salle. « Avec la classe » : le sous-groupe suit le cours de sa classe.
+            « ✓ Appel » / « Appel à faire » : l&apos;appel de la séance est enregistré, ou pas encore.
             {j.droits_saisie && !j.a_venir && ' Cliquez une séance commencée pour marquer ses absences.'}
           </p>
         </div>
